@@ -28,10 +28,9 @@ rke2:
 
 aether_ops:
   version: "v0.0.0-dev"
-  ref: "main"  # build from source at this git ref
+  source: ./build/aether-ops  # local pre-built binary
+  # ref: "main"        # build from source at this git ref (mutually exclusive with source)
   # repo: aether-gui/aether-ops
-  # frontend_repo: aether-gui/aether-ops-web
   # frontend_ref: ""   # override frontend submodule (source build only)
-  # source: ./build/aether-ops  # local pre-built binary (mutually exclusive with ref)
 
 templates_dir: ./templates

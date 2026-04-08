@@ -53,13 +53,15 @@ func TestExtractFileFromTarGzMissing(t *testing.T) {
 }
 
 func TestExecCmdSuccess(t *testing.T) {
-	if err := execCmd(context.Background(), "", "echo", "hello"); err != nil {
+	// Use "go version" which is always available during go test.
+	if err := execCmd(context.Background(), "", "go", "version"); err != nil {
 		t.Fatalf("execCmd: %v", err)
 	}
 }
 
 func TestExecCmdFailure(t *testing.T) {
-	if err := execCmd(context.Background(), "", "false"); err == nil {
+	// Use "go" with an invalid subcommand to get a non-zero exit.
+	if err := execCmd(context.Background(), "", "go", "nosuchcommand"); err == nil {
 		t.Fatal("should fail on non-zero exit")
 	}
 }

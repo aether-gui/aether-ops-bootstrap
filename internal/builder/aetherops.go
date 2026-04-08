@@ -141,7 +141,7 @@ func buildAetherOpsFromSource(ctx context.Context, spec *bundle.AetherOpsSpec, a
 	}
 	defer os.RemoveAll(workspace)
 
-	repoURL := fmt.Sprintf("git@github.com:%s.git", spec.Repo)
+	repoURL := fmt.Sprintf("https://github.com/%s.git", spec.Repo)
 
 	// Clone. Try --branch first (works for tags and branches).
 	// If it fails (e.g., a commit SHA), clone default and checkout.
@@ -206,10 +206,10 @@ func buildAetherOpsFromSource(ctx context.Context, spec *bundle.AetherOpsSpec, a
 
 	// Build binary.
 	binaryPath := filepath.Join(aopsDir, "aether-ops")
-	log.Printf("building aether-ops binary (CGO_ENABLED=0)")
+	log.Printf("building aether-ops binary (CGO_ENABLED=0 GOOS=linux GOARCH=amd64)")
 	buildCmd := exec.CommandContext(ctx, "go", "build", "-trimpath", "-ldflags", ldflags, "-o", binaryPath, "./cmd/aether-ops")
 	buildCmd.Dir = workspace
-	buildCmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+	buildCmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64")
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("go build: %w\n%s", err, output)
 	}

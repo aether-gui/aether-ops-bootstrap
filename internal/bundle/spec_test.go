@@ -73,16 +73,12 @@ func TestParseSpec(t *testing.T) {
 	if s.AetherOps.Version != "v0.0.0-dev" {
 		t.Errorf("AetherOps.Version = %q, want %q", s.AetherOps.Version, "v0.0.0-dev")
 	}
-	if s.AetherOps.Ref != "main" {
-		t.Errorf("AetherOps.Ref = %q, want %q", s.AetherOps.Ref, "main")
+	if s.AetherOps.Source != "./build/aether-ops" {
+		t.Errorf("AetherOps.Source = %q, want %q", s.AetherOps.Source, "./build/aether-ops")
 	}
 	if s.AetherOps.Repo != DefaultAetherOpsRepo {
 		t.Errorf("AetherOps.Repo = %q, want default %q", s.AetherOps.Repo, DefaultAetherOpsRepo)
 	}
-	if s.AetherOps.FrontendRepo != DefaultAetherOpsFrontendRepo {
-		t.Errorf("AetherOps.FrontendRepo = %q, want default %q", s.AetherOps.FrontendRepo, DefaultAetherOpsFrontendRepo)
-	}
-
 	// Templates.
 	if s.TemplatesDir != "./templates" {
 		t.Errorf("TemplatesDir = %q, want %q", s.TemplatesDir, "./templates")
