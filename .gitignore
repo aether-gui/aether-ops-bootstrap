@@ -17,9 +17,15 @@ docs/generated/
 vendor/
 
 # Editor
-.idea/
 .vscode/
 *.swp
 *.swo
 *~
 .DS_Store
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
