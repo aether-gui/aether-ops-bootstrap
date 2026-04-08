@@ -2,14 +2,13 @@ schema_version: 1
 bundle_version: "0.0.0-dev"
 
 ubuntu:
-  suites: [jammy, noble]
+  suites: [noble]
   architectures: [amd64]
 
 # Top-level packages to vendor. The builder resolves transitive
 # dependencies automatically per (suite, arch) pair.
 debs:
   - name: ansible
-    version: ">=2.14"
   - name: git
   - name: make
   - name: curl
