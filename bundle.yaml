@@ -14,6 +14,8 @@ debs:
   - name: make
   - name: curl
   - name: jq
+  - name: ssh
+  - name: sshpass
 
 rke2:
   version: "v1.33.1+rke2r1"
