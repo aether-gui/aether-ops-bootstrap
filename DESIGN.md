@@ -16,6 +16,61 @@ The full system is described as a stack of three layers. This vocabulary is used
 
 Relationship verbs: the OS layer *hosts* the platform layer; the platform layer *manages* the cellular layer; the cellular layer *contains* network functions.
 
+## System Overview
+
+### Three-Layer Architecture
+
+```mermaid
+block-beta
+    columns 1
+    block:cellular["Cellular Layer"]
+        upf["UPF"] amf["AMF"] smf["SMF"] nrf["NRF"]
+    end
+    block:platform["Platform Layer (installed by bootstrap)"]
+        rke2["RKE2"] aops["aether-ops"] prereqs["git, make, ansible"] sshsudo["SSH + sudo config"]
+    end
+    block:os["OS Layer"]
+        ubuntu["Ubuntu Server 22.04–26.04"] kernel["Kernel"] dpkg["dpkg, coreutils"]
+    end
+
+    cellular --> platform
+    platform --> os
+
+    style cellular fill:#f9e2af,stroke:#df8e1d,color:#000
+    style platform fill:#89b4fa,stroke:#1d7af3,color:#000
+    style os fill:#a6e3a1,stroke:#40a02b,color:#000
+```
+
+The bootstrap owns the **platform layer** only. The OS layer is pre-installed by the operator. The cellular layer is managed by aether-ops after handoff.
+
+### Artifact Relationship
+
+```mermaid
+flowchart LR
+    subgraph Repository
+        spec["bundle.yaml<br/><i>human-edited</i>"]
+        lockfile["bundle.lock.json<br/><i>generated, committed</i>"]
+        launcher_src["cmd/aether-ops-bootstrap<br/><i>Go source</i>"]
+        builder_src["cmd/build-bundle<br/><i>Go source</i>"]
+        shared["internal/bundle<br/><i>shared manifest types</i>"]
+    end
+
+    subgraph "Release Artifacts"
+        launcher["aether-ops-bootstrap<br/><i>static binary, semver</i>"]
+        bundle["bundle.tar.zst<br/><i>offline payload, calver</i>"]
+        manifest["manifest.json<br/><i>inside bundle</i>"]
+    end
+
+    spec --> builder_src
+    lockfile --> builder_src
+    builder_src --> bundle
+    bundle --> manifest
+    launcher_src --> launcher
+    shared --> launcher_src
+    shared --> builder_src
+    launcher -.->|"reads at runtime"| manifest
+```
+
 ## Scope of the bootstrap
 
 The bootstrap's responsibility begins at "a human just finished the Ubuntu installer and logged in once" and ends at "aether-ops is running, healthy, and reachable, with RKE2 underneath it." Specifically:
@@ -86,6 +141,38 @@ Versioned with calver (e.g. `2026.04.1`). The `manifest.json` is the contract be
 - **`check`** — preflight and plan only, no changes. Dry-run.
 - **`state`** — print the current state file.
 - **`version`** — print launcher version, and bundle version if a bundle is present.
+
+### Component Lifecycle
+
+Every launcher command (`install`, `upgrade`, `repair`) follows the same loop. The `check` command runs the same loop but stops after Plan (dry-run).
+
+```mermaid
+flowchart TD
+    start(["Command: install / upgrade / repair"])
+    load_bundle["Load bundle manifest"]
+    load_state["Load state file"]
+
+    subgraph "For each component (in order)"
+        desired["DesiredVersion(manifest)"]
+        current["CurrentVersion(state)"]
+        plan["Plan(current, desired)"]
+        noop{{"No-op?"}}
+        apply["Apply(ctx, plan)"]
+        update_state["Update state file"]
+        skip["Skip"]
+    end
+
+    done(["Write final state, exit"])
+
+    start --> load_bundle --> load_state
+    load_state --> desired --> current --> plan --> noop
+    noop -->|yes| skip --> desired
+    noop -->|no| apply --> update_state --> desired
+    update_state --> done
+    skip --> done
+
+    style noop fill:#f9e2af,stroke:#df8e1d,color:#000
+```
 
 ### The Component interface
 
@@ -167,6 +254,49 @@ templates_dir: ./templates
 ```
 
 To bump RKE2: edit one line, open a PR, merge. The diff is the changelog.
+
+### Build Pipeline
+
+```mermaid
+flowchart TD
+    spec["bundle.yaml"]
+
+    subgraph resolve["1. Resolve"]
+        resolve_debs["Resolve .debs<br/><i>per suite × arch</i>"]
+        resolve_rke2["Resolve RKE2<br/><i>GitHub release URLs</i>"]
+        resolve_aops["Resolve aether-ops<br/><i>artifact source URL</i>"]
+    end
+
+    subgraph fetch["2. Fetch + Verify"]
+        fetch_debs["Download .debs<br/><i>SHA256 from Packages index</i>"]
+        fetch_rke2["Download RKE2<br/><i>SHA256 from release checksums</i>"]
+        fetch_aops["Download aether-ops<br/><i>SHA256 from source</i>"]
+        cache[("Content-addressed<br/>cache")]
+    end
+
+    subgraph lock["3. Lock"]
+        lockcheck{"Lock exists?"}
+        write_lock["Write bundle.lock.json"]
+        verify_lock["Verify against lock"]
+    end
+
+    subgraph assemble["4. Assemble"]
+        stage["Stage into bundle tree"]
+        gen_manifest["Generate manifest.json"]
+        tar_zst["tar + zstd → bundle.tar.zst"]
+        sign["Sign bundle"]
+        gen_docs["Generate SBOM, BUNDLE_CONTENTS.md"]
+    end
+
+    spec --> resolve
+    resolve_debs --> fetch_debs --> cache
+    resolve_rke2 --> fetch_rke2 --> cache
+    resolve_aops --> fetch_aops --> cache
+    cache --> lockcheck
+    lockcheck -->|no| write_lock --> stage
+    lockcheck -->|yes| verify_lock --> stage
+    stage --> gen_manifest --> tar_zst --> sign --> gen_docs
+```
 
 ### Build steps
 

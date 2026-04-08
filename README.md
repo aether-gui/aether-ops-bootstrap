@@ -6,6 +6,52 @@ Two artifacts are produced: a statically linked Go launcher binary and an offlin
 
 See [DESIGN.md](DESIGN.md) for full architecture and design details.
 
+## How It Works
+
+### Building the Bundle
+
+The `build-bundle` tool reads a declarative spec (`bundle.yaml`) and assembles an offline payload containing all dependencies — no manual downloading or packaging.
+
+```mermaid
+flowchart LR
+    spec["bundle.yaml<br/><i>human-edited spec</i>"]
+    resolve["Resolve"]
+    fetch["Fetch"]
+    verify["Verify"]
+    lock["Lock"]
+    stage["Stage"]
+    assemble["Assemble"]
+    lockfile["bundle.lock.json"]
+    tarball["bundle.tar.zst"]
+    manifest["manifest.json"]
+
+    spec --> resolve --> fetch --> verify --> lock --> stage --> assemble
+    lock --> lockfile
+    assemble --> tarball
+    assemble --> manifest
+```
+
+### Bootstrapping a Host
+
+The launcher binary reads the bundle, walks each component in dependency order, and brings the host from bare Ubuntu to a running aether-ops management plane.
+
+```mermaid
+flowchart TD
+    start(["aether-ops-bootstrap install"])
+    preflight["Preflight<br/><i>OS version, arch, disk, RAM</i>"]
+    debs["Install .debs<br/><i>git, make, ansible + deps</i>"]
+    ssh["Configure SSH<br/><i>sshd drop-ins, keypair</i>"]
+    sudoers["Configure sudoers<br/><i>drop-in for service account</i>"]
+    svcacct["Create service account<br/><i>useradd, groupadd</i>"]
+    rke2["Install RKE2<br/><i>extract, config, systemd, wait</i>"]
+    aetherops["Install aether-ops<br/><i>binary, config, systemd, wait</i>"]
+    done(["Handoff complete"])
+
+    start --> preflight --> debs --> ssh --> sudoers --> svcacct --> rke2 --> aetherops --> done
+```
+
+Each component follows the same **Plan/Apply** pattern: compare current state to the bundle's desired state, compute what needs to change, then apply it. If nothing changed, the component is a no-op — making every run idempotent.
+
 ## Quick Start
 
 ```bash
