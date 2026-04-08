@@ -1,0 +1,31 @@
+schema_version: 1
+bundle_version: "0.0.0-dev"
+
+ubuntu:
+  suites: [jammy, noble]
+  architectures: [amd64]
+
+# Top-level packages to vendor. The builder resolves transitive
+# dependencies automatically per (suite, arch) pair.
+debs:
+  - name: ansible
+    version: ">=2.14"
+  - name: git
+  - name: make
+  - name: curl
+  - name: jq
+
+rke2:
+  version: "v1.33.1+rke2r1"
+  variants: [canal]
+  # "all-in-one": single rke2-images tarball per arch (includes default canal CNI)
+  # "core+variant": rke2-images-core + per-variant image tarball
+  image_mode: all-in-one
+  # source: https://github.com/rancher/rke2/releases/download
+  #   ↑ optional override; defaults to GitHub releases
+
+aether_ops:
+  version: "0.0.0-dev"
+  source: "file://./build/aether-ops"
+
+templates_dir: ./templates

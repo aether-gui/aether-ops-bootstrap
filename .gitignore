@@ -1,0 +1,31 @@
+# Build output
+dist/
+build/
+
+# Generated docs
+docs/generated/
+
+# Bundle artifacts
+*.tar.zst
+*.tar.gz
+*.deb
+
+# Go
+*.exe
+*.test
+*.out
+vendor/
+
+# Editor
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
