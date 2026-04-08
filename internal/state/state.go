@@ -30,8 +30,8 @@ type State struct {
 // The ConfigHash lets upgrade detect drift when templates change between
 // bundle versions without the component binary itself changing.
 type ComponentState struct {
-	Version    string    `json:"version"`
-	ConfigHash string    `json:"config_hash"`
+	Version     string    `json:"version"`
+	ConfigHash  string    `json:"config_hash"`
 	InstalledAt time.Time `json:"installed_at"`
 }
 

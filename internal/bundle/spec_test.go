@@ -93,7 +93,7 @@ rke2:
 `
 	dir := t.TempDir()
 	path := filepath.Join(dir, "spec.yaml")
-	os.WriteFile(path, []byte(yaml), 0644)
+	_ = os.WriteFile(path, []byte(yaml), 0644)
 
 	s, err := ParseSpec(path)
 	if err != nil {
@@ -119,7 +119,7 @@ func TestParseSpecMissingFile(t *testing.T) {
 func TestParseSpecInvalidYAML(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.yaml")
-	os.WriteFile(path, []byte("{{not yaml"), 0644)
+	_ = os.WriteFile(path, []byte("{{not yaml"), 0644)
 
 	_, err := ParseSpec(path)
 	if err == nil {

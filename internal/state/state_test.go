@@ -17,8 +17,8 @@ func TestStateRoundTrip(t *testing.T) {
 		BundleHash:      "abc123",
 		Components: map[string]ComponentState{
 			"rke2": {
-				Version:    "v1.33.1+rke2r1",
-				ConfigHash: "def456",
+				Version:     "v1.33.1+rke2r1",
+				ConfigHash:  "def456",
 				InstalledAt: now,
 			},
 		},
@@ -80,7 +80,7 @@ func TestReadMissingFile(t *testing.T) {
 func TestReadInvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.json")
-	os.WriteFile(path, []byte("{invalid"), 0644)
+	_ = os.WriteFile(path, []byte("{invalid"), 0644)
 
 	_, err := Read(path)
 	if err == nil {
@@ -91,7 +91,7 @@ func TestReadInvalidJSON(t *testing.T) {
 func TestReadSchemaVersionMismatch(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
-	os.WriteFile(path, []byte(`{"schema_version": 999}`), 0644)
+	_ = os.WriteFile(path, []byte(`{"schema_version": 999}`), 0644)
 
 	_, err := Read(path)
 	if err == nil {

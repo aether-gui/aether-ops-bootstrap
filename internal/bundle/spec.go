@@ -19,8 +19,8 @@ const (
 
 // Known Ubuntu suite codenames.
 var knownSuites = map[string]bool{
-	"jammy": true, // 22.04
-	"noble": true, // 24.04
+	"jammy":  true, // 22.04
+	"noble":  true, // 24.04
 	"plucky": true, // 25.04
 }
 
@@ -60,7 +60,7 @@ type RKE2Spec struct {
 	Version   string   `yaml:"version"`
 	Variants  []string `yaml:"variants"`
 	ImageMode string   `yaml:"image_mode,omitempty"` // "all-in-one" (default) or "core+variant"
-	Source    string   `yaml:"source,omitempty"`      // base URL, defaults to GitHub releases
+	Source    string   `yaml:"source,omitempty"`     // base URL, defaults to GitHub releases
 }
 
 // AetherOpsSpec declares the aether-ops version and artifact source.

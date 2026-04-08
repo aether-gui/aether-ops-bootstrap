@@ -52,13 +52,13 @@ func (d *DBusManager) Status(ctx context.Context, unit string) (UnitStatus, erro
 // MockManager records calls for testing. Each method appends to Calls
 // and returns the error configured in the corresponding Err field.
 type MockManager struct {
-	Calls            []MockCall
-	DaemonReloadErr  error
-	StartErr         error
-	StopErr          error
-	EnableErr        error
-	StatusErr        error
-	StatusResult     UnitStatus
+	Calls           []MockCall
+	DaemonReloadErr error
+	StartErr        error
+	StopErr         error
+	EnableErr       error
+	StatusErr       error
+	StatusResult    UnitStatus
 }
 
 // MockCall records a single method invocation on MockManager.

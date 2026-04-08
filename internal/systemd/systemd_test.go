@@ -14,11 +14,11 @@ func TestMockManagerRecordsCalls(t *testing.T) {
 	ctx := context.Background()
 	m := &MockManager{}
 
-	m.DaemonReload(ctx)
-	m.Start(ctx, "rke2-server.service")
-	m.Enable(ctx, "rke2-server.service")
-	m.Stop(ctx, "rke2-server.service")
-	m.Status(ctx, "rke2-server.service")
+	_ = m.DaemonReload(ctx)
+	_ = m.Start(ctx, "rke2-server.service")
+	_ = m.Enable(ctx, "rke2-server.service")
+	_ = m.Stop(ctx, "rke2-server.service")
+	_, _ = m.Status(ctx, "rke2-server.service")
 
 	want := []MockCall{
 		{Method: "DaemonReload"},

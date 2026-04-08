@@ -32,8 +32,8 @@ type BuildInfo struct {
 
 // ComponentList groups all component entries in the manifest.
 type ComponentList struct {
-	Debs      []DebEntry     `json:"debs,omitempty"`
-	RKE2      *RKE2Entry     `json:"rke2,omitempty"`
+	Debs      []DebEntry      `json:"debs,omitempty"`
+	RKE2      *RKE2Entry      `json:"rke2,omitempty"`
 	AetherOps *AetherOpsEntry `json:"aether_ops,omitempty"`
 	Templates *TemplatesEntry `json:"templates,omitempty"`
 }

@@ -13,11 +13,11 @@ type stubComponent struct {
 	name string
 }
 
-func (s *stubComponent) Name() string                                      { return s.name }
-func (s *stubComponent) DesiredVersion(_ *bundle.Manifest) string          { return "" }
-func (s *stubComponent) CurrentVersion(_ *state.State) string              { return "" }
-func (s *stubComponent) Plan(_, _ string) (Plan, error)                    { return Plan{NoOp: true}, nil }
-func (s *stubComponent) Apply(_ context.Context, _ Plan) error             { return nil }
+func (s *stubComponent) Name() string                             { return s.name }
+func (s *stubComponent) DesiredVersion(_ *bundle.Manifest) string { return "" }
+func (s *stubComponent) CurrentVersion(_ *state.State) string     { return "" }
+func (s *stubComponent) Plan(_, _ string) (Plan, error)           { return Plan{NoOp: true}, nil }
+func (s *stubComponent) Apply(_ context.Context, _ Plan) error    { return nil }
 
 func TestRegistryRegisterAndAll(t *testing.T) {
 	r := &Registry{}
