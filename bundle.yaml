@@ -3,7 +3,7 @@ bundle_version: "0.0.0-dev"
 
 ubuntu:
   suites: [jammy, noble]
-  architectures: [amd64, arm64]
+  architectures: [amd64]
 
 # Top-level packages to vendor. The builder resolves transitive
 # dependencies automatically per (suite, arch) pair.
