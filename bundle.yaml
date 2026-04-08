@@ -1,0 +1,21 @@
+schema_version: 1
+bundle_version: "0.0.0-dev"
+
+ubuntu:
+  suites: [jammy, noble]
+  architectures: [amd64, arm64]
+
+debs:
+  - name: ansible
+  - name: git
+  - name: make
+
+rke2:
+  version: "v1.33.1+rke2r1" # TODO: confirm target version
+  variants: [canal]
+
+aether_ops:
+  version: "0.0.0-dev"
+  source: "file://./build/aether-ops"
+
+templates_dir: ./templates
