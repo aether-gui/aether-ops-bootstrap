@@ -48,8 +48,19 @@ func main() {
 		log.Printf("RKE2 artifacts staged (%d files)", len(rke2Entry.Artifacts))
 	}
 
+	// Build aether-ops artifacts.
+	var aetherOpsEntry *bundle.AetherOpsEntry
+	if spec.AetherOps != nil {
+		log.Printf("building aether-ops %s...", spec.AetherOps.Version)
+		aetherOpsEntry, err = builder.BuildAetherOps(ctx, dl, spec.AetherOps, stageDir)
+		if err != nil {
+			log.Fatalf("building aether-ops: %v", err)
+		}
+		log.Printf("aether-ops staged (%d files)", len(aetherOpsEntry.Files))
+	}
+
 	// Generate and write manifest.
-	manifest := builder.BuildManifest(spec, rke2Entry)
+	manifest := builder.BuildManifest(spec, rke2Entry, aetherOpsEntry)
 	manifestPath := filepath.Join(stageDir, "manifest.json")
 	if err := bundle.Write(manifestPath, manifest); err != nil {
 		log.Fatalf("writing manifest: %v", err)
