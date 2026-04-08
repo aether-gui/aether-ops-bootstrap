@@ -1,6 +1,7 @@
 package bundle
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -140,5 +141,27 @@ func TestWriteAndReadEmptyManifest(t *testing.T) {
 	}
 	if got.Components.RKE2 != nil {
 		t.Errorf("RKE2 should be nil for empty manifest")
+	}
+}
+
+func TestReadSchemaVersionMismatch(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad-schema.json")
+
+	if err := os.WriteFile(path, []byte(`{"schema_version": 999}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Read(path)
+	if err == nil {
+		t.Fatal("Read with wrong schema version should return error")
+	}
+
+	var schemaErr *ErrManifestSchema
+	if !errors.As(err, &schemaErr) {
+		t.Fatalf("error should be *ErrManifestSchema, got %T: %v", err, err)
+	}
+	if schemaErr.Got != 999 {
+		t.Errorf("ErrManifestSchema.Got = %d, want 999", schemaErr.Got)
 	}
 }

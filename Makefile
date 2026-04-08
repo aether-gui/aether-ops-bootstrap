@@ -1,14 +1,16 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -X main.version=$(VERSION)
-BUILD_FLAGS := -trimpath -ldflags '$(LDFLAGS)'
 
-.PHONY: build build-bundle build-all test lint install-lint vet clean
+.PHONY: dist build build-bundle build-all test lint install-lint vet clean
 
-build:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(BUILD_FLAGS) -o dist/aether-ops-bootstrap ./cmd/aether-ops-bootstrap
+dist:
+	mkdir -p dist
 
-build-bundle:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(BUILD_FLAGS) -o dist/build-bundle ./cmd/build-bundle
+build: dist
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '$(LDFLAGS)' -o dist/aether-ops-bootstrap ./cmd/aether-ops-bootstrap
+
+build-bundle: dist
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/build-bundle ./cmd/build-bundle
 
 build-all: build build-bundle
 

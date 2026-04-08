@@ -87,7 +87,18 @@ type BundleFile struct {
 	Size   int64  `json:"size"`
 }
 
+// ErrManifestSchema is returned when a manifest has an unrecognized schema version.
+type ErrManifestSchema struct {
+	Got  int
+	Want int
+}
+
+func (e *ErrManifestSchema) Error() string {
+	return fmt.Sprintf("unsupported manifest schema version %d (expected %d)", e.Got, e.Want)
+}
+
 // Read loads a manifest from a JSON file at the given path.
+// Returns an error if the schema version is unrecognized.
 func Read(path string) (*Manifest, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -97,6 +108,10 @@ func Read(path string) (*Manifest, error) {
 	var m Manifest
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, fmt.Errorf("parsing manifest %s: %w", path, err)
+	}
+
+	if m.SchemaVersion != SchemaVersion {
+		return nil, &ErrManifestSchema{Got: m.SchemaVersion, Want: SchemaVersion}
 	}
 
 	return &m, nil

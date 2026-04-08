@@ -93,7 +93,9 @@ rke2:
 `
 	dir := t.TempDir()
 	path := filepath.Join(dir, "spec.yaml")
-	_ = os.WriteFile(path, []byte(yaml), 0644)
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	s, err := ParseSpec(path)
 	if err != nil {
@@ -226,6 +228,7 @@ func TestValidateSpecNoDebs(t *testing.T) {
 		SchemaVersion: 1,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
+		TemplatesDir:  "./templates",
 		Debs:          nil,
 	}
 	// No debs is valid — some bundles might only have RKE2.
@@ -234,11 +237,24 @@ func TestValidateSpecNoDebs(t *testing.T) {
 	}
 }
 
+func TestValidateSpecMissingTemplatesDir(t *testing.T) {
+	s := &Spec{
+		SchemaVersion: 1,
+		BundleVersion: "1.0.0",
+		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
+		TemplatesDir:  "",
+	}
+	if err := ValidateSpec(s); err == nil {
+		t.Fatal("should reject empty templates_dir")
+	}
+}
+
 func TestValidateSpecAetherOpsMissingFields(t *testing.T) {
 	s := &Spec{
 		SchemaVersion: 1,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
+		TemplatesDir:  "./templates",
 		AetherOps:     &AetherOpsSpec{Version: "1.0.0"},
 	}
 	if err := ValidateSpec(s); err == nil {

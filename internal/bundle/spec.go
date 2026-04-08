@@ -147,6 +147,10 @@ func ValidateSpec(s *Spec) error {
 		}
 	}
 
+	if s.TemplatesDir == "" {
+		return fmt.Errorf("templates_dir is required")
+	}
+
 	if s.AetherOps != nil {
 		if s.AetherOps.Version == "" {
 			return fmt.Errorf("aether_ops.version is required when aether_ops section is present")

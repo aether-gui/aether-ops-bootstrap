@@ -80,7 +80,9 @@ func TestReadMissingFile(t *testing.T) {
 func TestReadInvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.json")
-	_ = os.WriteFile(path, []byte("{invalid"), 0644)
+	if err := os.WriteFile(path, []byte("{invalid"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := Read(path)
 	if err == nil {
@@ -91,7 +93,9 @@ func TestReadInvalidJSON(t *testing.T) {
 func TestReadSchemaVersionMismatch(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
-	_ = os.WriteFile(path, []byte(`{"schema_version": 999}`), 0644)
+	if err := os.WriteFile(path, []byte(`{"schema_version": 999}`), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := Read(path)
 	if err == nil {
