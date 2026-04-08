@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -85,7 +86,7 @@ func TestResolveRKE2ArtifactsCustomSource(t *testing.T) {
 	artifacts := ResolveRKE2Artifacts(spec, []string{"amd64"})
 
 	for _, a := range artifacts {
-		if a.URL[:30] != "https://mirror.internal/rke2/v" {
+		if !strings.HasPrefix(a.URL, "https://mirror.internal/rke2/") {
 			t.Errorf("URL should use custom source: %s", a.URL)
 		}
 	}

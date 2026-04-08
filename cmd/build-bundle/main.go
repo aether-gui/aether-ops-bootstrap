@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/builder"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -34,7 +35,7 @@ func main() {
 	defer os.RemoveAll(stageDir)
 
 	ctx := context.Background()
-	dl := &builder.Downloader{Client: http.DefaultClient}
+	dl := &builder.Downloader{Client: &http.Client{Timeout: 30 * time.Minute}}
 
 	// Build RKE2 artifacts.
 	var rke2Entry *bundle.RKE2Entry

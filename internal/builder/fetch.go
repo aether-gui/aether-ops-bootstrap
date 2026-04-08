@@ -27,7 +27,12 @@ func (d *Downloader) Download(ctx context.Context, url, destPath string) (int64,
 		return 0, fmt.Errorf("creating request for %s: %w", url, err)
 	}
 
-	resp, err := d.Client.Do(req)
+	client := d.Client
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("fetching %s: %w", url, err)
 	}

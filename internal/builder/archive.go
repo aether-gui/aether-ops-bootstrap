@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/klauspost/compress/zstd"
 )
@@ -27,10 +28,8 @@ func Archive(sourceDir, outputPath string) error {
 	if err != nil {
 		return fmt.Errorf("creating zstd writer: %w", err)
 	}
-	defer zw.Close()
 
 	tw := tar.NewWriter(zw)
-	defer tw.Close()
 
 	err = filepath.WalkDir(sourceDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -68,16 +67,18 @@ func Archive(sourceDir, outputPath string) error {
 		if err != nil {
 			return err
 		}
-		defer f.Close()
-
-		_, err = io.Copy(tw, f)
-		return err
+		_, copyErr := io.Copy(tw, f)
+		closeErr := f.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
 	})
 	if err != nil {
 		return fmt.Errorf("walking source directory: %w", err)
 	}
 
-	// Close in order: tar → zstd → file.
+	// Close in order: tar → zstd. File closed by defer.
 	if err := tw.Close(); err != nil {
 		return fmt.Errorf("closing tar writer: %w", err)
 	}
@@ -89,6 +90,7 @@ func Archive(sourceDir, outputPath string) error {
 }
 
 // Unarchive extracts a tar.zst archive to destDir.
+// Rejects entries with path traversal (absolute paths or ".." segments).
 func Unarchive(archivePath, destDir string) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
@@ -102,6 +104,11 @@ func Unarchive(archivePath, destDir string) error {
 	}
 	defer zr.Close()
 
+	absDestDir, err := filepath.Abs(destDir)
+	if err != nil {
+		return fmt.Errorf("resolving dest dir: %w", err)
+	}
+
 	tr := tar.NewReader(zr)
 	for {
 		header, err := tr.Next()
@@ -112,7 +119,15 @@ func Unarchive(archivePath, destDir string) error {
 			return fmt.Errorf("reading tar entry: %w", err)
 		}
 
-		target := filepath.Join(destDir, filepath.FromSlash(header.Name))
+		// Reject path traversal.
+		clean := filepath.FromSlash(header.Name)
+		if filepath.IsAbs(clean) || strings.Contains(clean, "..") {
+			return fmt.Errorf("invalid tar entry path: %s", header.Name)
+		}
+		target := filepath.Join(absDestDir, clean)
+		if !strings.HasPrefix(target, absDestDir+string(filepath.Separator)) && target != absDestDir {
+			return fmt.Errorf("tar entry escapes destination: %s", header.Name)
+		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -127,12 +142,13 @@ func Unarchive(archivePath, destDir string) error {
 			if err != nil {
 				return err
 			}
-			if _, err := io.Copy(out, tr); err != nil {
-				out.Close()
-				return err
+			_, copyErr := io.Copy(out, tr)
+			closeErr := out.Close()
+			if copyErr != nil {
+				return copyErr
 			}
-			if err := out.Close(); err != nil {
-				return err
+			if closeErr != nil {
+				return closeErr
 			}
 		}
 	}
