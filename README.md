@@ -58,11 +58,11 @@ Each component follows the same **Plan/Apply** pattern: compare current state to
 make build
 ```
 
-Produces `dist/aether-ops-bootstrap-linux-amd64` and `dist/aether-ops-bootstrap-linux-arm64`.
+Produces `dist/aether-ops-bootstrap`.
 
 ```bash
-./dist/aether-ops-bootstrap-linux-amd64 version
-./dist/aether-ops-bootstrap-linux-amd64 install
+./dist/aether-ops-bootstrap version
+./dist/aether-ops-bootstrap install
 ```
 
 ## Development

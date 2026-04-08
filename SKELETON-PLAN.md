@@ -41,7 +41,7 @@ Before creating files, update DESIGN-PLANNING.md to resolve inconsistencies betw
 | `README.md` | New short intro, link to DESIGN.md, `make build` instructions |
 | `.gitignore` | `dist/`, `build/`, `docs/generated/`, `*.tar.zst`, `*.deb`, editor files |
 | `.golangci.yml` | Enable govet, staticcheck, errcheck, ineffassign, unused, gofmt, goimports |
-| `Makefile` | Targets: build, build-bundle, test, lint, vet, clean; cross-compile linux/amd64+arm64 |
+| `Makefile` | Targets: build, build-bundle, test, lint, vet, clean; build linux/amd64 |
 | `bundle.yaml` | Placeholder spec per instructions |
 | `bundle.lock.json` | `{}` |
 | `templates/.gitkeep` | Empty |

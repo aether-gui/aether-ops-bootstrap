@@ -234,7 +234,7 @@ bundle_version: "2026.04.1"
 
 ubuntu:
   suites: [jammy, noble]
-  architectures: [amd64, arm64]
+  architectures: [amd64]
 
 debs:
   - name: ansible
@@ -321,7 +321,7 @@ Every .deb is pinned in a generated `bundle.lock.json`, committed to the repo, w
 
 Three jobs, triggered on every PR and tag push.
 
-1. **`launcher`** — `go build` / `go test` / `go vet` / `golangci-lint`. Cross-compile for linux/amd64 and linux/arm64. Artifacts: signed launcher binaries.
+1. **`launcher`** — `go build` / `go test` / `go vet` / `golangci-lint`. Build for linux/amd64. Artifacts: signed launcher binary.
 2. **`bundle`** — run `go run ./cmd/build-bundle --spec bundle.yaml`, verify against `bundle.lock.json`, sign and publish the tarball plus the manifest and generated docs delta.
 3. **`integration`** — spin up Ubuntu 22.04 / 24.04 / 26.04 VMs with network blackholed to prove the airgap claim. Copy launcher + bundle in, run `install`, assert RKE2 and aether-ops are healthy. Run again, assert no-op. Bump bundle version, run `upgrade`, assert deltas applied.
 

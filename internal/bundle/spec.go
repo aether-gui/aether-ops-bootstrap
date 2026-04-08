@@ -27,7 +27,6 @@ var knownSuites = map[string]bool{
 // Known architectures.
 var knownArchitectures = map[string]bool{
 	"amd64": true,
-	"arm64": true,
 }
 
 // Spec is the top-level structure of bundle.yaml — the human-edited input
