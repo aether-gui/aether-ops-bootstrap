@@ -48,8 +48,19 @@ func main() {
 		log.Printf("RKE2 artifacts staged (%d files)", len(rke2Entry.Artifacts))
 	}
 
+	// Fetch .deb packages.
+	var debEntries []bundle.DebEntry
+	if len(spec.Debs) > 0 {
+		log.Printf("resolving and fetching .deb packages...")
+		debEntries, err = builder.FetchDebs(ctx, dl, spec, stageDir)
+		if err != nil {
+			log.Fatalf("fetching debs: %v", err)
+		}
+		log.Printf("staged %d .deb packages", len(debEntries))
+	}
+
 	// Generate and write manifest.
-	manifest := builder.BuildManifest(spec, rke2Entry)
+	manifest := builder.BuildManifest(spec, rke2Entry, debEntries)
 	manifestPath := filepath.Join(stageDir, "manifest.json")
 	if err := bundle.Write(manifestPath, manifest); err != nil {
 		log.Fatalf("writing manifest: %v", err)
