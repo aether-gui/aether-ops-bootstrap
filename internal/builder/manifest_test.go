@@ -29,7 +29,11 @@ func TestBuildManifest(t *testing.T) {
 		},
 	}
 
-	m := BuildManifest(spec, rke2Entry, aetherOpsEntry)
+	debEntries := []bundle.DebEntry{
+		{Name: "git", Version: "1:2.43.0-1", Arch: "amd64", Suite: "noble", Filename: "debs/noble/amd64/git.deb", SHA256: "xyz"},
+	}
+
+	m := BuildManifest(spec, rke2Entry, aetherOpsEntry, debEntries)
 
 	if m.SchemaVersion != bundle.SchemaVersion {
 		t.Errorf("SchemaVersion = %d, want %d", m.SchemaVersion, bundle.SchemaVersion)
@@ -61,6 +65,12 @@ func TestBuildManifest(t *testing.T) {
 	if m.Components.AetherOps.Version != "v1.0.0" {
 		t.Errorf("AetherOps.Version = %q", m.Components.AetherOps.Version)
 	}
+	if len(m.Components.Debs) != 1 {
+		t.Fatalf("len(Debs) = %d, want 1", len(m.Components.Debs))
+	}
+	if m.Components.Debs[0].Name != "git" {
+		t.Errorf("Debs[0].Name = %q", m.Components.Debs[0].Name)
+	}
 }
 
 func TestBuildManifestNilEntries(t *testing.T) {
@@ -69,12 +79,15 @@ func TestBuildManifestNilEntries(t *testing.T) {
 		BundleVersion: "2026.04.1",
 	}
 
-	m := BuildManifest(spec, nil, nil)
+	m := BuildManifest(spec, nil, nil, nil)
 
 	if m.Components.RKE2 != nil {
 		t.Error("RKE2 should be nil when no entry provided")
 	}
 	if m.Components.AetherOps != nil {
 		t.Error("AetherOps should be nil when no entry provided")
+	}
+	if len(m.Components.Debs) != 0 {
+		t.Errorf("Debs should be empty, got %d", len(m.Components.Debs))
 	}
 }

@@ -10,6 +10,16 @@ import (
 	"path/filepath"
 )
 
+// HTTPError is returned when a download receives a non-200 status code.
+type HTTPError struct {
+	URL        string
+	StatusCode int
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("fetching %s: HTTP %d", e.URL, e.StatusCode)
+}
+
 // Downloader fetches remote artifacts over HTTP. Inject a custom
 // *http.Client for testing (e.g. with httptest).
 type Downloader struct {
@@ -39,7 +49,7 @@ func (d *Downloader) Download(ctx context.Context, url, destPath string) (int64,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("fetching %s: HTTP %d", url, resp.StatusCode)
+		return 0, &HTTPError{URL: url, StatusCode: resp.StatusCode}
 	}
 
 	dir := filepath.Dir(destPath)
