@@ -19,13 +19,16 @@ func TestManifestRoundTrip(t *testing.T) {
 		},
 		Components: ComponentList{
 			Debs: []DebEntry{
-				{Name: "git", Version: "1:2.43.0-1", Arch: "amd64", Filename: "debs/git.deb", SHA256: "def456"},
+				{Name: "git", Version: "1:2.43.0-1", Arch: "amd64", Suite: "noble", Filename: "debs/noble/amd64/git.deb", SHA256: "def456"},
 			},
 			RKE2: &RKE2Entry{
-				Version:  "v1.33.1+rke2r1",
-				Variants: []string{"canal"},
-				Files: []BundleFile{
-					{Path: "rke2/rke2.linux-amd64.tar.gz", SHA256: "aaa", Size: 54321000},
+				Version:   "v1.33.1+rke2r1",
+				Variants:  []string{"canal"},
+				ImageMode: "all-in-one",
+				Artifacts: []RKE2Artifact{
+					{Type: "binary", Arch: "amd64", Path: "rke2/rke2.linux-amd64.tar.gz", SHA256: "aaa", Size: 54321000},
+					{Type: "images", Arch: "amd64", Path: "rke2/rke2-images.linux-amd64.tar.zst", SHA256: "bbb", Size: 987654000},
+					{Type: "checksum", Arch: "amd64", Path: "rke2/sha256sum-amd64.txt", SHA256: "ccc", Size: 1234},
 				},
 			},
 			AetherOps: &AetherOpsEntry{
@@ -67,11 +70,26 @@ func TestManifestRoundTrip(t *testing.T) {
 	if got.Components.Debs[0].Name != "git" {
 		t.Errorf("Debs[0].Name = %q, want %q", got.Components.Debs[0].Name, "git")
 	}
+	if got.Components.Debs[0].Suite != "noble" {
+		t.Errorf("Debs[0].Suite = %q, want %q", got.Components.Debs[0].Suite, "noble")
+	}
 	if got.Components.RKE2 == nil {
 		t.Fatal("RKE2 is nil, want non-nil")
 	}
 	if got.Components.RKE2.Version != "v1.33.1+rke2r1" {
 		t.Errorf("RKE2.Version = %q, want %q", got.Components.RKE2.Version, "v1.33.1+rke2r1")
+	}
+	if got.Components.RKE2.ImageMode != "all-in-one" {
+		t.Errorf("RKE2.ImageMode = %q, want %q", got.Components.RKE2.ImageMode, "all-in-one")
+	}
+	if len(got.Components.RKE2.Artifacts) != 3 {
+		t.Fatalf("len(RKE2.Artifacts) = %d, want 3", len(got.Components.RKE2.Artifacts))
+	}
+	if got.Components.RKE2.Artifacts[0].Type != "binary" {
+		t.Errorf("RKE2.Artifacts[0].Type = %q, want %q", got.Components.RKE2.Artifacts[0].Type, "binary")
+	}
+	if got.Components.RKE2.Artifacts[1].Type != "images" {
+		t.Errorf("RKE2.Artifacts[1].Type = %q, want %q", got.Components.RKE2.Artifacts[1].Type, "images")
 	}
 	if got.Components.AetherOps == nil {
 		t.Fatal("AetherOps is nil, want non-nil")

@@ -43,15 +43,30 @@ type DebEntry struct {
 	Name     string `json:"name"`
 	Version  string `json:"version"`
 	Arch     string `json:"arch"`
+	Suite    string `json:"suite"`
 	Filename string `json:"filename"`
 	SHA256   string `json:"sha256"`
 }
 
 // RKE2Entry describes the RKE2 artifacts in the bundle.
 type RKE2Entry struct {
-	Version  string         `json:"version"`
-	Variants []string       `json:"variants"`
-	Files    []BundleFile   `json:"files"`
+	Version   string         `json:"version"`
+	Variants  []string       `json:"variants"`
+	ImageMode string         `json:"image_mode"`
+	Artifacts []RKE2Artifact `json:"artifacts"`
+}
+
+// RKE2Artifact is a single RKE2 file in the bundle. The Type field tells
+// the launcher what to do with it:
+//   - "binary"   → extract to /usr/local (or /opt/rke2)
+//   - "images"   → copy to /var/lib/rancher/rke2/agent/images/
+//   - "checksum" → used for verification, kept for audit trail
+type RKE2Artifact struct {
+	Type   string `json:"type"`
+	Arch   string `json:"arch"`
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+	Size   int64  `json:"size"`
 }
 
 // AetherOpsEntry describes the aether-ops binary and config in the bundle.
