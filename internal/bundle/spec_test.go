@@ -67,10 +67,15 @@ func TestParseSpec(t *testing.T) {
 	if s.AetherOps == nil {
 		t.Fatal("AetherOps is nil")
 	}
-	if s.AetherOps.Version != "0.0.0-dev" {
-		t.Errorf("AetherOps.Version = %q, want %q", s.AetherOps.Version, "0.0.0-dev")
+	if s.AetherOps.Version != "v0.0.0-dev" {
+		t.Errorf("AetherOps.Version = %q, want %q", s.AetherOps.Version, "v0.0.0-dev")
 	}
-
+	if s.AetherOps.Source != "./build/aether-ops" {
+		t.Errorf("AetherOps.Source = %q, want %q", s.AetherOps.Source, "./build/aether-ops")
+	}
+	if s.AetherOps.Repo != DefaultAetherOpsRepo {
+		t.Errorf("AetherOps.Repo = %q, want default %q", s.AetherOps.Repo, DefaultAetherOpsRepo)
+	}
 	// Templates.
 	if s.TemplatesDir != "./templates" {
 		t.Errorf("TemplatesDir = %q, want %q", s.TemplatesDir, "./templates")
@@ -246,15 +251,67 @@ func TestValidateSpecMissingTemplatesDir(t *testing.T) {
 	}
 }
 
-func TestValidateSpecAetherOpsMissingFields(t *testing.T) {
+func TestValidateSpecAetherOpsVersionOnly(t *testing.T) {
 	s := &Spec{
 		SchemaVersion: 1,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "./templates",
-		AetherOps:     &AetherOpsSpec{Version: "1.0.0"},
+		AetherOps:     &AetherOpsSpec{Version: "v1.0.0"},
+	}
+	if err := ValidateSpec(s); err != nil {
+		t.Fatalf("version-only (download mode) should be valid: %v", err)
+	}
+}
+
+func TestValidateSpecAetherOpsRefWithVersion(t *testing.T) {
+	s := &Spec{
+		SchemaVersion: 1,
+		BundleVersion: "1.0.0",
+		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
+		TemplatesDir:  "./templates",
+		AetherOps:     &AetherOpsSpec{Version: "v0.0.0-dev", Ref: "main"},
+	}
+	if err := ValidateSpec(s); err != nil {
+		t.Fatalf("ref+version (source mode) should be valid: %v", err)
+	}
+}
+
+func TestValidateSpecAetherOpsMissingVersion(t *testing.T) {
+	s := &Spec{
+		SchemaVersion: 1,
+		BundleVersion: "1.0.0",
+		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
+		TemplatesDir:  "./templates",
+		AetherOps:     &AetherOpsSpec{Ref: "main"},
 	}
 	if err := ValidateSpec(s); err == nil {
-		t.Fatal("should reject aether_ops without source")
+		t.Fatal("should reject aether_ops without version")
+	}
+}
+
+func TestValidateSpecAetherOpsRefAndSourceMutuallyExclusive(t *testing.T) {
+	s := &Spec{
+		SchemaVersion: 1,
+		BundleVersion: "1.0.0",
+		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
+		TemplatesDir:  "./templates",
+		AetherOps:     &AetherOpsSpec{Version: "v1.0.0", Ref: "main", Source: "./binary"},
+	}
+	if err := ValidateSpec(s); err == nil {
+		t.Fatal("should reject ref + source together")
+	}
+}
+
+func TestValidateSpecAetherOpsFrontendRefWithoutRef(t *testing.T) {
+	s := &Spec{
+		SchemaVersion: 1,
+		BundleVersion: "1.0.0",
+		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
+		TemplatesDir:  "./templates",
+		AetherOps:     &AetherOpsSpec{Version: "v1.0.0", FrontendRef: "v2.0.0"},
+	}
+	if err := ValidateSpec(s); err == nil {
+		t.Fatal("should reject frontend_ref without ref")
 	}
 }

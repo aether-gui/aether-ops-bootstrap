@@ -11,6 +11,9 @@ import (
 // DefaultRKE2Source is the base URL for RKE2 release artifacts.
 const DefaultRKE2Source = "https://github.com/rancher/rke2/releases/download"
 
+// Default GitHub repositories for aether-ops.
+const DefaultAetherOpsRepo = "aether-gui/aether-ops"
+
 // Valid image modes for RKE2 artifact packaging.
 const (
 	ImageModeAllInOne    = "all-in-one"
@@ -63,10 +66,17 @@ type RKE2Spec struct {
 	Source    string   `yaml:"source,omitempty"`     // base URL, defaults to GitHub releases
 }
 
-// AetherOpsSpec declares the aether-ops version and artifact source.
+// AetherOpsSpec declares how to acquire the aether-ops binary.
+// Three acquisition modes:
+//   - Download: version set, no ref/source → download from GitHub releases
+//   - Source build: ref set → clone repo at ref, build from source
+//   - Local: source set → use a local pre-built binary or release archive
 type AetherOpsSpec struct {
-	Version string `yaml:"version"`
-	Source  string `yaml:"source"`
+	Version     string `yaml:"version"`                // required: version string (used for ldflags and release URL)
+	Source      string `yaml:"source,omitempty"`       // local path to pre-built binary or release tar.gz
+	Ref         string `yaml:"ref,omitempty"`          // git ref (tag/branch/SHA) → build from source
+	FrontendRef string `yaml:"frontend_ref,omitempty"` // override frontend submodule ref (source build only)
+	Repo        string `yaml:"repo,omitempty"`         // GitHub owner/name, default: aether-gui/aether-ops
 }
 
 // ParseSpec reads and parses a bundle.yaml file.
@@ -93,6 +103,11 @@ func applySpecDefaults(s *Spec) {
 		}
 		if s.RKE2.Source == "" {
 			s.RKE2.Source = DefaultRKE2Source
+		}
+	}
+	if s.AetherOps != nil {
+		if s.AetherOps.Repo == "" {
+			s.AetherOps.Repo = DefaultAetherOpsRepo
 		}
 	}
 }
@@ -155,8 +170,11 @@ func ValidateSpec(s *Spec) error {
 		if s.AetherOps.Version == "" {
 			return fmt.Errorf("aether_ops.version is required when aether_ops section is present")
 		}
-		if s.AetherOps.Source == "" {
-			return fmt.Errorf("aether_ops.source is required when aether_ops section is present")
+		if s.AetherOps.Ref != "" && s.AetherOps.Source != "" {
+			return fmt.Errorf("aether_ops.ref and aether_ops.source are mutually exclusive")
+		}
+		if s.AetherOps.FrontendRef != "" && s.AetherOps.Ref == "" {
+			return fmt.Errorf("aether_ops.frontend_ref requires aether_ops.ref (only meaningful for source builds)")
 		}
 	}
 

@@ -26,7 +26,10 @@ rke2:
   #   ↑ optional override; defaults to GitHub releases
 
 aether_ops:
-  version: "0.0.0-dev"
-  source: "file://./build/aether-ops"
+  version: "v0.0.0-dev"
+  source: ./build/aether-ops  # local pre-built binary
+  # ref: "main"        # build from source at this git ref (mutually exclusive with source)
+  # repo: aether-gui/aether-ops
+  # frontend_ref: ""   # override frontend submodule (source build only)
 
 templates_dir: ./templates
