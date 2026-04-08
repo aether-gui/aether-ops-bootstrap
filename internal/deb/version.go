@@ -87,6 +87,13 @@ func compareFragment(a, b string) int {
 			bDigit += string(b[bi])
 			bi++
 		}
+		// An empty digit segment sorts before a non-empty one.
+		if aDigit == "" && bDigit != "" {
+			return -1
+		}
+		if aDigit != "" && bDigit == "" {
+			return 1
+		}
 		aNum := trimLeadingZeros(aDigit)
 		bNum := trimLeadingZeros(bDigit)
 		if len(aNum) != len(bNum) {

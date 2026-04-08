@@ -3,6 +3,7 @@ package builder
 import (
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -68,15 +69,16 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 				basename := filepath.Base(pkg.Filename)
 				destPath := filepath.Join(debDir, basename)
 
+				if pkg.SHA256 == "" {
+					return nil, fmt.Errorf("missing SHA256 for package %s %s in %s/%s", pkg.Name, pkg.Version, suite, arch)
+				}
+
 				if _, err := dl.Download(ctx, url, destPath); err != nil {
 					return nil, fmt.Errorf("downloading %s: %w", basename, err)
 				}
 
-				// Verify SHA256 from the Packages index.
-				if pkg.SHA256 != "" {
-					if err := VerifyArtifact(destPath, pkg.SHA256); err != nil {
-						return nil, err
-					}
+				if err := VerifyArtifact(destPath, pkg.SHA256); err != nil {
+					return nil, err
 				}
 
 				allEntries = append(allEntries, bundle.DebEntry{
@@ -116,9 +118,13 @@ func fetchPackageIndex(ctx context.Context, dl *Downloader, suite, arch string) 
 			defer os.Remove(tmpPath)
 
 			if _, err := dl.Download(ctx, url, tmpPath); err != nil {
-				// binary-all may not exist for all sections; skip on 404.
-				log.Printf("skipping %s/%s/binary-%s (not available)", suite, section, a)
-				continue
+				// Skip only on HTTP 404 (binary-all may not exist for all sections).
+				var httpErr *HTTPError
+				if errors.As(err, &httpErr) && httpErr.StatusCode == 404 {
+					log.Printf("skipping %s/%s/binary-%s (not available)", suite, section, a)
+					continue
+				}
+				return nil, fmt.Errorf("downloading %s/%s/binary-%s/Packages.gz: %w", suite, section, a, err)
 			}
 
 			pkgs, err := parsePackagesGz(tmpPath)

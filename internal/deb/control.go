@@ -13,9 +13,10 @@ import (
 func ParseControl(r io.Reader) ([]Package, error) {
 	var packages []Package
 	fields := make(map[string]string)
+	var lastKey string
 
 	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024) // 1MB buffer for large Description fields
+	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024) // 1MB buffer for large fields
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -24,15 +25,17 @@ func ParseControl(r io.Reader) ([]Package, error) {
 			if len(fields) > 0 {
 				packages = append(packages, packageFromFields(fields))
 				fields = make(map[string]string)
+				lastKey = ""
 			}
 			continue
 		}
 
 		// Continuation line (starts with space or tab).
-		if len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
-			// Append to the last field seen — but we don't track which
-			// field was last, and for our purposes we don't need multi-line
-			// values (Description is the main one and we skip it).
+		if line[0] == ' ' || line[0] == '\t' {
+			// Append to the last field. Important for folded Depends lines.
+			if lastKey != "" {
+				fields[lastKey] += " " + strings.TrimSpace(line)
+			}
 			continue
 		}
 
@@ -41,6 +44,7 @@ func ParseControl(r io.Reader) ([]Package, error) {
 			key := line[:i]
 			value := strings.TrimSpace(line[i+1:])
 			fields[key] = value
+			lastKey = key
 		}
 	}
 

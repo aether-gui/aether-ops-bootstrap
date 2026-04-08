@@ -60,7 +60,7 @@ Essential: yes
 	}
 }
 
-func TestFetchDebsIntegration(t *testing.T) {
+func TestDebsParseResolveDownloadPipeline(t *testing.T) {
 	// Create fake .deb content.
 	gitDeb := []byte("fake git deb content")
 	gitHash := sha256Hex(gitDeb)

@@ -1,6 +1,9 @@
 package deb
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Index is a lookup structure built from parsed Package entries.
 // For each package name, it keeps the entry with the highest version.
@@ -92,16 +95,12 @@ func Resolve(wanted []string, idx *Index, constraints map[string]Constraint) ([]
 
 		// Enqueue dependencies.
 		for _, dep := range append(pkg.Depends, pkg.PreDepends...) {
-			depName := resolveAlternative(dep, idx, skip)
+			depName, depErr := resolveAlternative(dep, idx, skip)
+			if depErr != nil {
+				return nil, fmt.Errorf("resolving dependency of %s: %w", pkg.Name, depErr)
+			}
 			if depName == "" {
-				// All alternatives are missing and none are in skip set.
-				// Try to find at least one name to report a useful error.
-				if len(dep.Alternatives) > 0 {
-					firstAlt := dep.Alternatives[0].Name
-					if !skip[firstAlt] && idx.Lookup(firstAlt) == nil {
-						return nil, fmt.Errorf("dependency %q (required by %s) not found in index", firstAlt, pkg.Name)
-					}
-				}
+				// Satisfied by skip set (Essential/required).
 				continue
 			}
 			if !resolved[depName] && !skip[depName] {
@@ -114,20 +113,29 @@ func Resolve(wanted []string, idx *Index, constraints map[string]Constraint) ([]
 }
 
 // resolveAlternative picks the first alternative from a dependency group
-// that exists in the index. Returns empty string if none found (which
-// may be fine if all alternatives are in the skip set).
-func resolveAlternative(dep Dependency, idx *Index, skip map[string]bool) string {
+// that exists in the index. Returns ("", nil) if satisfied by the skip set.
+// Returns an error if alternatives exist but none can be satisfied.
+func resolveAlternative(dep Dependency, idx *Index, skip map[string]bool) (string, error) {
+	anyInSkip := false
 	for _, alt := range dep.Alternatives {
 		if skip[alt.Name] {
-			return "" // satisfied by skip set, no need to install
+			anyInSkip = true
+			continue
 		}
 		if pkg := idx.Lookup(alt.Name); pkg != nil {
-			// Check version constraint if present.
 			if alt.Constraint != nil && !alt.Constraint.Satisfied(pkg.Version) {
 				continue
 			}
-			return pkg.Name
+			return pkg.Name, nil
 		}
 	}
-	return ""
+	if anyInSkip {
+		return "", nil // satisfied by Essential/required set
+	}
+	// Build a descriptive error.
+	names := make([]string, 0, len(dep.Alternatives))
+	for _, alt := range dep.Alternatives {
+		names = append(names, alt.Name)
+	}
+	return "", fmt.Errorf("no satisfying package found for alternatives: %s", strings.Join(names, " | "))
 }
