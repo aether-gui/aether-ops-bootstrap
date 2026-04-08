@@ -13,8 +13,6 @@ import (
 	"github.com/aether-gui/aether-ops-bootstrap/internal/deb"
 )
 
-const ubuntuArchiveBase = "https://archive.ubuntu.com/ubuntu"
-
 // sections to search for packages.
 var indexSections = []string{"main", "universe"}
 
@@ -46,7 +44,8 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 			log.Printf("resolving .deb dependencies for %s/%s", suite, arch)
 
 			// Fetch and parse Packages indexes.
-			idx, err := fetchPackageIndex(ctx, dl, suite, arch)
+			mirror := spec.Ubuntu.Mirror
+			idx, err := fetchPackageIndex(ctx, dl, mirror, suite, arch)
 			if err != nil {
 				return nil, fmt.Errorf("fetching package index for %s/%s: %w", suite, arch, err)
 			}
@@ -65,7 +64,7 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 			}
 
 			for _, pkg := range resolved {
-				url := fmt.Sprintf("%s/%s", ubuntuArchiveBase, pkg.Filename)
+				url := fmt.Sprintf("%s/%s", mirror, pkg.Filename)
 				basename := filepath.Base(pkg.Filename)
 				destPath := filepath.Join(debDir, basename)
 
@@ -100,14 +99,14 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 // (main, universe) for the given suite and architecture, merging the
 // results into a single index. Also fetches binary-all indexes for
 // architecture-independent packages.
-func fetchPackageIndex(ctx context.Context, dl *Downloader, suite, arch string) (*deb.Index, error) {
+func fetchPackageIndex(ctx context.Context, dl *Downloader, mirror, suite, arch string) (*deb.Index, error) {
 	var allPkgs []deb.Package
 
 	arches := []string{arch, "all"}
 	for _, section := range indexSections {
 		for _, a := range arches {
 			url := fmt.Sprintf("%s/dists/%s/%s/binary-%s/Packages.gz",
-				ubuntuArchiveBase, suite, section, a)
+				mirror, suite, section, a)
 
 			tmpFile, err := os.CreateTemp("", "packages-*.gz")
 			if err != nil {

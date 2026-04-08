@@ -95,11 +95,8 @@ Priority: optional
 	}))
 	defer srv.Close()
 
-	// Override the archive base URL for testing.
-	origBase := ubuntuArchiveBase
-	// We can't easily override the const, so test parsePackagesGz and
-	// the resolution separately. For a full integration test, we'd need
-	// to make the base URL configurable. For now, test the pieces.
+	// Now that mirror is configurable, we test the individual pieces
+	// against the httptest server.
 
 	// Test: parse the served Packages.gz.
 	dir := t.TempDir()
@@ -137,7 +134,6 @@ Priority: optional
 		t.Fatalf("verify: %v", err)
 	}
 
-	_ = origBase // referenced to avoid unused warning
 }
 
 func writeGzFile(t *testing.T, path, content string) {

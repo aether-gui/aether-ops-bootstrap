@@ -1,4 +1,5 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS := -X main.version=$(VERSION)
 
 .PHONY: dist build build-bundle build-all test lint install-lint vet clean
@@ -10,7 +11,7 @@ build: dist
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '$(LDFLAGS)' -o dist/aether-ops-bootstrap ./cmd/aether-ops-bootstrap
 
 build-bundle: dist
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/build-bundle ./cmd/build-bundle
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '-X main.gitSHA=$(COMMIT)' -o dist/build-bundle ./cmd/build-bundle
 
 build-all: build build-bundle
 
