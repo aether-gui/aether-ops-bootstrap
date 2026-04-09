@@ -34,6 +34,7 @@ type BuildInfo struct {
 type ComponentList struct {
 	Debs      []DebEntry      `json:"debs,omitempty"`
 	RKE2      *RKE2Entry      `json:"rke2,omitempty"`
+	Helm      *HelmEntry      `json:"helm,omitempty"`
 	AetherOps *AetherOpsEntry `json:"aether_ops,omitempty"`
 	Templates *TemplatesEntry `json:"templates,omitempty"`
 }
@@ -71,6 +72,12 @@ type RKE2Artifact struct {
 
 // AetherOpsEntry describes the aether-ops binary and config in the bundle.
 type AetherOpsEntry struct {
+	Version string       `json:"version"`
+	Files   []BundleFile `json:"files"`
+}
+
+// HelmEntry describes the Helm binary in the bundle.
+type HelmEntry struct {
 	Version string       `json:"version"`
 	Files   []BundleFile `json:"files"`
 }

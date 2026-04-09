@@ -1,1 +1,349 @@
-{}
+{
+  "schema_version": 1,
+  "debs": {
+    "noble/all": {
+      "adduser": {
+        "version": "3.137ubuntu1",
+        "sha256": "542aff2395eb912a56833e11a78076342779689d8fede7adcf08d1d6b0d0cd8b"
+      },
+      "ansible": {
+        "version": "9.2.0+dfsg-0ubuntu5",
+        "sha256": "b9920e93ba0bc522b7781a238869e15d5f6aaf682a762d1daa2a204977bdd7d5"
+      },
+      "ansible-core": {
+        "version": "2.16.3-0ubuntu2",
+        "sha256": "484d359659715e0402598be29004f3cc817cbd702799bc3e3f090dec56602d6e"
+      },
+      "ca-certificates": {
+        "version": "20240203",
+        "sha256": "641de77d8f142cfd62a1a6f964ba67b20754d3337c480efb529d086075a06c9a"
+      },
+      "git-man": {
+        "version": "1:2.43.0-1ubuntu7",
+        "sha256": "e5484c8c3ace3223bc52f9fdd05532ff238c3e97e29f261a232b36c7f6779049"
+      },
+      "ieee-data": {
+        "version": "20220827.1",
+        "sha256": "9fcc11f433bf84c0eaea229aab126fa3c5cbbd8bafd423121fafc729faad1155"
+      },
+      "liberror-perl": {
+        "version": "0.17029-2",
+        "sha256": "1907af6bf33dd8684447c09f216c675d2b8559fadd8ddace29fbf83c6fb2a636"
+      },
+      "lsb-base": {
+        "version": "11.6",
+        "sha256": "08a563e3c1984acdb295f12b77b4ec18d2ccf52fd03280a5bea29e506a3350ee"
+      },
+      "media-types": {
+        "version": "10.1.0",
+        "sha256": "31bfb7eec55ab6d34a50ba995150e1498d4cb897714085d8025e330d3b529747"
+      },
+      "netbase": {
+        "version": "6.4",
+        "sha256": "8cdbc9c3dca01e660759bf9d840f72e45ac72faf5d19ca1faecacaf6a60c1a87"
+      },
+      "perl-modules-5.38": {
+        "version": "5.38.2-3.2build2",
+        "sha256": "540b64b1be061236e50f617badc2b96e1af92766f106302b2fc84ba790d39610"
+      },
+      "python3-dnspython": {
+        "version": "2.6.1-1ubuntu1",
+        "sha256": "5d4a26bc9d3ede2d9a3b6fa0af72dfeb72215c9ef4043241cf90f0d8a8d1184f"
+      },
+      "python3-httplib2": {
+        "version": "0.20.4-3",
+        "sha256": "ebf9b56acf993a8505a76f064c3db5911744ceeb73d927f7a8b8548c9a9d0e21"
+      },
+      "python3-importlib-resources": {
+        "version": "6.0.1-1",
+        "sha256": "b80bc9a94b78aa5c54b5182b7f588e515fe33f8b2be2e920074e7cd41a125e0f"
+      },
+      "python3-jinja2": {
+        "version": "3.1.2-1ubuntu1",
+        "sha256": "e10e4bb7d13cb397210e8228ae616bafdc5229684a4e8a8aa79b8007c4606b39"
+      },
+      "python3-more-itertools": {
+        "version": "10.2.0-1",
+        "sha256": "f6ad092c9568b044befdb7d6edfd3f9ea35ec31de01c26fafac20a32c0d7b3e1"
+      },
+      "python3-netaddr": {
+        "version": "0.8.0-2ubuntu1",
+        "sha256": "c80aadc72cf18fea752282970d1b0fb1f05b0f1c04a00e1259e0e105c2f0e7f6"
+      },
+      "python3-packaging": {
+        "version": "24.0-1",
+        "sha256": "decc936e9512c2de78fcf9e8d8459ce58952c40bf8bd1f06e62556d7fe887db6"
+      },
+      "python3-pyparsing": {
+        "version": "3.1.1-1",
+        "sha256": "ec2395b1fe34a7a828f5cfabc4262217f6a86fb6ecb993fc18fbad3fc9edabba"
+      },
+      "python3-resolvelib": {
+        "version": "1.0.1-1",
+        "sha256": "392748bce6d9018347e668bc9ceda89b661bd02a24cd1b240be295b54ec1dd9f"
+      },
+      "python3-zipp": {
+        "version": "1.0.0-6",
+        "sha256": "6a4ecc3fab55e7f3c37a55c39ec538299817eba8e22097bd896e548a1b05d498"
+      },
+      "readline-common": {
+        "version": "8.2-4build1",
+        "sha256": "879bfd7f8a9bc4c0f7cdc777cdd8bc6de5f8c4a2ac80c060322a1b22f13504bb"
+      },
+      "ssh": {
+        "version": "1:9.6p1-3ubuntu13",
+        "sha256": "dabdba578184f38c1b5525174ee96de35ea810c8e289eae7a4e10e6972858647"
+      },
+      "tzdata": {
+        "version": "2024a-2ubuntu1",
+        "sha256": "f5bca0c788a4fc465c435f7e8a54b2594e9cbf1a22abb263a59e393f1cb666e1"
+      },
+      "ucf": {
+        "version": "3.0043+nmu1",
+        "sha256": "397e541af11db776ed7facf1674ee37b56e7de51348c9f077d7a283912c4b458"
+      }
+    },
+    "noble/amd64": {
+      "curl": {
+        "version": "8.5.0-2ubuntu10",
+        "sha256": "af7af42226d21bcbf87cf62a9e158bd5dfbd051ebbde8818ca441dc8085f67af"
+      },
+      "git": {
+        "version": "1:2.43.0-1ubuntu7",
+        "sha256": "664e394169ca5f1643b096059cf45169e360ced9e96ed378465dd03d47309074"
+      },
+      "jq": {
+        "version": "1.7.1-3build1",
+        "sha256": "36276dcac711c742776377001886f5a72293391446b5d5e7646541336f2234aa"
+      },
+      "libbrotli1": {
+        "version": "1.1.0-2build2",
+        "sha256": "74492419b8fda803774b8c9acef6afc5d2f9ff31782635aae212906adae7b277"
+      },
+      "libbsd0": {
+        "version": "0.12.1-1build1",
+        "sha256": "8e97b7d541416512a81e7845c5f21910344c9c5c610893cf265d3298e0caad6b"
+      },
+      "libcbor0.10": {
+        "version": "0.10.2-1.2ubuntu2",
+        "sha256": "6ae45862612eb5d9918a005b882a67b722428cfde06d56bb651d3c04a47f4d2d"
+      },
+      "libcurl3t64-gnutls": {
+        "version": "8.5.0-2ubuntu10",
+        "sha256": "6a5463c3acb9a5a8e1756ba7953a694cc4eb1c02b960f4faf4aa84d1ae7a00c5"
+      },
+      "libcurl4t64": {
+        "version": "8.5.0-2ubuntu10",
+        "sha256": "1c597ce8778ced5ff37fcb767968ffc9fb75944d96b9e6c06e63cc611846878e"
+      },
+      "libdb5.3t64": {
+        "version": "5.3.28+dfsg2-7",
+        "sha256": "a78a25c8fad8fdd0b7bc6b297da5d5685579be1e57732aa47870830e4a13161e"
+      },
+      "libedit2": {
+        "version": "3.1-20230828-1build1",
+        "sha256": "3afbc8ddf835049dd4d88275b9d13680e4c4cdd59e191cbd63424152cc08e00e"
+      },
+      "libexpat1": {
+        "version": "2.6.1-2build1",
+        "sha256": "730b29497212289cda8a3139e693a3538af0cb57846c24f807d1bb293a591c5e"
+      },
+      "libffi8": {
+        "version": "3.4.6-1build1",
+        "sha256": "637e6a7744de08cd331a41f4efd0d24e6ea9064843dea9d1c6ca87bdb5f038a2"
+      },
+      "libfido2-1": {
+        "version": "1.14.0-1build3",
+        "sha256": "1dfed970b870e3c949b983f2bcc28e33e1a1207c6cf5a60ee2cb226bb02b1da7"
+      },
+      "libgdbm-compat4t64": {
+        "version": "1.23-5.1build1",
+        "sha256": "fb8564afd7b7d74d55207070ba50339478e22d29a39ec740dc482f069ac7ee65"
+      },
+      "libgdbm6t64": {
+        "version": "1.23-5.1build1",
+        "sha256": "18d6d74a5c038b458d95ba0c0909e0f086cd50bb9a0fee32697902724fc5645e"
+      },
+      "libgnutls30t64": {
+        "version": "3.8.3-1.1ubuntu3",
+        "sha256": "fdaa2c2fd34d7ac4ebd7d62e5b5d94c3cf9322b1fa1760d70b8e86425e9f6c36"
+      },
+      "libgssapi-krb5-2": {
+        "version": "1.20.1-6ubuntu2",
+        "sha256": "0e22fb29a907ef6deeb56543bcbf9f736500cb37da2e3a6257c1bedf7c0783db"
+      },
+      "libhogweed6t64": {
+        "version": "3.9.1-2.2build1",
+        "sha256": "594a82d7b70ecff393753ee0ab6611b0b18226c4f922d27ccb3f66caeae3d5d1"
+      },
+      "libidn2-0": {
+        "version": "2.3.7-2build1",
+        "sha256": "f1be32391a2fabf06c27618a2000ae8f9a26c30fad1b482a007049ae8156d19c"
+      },
+      "libjq1": {
+        "version": "1.7.1-3build1",
+        "sha256": "aaecde9f29e7485de2e6bb12f1d322b6da7bee5a63914c40b599bce517ef3938"
+      },
+      "libk5crypto3": {
+        "version": "1.20.1-6ubuntu2",
+        "sha256": "212318ab9c98e151cfd331b9310827d43316dcf33e1e0e8d3d9fc2b3fbd88cfb"
+      },
+      "libkeyutils1": {
+        "version": "1.6.3-3build1",
+        "sha256": "0679f198b0128179e46cdf956fb2022c23c758664c00bc8efa0382d509683a8a"
+      },
+      "libkrb5-3": {
+        "version": "1.20.1-6ubuntu2",
+        "sha256": "10ab284396a94349aa319c7c0a59cc747c5d75ba8b81e0ffcbdae96d8d8a2a78"
+      },
+      "libkrb5support0": {
+        "version": "1.20.1-6ubuntu2",
+        "sha256": "5a6aa4d7f11ccad8f4bdfbce5e718827875d9440b1fb3d40c82dff0d9edb6e9b"
+      },
+      "libldap2": {
+        "version": "2.6.7+dfsg-1~exp1ubuntu8",
+        "sha256": "35294f2750d3601b3f134eb90500e4b542b0f60c7f411e0b024bd00018c80c24"
+      },
+      "libnettle8t64": {
+        "version": "3.9.1-2.2build1",
+        "sha256": "4cac2064e2984c4bc5a31659d4f00c7efe0c4b691559d536dd726c05d3632a57"
+      },
+      "libnghttp2-14": {
+        "version": "1.59.0-1build4",
+        "sha256": "4273c0501841461ab24a5a09017e084c558e5fadc6dc68aee91b6c8fbcb4092f"
+      },
+      "libonig5": {
+        "version": "6.9.9-1build1",
+        "sha256": "605f42287d2bcb6c84f5a02377c7cd777090c5e857259a4030a571989f19dde2"
+      },
+      "libp11-kit0": {
+        "version": "0.25.3-4ubuntu2",
+        "sha256": "2496ec055ee1660b8733e267fa0aa27068869548bc7a898773607024f2df50c3"
+      },
+      "libperl5.38t64": {
+        "version": "5.38.2-3.2build2",
+        "sha256": "a6f23b73bf1e68f0e0fc759b82c74f22899ca7cf814d3ea8b60a54d4462b3ef3"
+      },
+      "libpsl5t64": {
+        "version": "0.21.2-1.1build1",
+        "sha256": "a6c85d1303ae90b6a3209d73c4f047f82c27cdc963c48adfd95dd7abca64f039"
+      },
+      "libpython3-stdlib": {
+        "version": "3.12.3-0ubuntu1",
+        "sha256": "34c8e8b75a6f00fc40ed978dae59a49c0b4775a558ddb631308cb2c7f79267c3"
+      },
+      "libpython3.12-minimal": {
+        "version": "3.12.3-1",
+        "sha256": "28ddd9458eee6592895865de205ee8bd173fc4107e3efd9be214ecb4dbb2b151"
+      },
+      "libpython3.12-stdlib": {
+        "version": "3.12.3-1",
+        "sha256": "d5428fb7fc16f2b930d6df489bdb69a94f72adb7ed21541c9e76f2d5c2a444e1"
+      },
+      "libreadline8t64": {
+        "version": "8.2-4build1",
+        "sha256": "563977a16df03b611f5239cc1e9a0426e86479fcc616b5c9e200ea32063119e5"
+      },
+      "librtmp1": {
+        "version": "2.4+20151223.gitfa8646d.1-2build7",
+        "sha256": "967a39dbc14236d1580ede01d80fd78444668572e716734e1ac66c175052594e"
+      },
+      "libsasl2-2": {
+        "version": "2.1.28+dfsg1-5ubuntu3",
+        "sha256": "9a5b0cf88b19de419e585b91b3837c4d7621df229f78a0a58935761866ca1f4d"
+      },
+      "libsasl2-modules-db": {
+        "version": "2.1.28+dfsg1-5ubuntu3",
+        "sha256": "490d4c86d1212021ed3ff3ce0146cfb902ac4c98db9907c0da7c8a9b4bf3a93c"
+      },
+      "libsqlite3-0": {
+        "version": "3.45.1-1ubuntu2",
+        "sha256": "6ea94c8a822551187cef0085073910eeae0a7525cfec4415171942c7019c68af"
+      },
+      "libssh-4": {
+        "version": "0.10.6-2build2",
+        "sha256": "c0867b203887064777d677e18d4006f9b068a9ff98d361189cb941ab409326dd"
+      },
+      "libtasn1-6": {
+        "version": "4.19.0-3build1",
+        "sha256": "e30d8b4b7769966185b5acb40ac81205467022c96d7b1688bf06a3eaded2b98c"
+      },
+      "libunistring5": {
+        "version": "1.1-2build1",
+        "sha256": "78acc4c141a499e0c1e4cc47ca8e9082996f3972662c4d92337669ecc9b0a519"
+      },
+      "libwrap0": {
+        "version": "7.6.q-33",
+        "sha256": "36118b862539868408ee056411d6e470068d14c46e5296b29bfb744770f5d2ce"
+      },
+      "libyaml-0-2": {
+        "version": "0.2.5-1build1",
+        "sha256": "f5271b120d936dcc7ddf17b9e718df41d55386a6075555d0c634925eaef0b2ac"
+      },
+      "make": {
+        "version": "4.3-4.1build2",
+        "sha256": "1fe6a815b56c7b6e9ce4086a363f09444bbd0a0d30e230c453d0b78e44b57a99"
+      },
+      "openssh-client": {
+        "version": "1:9.6p1-3ubuntu13",
+        "sha256": "cb275222577a9b0ac65a9ea6e13096779aa56bf42e48478edb72e866547f7688"
+      },
+      "openssh-server": {
+        "version": "1:9.6p1-3ubuntu13",
+        "sha256": "6fe2467aff7aa8ed1cbe91a3521df69a41b90122143392f94037d4225a7098cb"
+      },
+      "openssh-sftp-server": {
+        "version": "1:9.6p1-3ubuntu13",
+        "sha256": "7283bf47a1966bd6fa3d1b6eb0ef5b06cf4306c3e7389b6b670f97c3079b7a62"
+      },
+      "openssl": {
+        "version": "3.0.13-0ubuntu3",
+        "sha256": "9c79333ab21bce0fb8dd92304cd76b3b1c427b0f2fedc897257fb5cced37c39e"
+      },
+      "perl": {
+        "version": "5.38.2-3.2build2",
+        "sha256": "a59f3d152ed767cf3be0924890e64d1f9424ac75f4124672ba6830d2ac587e03"
+      },
+      "python3": {
+        "version": "3.12.3-0ubuntu1",
+        "sha256": "4e0327510491374556c3a1af16af1cbf27eb94d228c9391efe116a8b84261f44"
+      },
+      "python3-cffi-backend": {
+        "version": "1.16.0-2build1",
+        "sha256": "a49f5e49b15146f6b2217cb3b6e6d62c503b02a7b271295e6d569d483ccdf687"
+      },
+      "python3-cryptography": {
+        "version": "41.0.7-4build3",
+        "sha256": "ee858108300ad0331149639b17b1a14f430cfc1f8b6af9ddb4cad6f2a6e286f5"
+      },
+      "python3-markupsafe": {
+        "version": "2.1.5-1build2",
+        "sha256": "5fd479735e81694be2881d4bd77b0b72e83adb1cb9fbfb1895274ac70ab230f4"
+      },
+      "python3-minimal": {
+        "version": "3.12.3-0ubuntu1",
+        "sha256": "3eff923ca78fc71fd332f9e0c1e8e46eac4ee6cb8e4cc9d8c34e33271aed3871"
+      },
+      "python3-yaml": {
+        "version": "6.0.1-2build2",
+        "sha256": "315e59500af855f23ee4e95525b99009bd798c4d2658af8eb4b2d66a8a91ec23"
+      },
+      "python3.12": {
+        "version": "3.12.3-1",
+        "sha256": "b4f42ae5295d74dffeac08ce22c70986322801ad6ab8279bdaf083d3440ea30a"
+      },
+      "python3.12-minimal": {
+        "version": "3.12.3-1",
+        "sha256": "af9ce0b1da62af10ae8984d27638a7f6901cb20a2893fbedb72dc52fa53c87bc"
+      },
+      "sshpass": {
+        "version": "1.09-1",
+        "sha256": "634fa0ec915e41696c4f5e416f6a76a2dccdacbf997a67a077d33e0a00e9fa32"
+      },
+      "wget": {
+        "version": "1.21.4-1ubuntu4",
+        "sha256": "1d078bf2a22c2c6da84788818ebf055a10f5f6b5ea629f1dd0dd11660b51def6"
+      }
+    }
+  }
+}

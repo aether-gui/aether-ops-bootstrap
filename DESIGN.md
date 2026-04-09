@@ -190,7 +190,24 @@ type Component interface {
 
 Top-level commands walk the components in dependency order, call `Plan` to compute what would change, and call `Apply` unless in dry-run mode. Idempotency falls out naturally: if `current == desired` and configs match, `Plan` returns a no-op.
 
-Initial component set, in order: `debs`, `ssh`, `sudoers`, `service_account`, `rke2`, `aether_ops`.
+Initial component set, in order: `debs`, `ssh`, `sudoers`, `service_account`, `rke2`, `helm`, `aether_ops`.
+
+### kubectl and kubeconfig access
+
+RKE2 writes its kubeconfig to `/etc/rancher/rke2/rke2.yaml`. By default this file is `root:root 0600`. The bootstrap configures RKE2 to relax this via `/etc/rancher/rke2/config.yaml`:
+
+```yaml
+write-kubeconfig-mode: "0640"
+write-kubeconfig-group: "aether-ops"
+```
+
+This makes the kubeconfig readable by the `aether-ops` service account (which is in the `aether-ops` group) without making it world-readable. The configuration survives RKE2 restarts and certificate rotations.
+
+For interactive users, the bootstrap drops `/etc/profile.d/rke2.sh` which adds `/var/lib/rancher/rke2/bin` to PATH and sets `KUBECONFIG`. Users in the `aether-ops` group can use kubectl directly; other users can use `sudo kubectl`.
+
+### Helm
+
+Helm is installed as a standalone static binary fetched from `https://get.helm.sh`. The RKE2 component installs kubectl (via RKE2's bin directory), and the Helm component places the Helm binary at `/usr/local/bin/helm`. Both are available on PATH via the profile drop-in.
 
 ### Onramp deployment user
 

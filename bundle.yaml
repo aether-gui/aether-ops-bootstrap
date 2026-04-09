@@ -26,6 +26,9 @@ rke2:
   # source: https://github.com/rancher/rke2/releases/download
   #   ↑ optional override; defaults to GitHub releases
 
+helm:
+  version: "v3.17.3"
+
 aether_ops:
   version: "v0.0.0-dev"
   source: ./build/aether-ops  # local pre-built binary

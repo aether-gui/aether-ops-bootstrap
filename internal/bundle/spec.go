@@ -43,6 +43,7 @@ type Spec struct {
 	Ubuntu        UbuntuSpec     `yaml:"ubuntu"`
 	Debs          []DebSpec      `yaml:"debs"`
 	RKE2          *RKE2Spec      `yaml:"rke2,omitempty"`
+	Helm          *HelmSpec      `yaml:"helm,omitempty"`
 	AetherOps     *AetherOpsSpec `yaml:"aether_ops,omitempty"`
 	TemplatesDir  string         `yaml:"templates_dir"`
 }
@@ -71,6 +72,11 @@ type RKE2Spec struct {
 	Variants  []string `yaml:"variants"`
 	ImageMode string   `yaml:"image_mode,omitempty"` // "all-in-one" (default) or "core+variant"
 	Source    string   `yaml:"source,omitempty"`     // base URL, defaults to GitHub releases
+}
+
+// HelmSpec declares the Helm version to include in the bundle.
+type HelmSpec struct {
+	Version string `yaml:"version"`
 }
 
 // AetherOpsSpec declares how to acquire the aether-ops binary.
@@ -178,6 +184,12 @@ func ValidateSpec(s *Spec) error {
 		}
 		if s.RKE2.ImageMode == ImageModeCoreVariant && len(s.RKE2.Variants) == 0 {
 			return fmt.Errorf("rke2.variants must be non-empty when image_mode is %q", ImageModeCoreVariant)
+		}
+	}
+
+	if s.Helm != nil {
+		if s.Helm.Version == "" {
+			return fmt.Errorf("helm.version is required when helm section is present")
 		}
 	}
 
