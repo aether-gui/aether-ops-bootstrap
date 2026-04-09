@@ -224,14 +224,25 @@ func buildAetherOpsFromSource(ctx context.Context, spec *bundle.AetherOpsSpec, a
 }
 
 // copyAetherOpsFromLocal handles a local pre-built binary or release archive.
+// When the source is a tar.gz, it tries to extract both the binary and the
+// service file from the archive. Falls back to finding the service file next
+// to the source path, then to downloading from GitHub as a last resort.
 func copyAetherOpsFromLocal(ctx context.Context, dl *Downloader, spec *bundle.AetherOpsSpec, aopsDir string) error {
 	srcPath := spec.Source
 
 	binaryDest := filepath.Join(aopsDir, "aether-ops")
+	serviceDest := filepath.Join(aopsDir, "aether-ops.service")
+	serviceFound := false
+
 	if strings.HasSuffix(srcPath, ".tar.gz") {
 		// Extract binary from release archive.
 		if err := extractFileFromTarGz(srcPath, "aether-ops", binaryDest); err != nil {
 			return fmt.Errorf("extracting binary from %s: %w", srcPath, err)
+		}
+
+		// Try to extract service file from the same archive.
+		if err := extractFileFromTarGz(srcPath, "aether-ops.service", serviceDest); err == nil {
+			serviceFound = true
 		}
 	} else {
 		// Copy binary directly.
@@ -243,17 +254,23 @@ func copyAetherOpsFromLocal(ctx context.Context, dl *Downloader, spec *bundle.Ae
 		return err
 	}
 
-	// Try to find service file next to the source.
-	serviceFile := filepath.Join(filepath.Dir(srcPath), "aether-ops.service")
-	serviceDest := filepath.Join(aopsDir, "aether-ops.service")
-	if _, err := os.Stat(serviceFile); err == nil {
-		return copyFile(serviceFile, serviceDest)
+	if !serviceFound {
+		// Try to find service file next to the source.
+		serviceFile := filepath.Join(filepath.Dir(srcPath), "aether-ops.service")
+		if _, err := os.Stat(serviceFile); err == nil {
+			if err := copyFile(serviceFile, serviceDest); err != nil {
+				return err
+			}
+			serviceFound = true
+		}
 	}
 
-	// Fall back to downloading from GitHub at the specified version.
-	serviceURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/deploy/systemd/aether-ops.service", spec.Repo, spec.Version)
-	if _, err := dl.Download(ctx, serviceURL, serviceDest); err != nil {
-		return fmt.Errorf("downloading service file: %w", err)
+	if !serviceFound {
+		// Fall back to downloading from GitHub at the specified version.
+		serviceURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/deploy/systemd/aether-ops.service", spec.Repo, spec.Version)
+		if _, err := dl.Download(ctx, serviceURL, serviceDest); err != nil {
+			return fmt.Errorf("downloading service file: %w", err)
+		}
 	}
 
 	return nil
