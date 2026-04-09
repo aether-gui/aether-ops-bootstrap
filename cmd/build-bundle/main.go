@@ -7,30 +7,87 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/builder"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 )
 
+var gitSHA string // set via ldflags: -X main.gitSHA=...
+
 func main() {
-	specPath := flag.String("spec", "bundle.yaml", "path to the bundle spec file")
-	output := flag.String("output", "dist/bundle.tar.zst", "output path for the bundle archive")
+	specPath := flag.String("spec", "bundle.yaml", "path to spec file or directory of spec files")
+	output := flag.String("output", "dist/bundle.tar.zst", "output path (file for single spec, directory for multi-spec)")
 	flag.Parse()
 
-	// Parse and validate spec.
-	spec, err := bundle.ParseSpec(*specPath)
+	info, err := os.Stat(*specPath)
 	if err != nil {
-		log.Fatalf("parsing spec: %v", err)
+		log.Fatalf("stat %s: %v", *specPath, err)
+	}
+
+	if !info.IsDir() {
+		// Single spec mode.
+		lockPath := strings.TrimSuffix(*specPath, filepath.Ext(*specPath)) + ".lock.json"
+		if err := buildOne(*specPath, *output, lockPath); err != nil {
+			log.Fatalf("build failed: %v", err)
+		}
+		return
+	}
+
+	// Multi-spec mode: iterate over *.yaml files in the directory.
+	// When --spec is a directory, --output must be a directory too.
+	// If it looks like a file path (has an extension), use its parent.
+	entries, err := os.ReadDir(*specPath)
+	if err != nil {
+		log.Fatalf("reading spec directory: %v", err)
+	}
+
+	outputDir := *output
+	if filepath.Ext(outputDir) != "" {
+		outputDir = filepath.Dir(outputDir)
+	}
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		log.Fatalf("creating output directory: %v", err)
+	}
+
+	var built int
+	for _, e := range entries {
+		if e.IsDir() || (!strings.HasSuffix(e.Name(), ".yaml") && !strings.HasSuffix(e.Name(), ".yml")) {
+			continue
+		}
+		specFile := filepath.Join(*specPath, e.Name())
+		baseName := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
+		outFile := filepath.Join(outputDir, baseName+".tar.zst")
+		lockFile := filepath.Join(*specPath, baseName+".lock.json")
+
+		log.Printf("=== building %s ===", e.Name())
+		if err := buildOne(specFile, outFile, lockFile); err != nil {
+			log.Fatalf("build %s failed: %v", e.Name(), err)
+		}
+		built++
+	}
+
+	if built == 0 {
+		log.Fatalf("no .yaml spec files found in %s", *specPath)
+	}
+	log.Printf("built %d bundles", built)
+}
+
+func buildOne(specPath, outputPath, lockPath string) error {
+	// Parse and validate spec.
+	spec, err := bundle.ParseSpec(specPath)
+	if err != nil {
+		return err
 	}
 	if err := bundle.ValidateSpec(spec); err != nil {
-		log.Fatalf("validating spec: %v", err)
+		return err
 	}
 
 	// Create temp staging directory.
 	stageDir, err := os.MkdirTemp("", "aether-bundle-*")
 	if err != nil {
-		log.Fatalf("creating staging directory: %v", err)
+		return err
 	}
 	defer os.RemoveAll(stageDir)
 
@@ -43,7 +100,7 @@ func main() {
 		log.Printf("fetching RKE2 %s artifacts...", spec.RKE2.Version)
 		rke2Entry, err = builder.FetchAndVerifyRKE2(ctx, dl, spec.RKE2, spec.Ubuntu.Architectures, stageDir)
 		if err != nil {
-			log.Fatalf("building RKE2: %v", err)
+			return err
 		}
 		log.Printf("RKE2 artifacts staged (%d files)", len(rke2Entry.Artifacts))
 	}
@@ -54,7 +111,7 @@ func main() {
 		log.Printf("building aether-ops %s...", spec.AetherOps.Version)
 		aetherOpsEntry, err = builder.BuildAetherOps(ctx, dl, spec.AetherOps, stageDir)
 		if err != nil {
-			log.Fatalf("building aether-ops: %v", err)
+			return err
 		}
 		log.Printf("aether-ops staged (%d files)", len(aetherOpsEntry.Files))
 	}
@@ -65,25 +122,59 @@ func main() {
 		log.Printf("resolving and fetching .deb packages...")
 		debEntries, err = builder.FetchDebs(ctx, dl, spec, stageDir)
 		if err != nil {
-			log.Fatalf("fetching debs: %v", err)
+			return err
 		}
 		log.Printf("staged %d .deb packages", len(debEntries))
+
+		// Lockfile: build current, verify against existing, write updated.
+		currentLock := builder.BuildLockfile(debEntries)
+		existingLock, err := builder.ReadLockfile(lockPath)
+		if err != nil {
+			return err
+		}
+		if existingLock != nil {
+			if err := builder.VerifyLockfile(existingLock, currentLock); err != nil {
+				log.Printf("WARNING: %v", err)
+			}
+		}
+		if err := builder.WriteLockfile(lockPath, currentLock); err != nil {
+			return err
+		}
+	}
+
+	// Stage templates.
+	var templatesEntry *bundle.TemplatesEntry
+	if spec.TemplatesDir != "" {
+		templatesEntry, err = builder.StageTemplates(spec.TemplatesDir, stageDir)
+		if err != nil {
+			return err
+		}
+		if templatesEntry != nil {
+			log.Printf("staged %d template files", len(templatesEntry.Files))
+		}
 	}
 
 	// Generate and write manifest.
-	manifest := builder.BuildManifest(spec, rke2Entry, aetherOpsEntry, debEntries)
+	manifest := builder.BuildManifest(spec, gitSHA, rke2Entry, aetherOpsEntry, debEntries, templatesEntry)
 	manifestPath := filepath.Join(stageDir, "manifest.json")
 	if err := bundle.Write(manifestPath, manifest); err != nil {
-		log.Fatalf("writing manifest: %v", err)
+		return err
 	}
 
 	// Create archive.
-	if err := os.MkdirAll(filepath.Dir(*output), 0755); err != nil {
-		log.Fatalf("creating output directory: %v", err)
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+		return err
 	}
-	if err := builder.Archive(stageDir, *output); err != nil {
-		log.Fatalf("creating archive: %v", err)
+	if err := builder.Archive(stageDir, outputPath); err != nil {
+		return err
 	}
 
-	log.Printf("bundle written to %s", *output)
+	// Write bundle checksum sidecar.
+	hash, err := builder.WriteBundleChecksum(outputPath)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("bundle written to %s (SHA256: %s)", outputPath, hash)
+	return nil
 }

@@ -9,12 +9,13 @@ import (
 
 // BuildManifest constructs a manifest from the spec and build results.
 // BundleSHA256 is left empty — it can be set after the archive is created.
-func BuildManifest(spec *bundle.Spec, rke2Entry *bundle.RKE2Entry, aetherOpsEntry *bundle.AetherOpsEntry, debEntries []bundle.DebEntry) *bundle.Manifest {
+func BuildManifest(spec *bundle.Spec, gitSHA string, rke2Entry *bundle.RKE2Entry, aetherOpsEntry *bundle.AetherOpsEntry, debEntries []bundle.DebEntry, templatesEntry *bundle.TemplatesEntry) *bundle.Manifest {
 	m := &bundle.Manifest{
 		SchemaVersion: bundle.SchemaVersion,
 		BundleVersion: spec.BundleVersion,
 		BuildInfo: bundle.BuildInfo{
 			GoVersion: runtime.Version(),
+			GitSHA:    gitSHA,
 			Builder:   "build-bundle",
 			Timestamp: time.Now().UTC().Format(time.RFC3339),
 		},
@@ -28,6 +29,9 @@ func BuildManifest(spec *bundle.Spec, rke2Entry *bundle.RKE2Entry, aetherOpsEntr
 	}
 	if len(debEntries) > 0 {
 		m.Components.Debs = debEntries
+	}
+	if templatesEntry != nil {
+		m.Components.Templates = templatesEntry
 	}
 
 	return m

@@ -44,11 +44,15 @@ type Spec struct {
 	TemplatesDir  string         `yaml:"templates_dir"`
 }
 
+// DefaultUbuntuMirror is the default Ubuntu archive URL.
+const DefaultUbuntuMirror = "https://archive.ubuntu.com/ubuntu"
+
 // UbuntuSpec declares which Ubuntu suites and architectures to target.
 // The builder resolves dependencies per (suite, arch) pair.
 type UbuntuSpec struct {
 	Suites        []string `yaml:"suites"`
 	Architectures []string `yaml:"architectures"`
+	Mirror        string   `yaml:"mirror,omitempty"` // Ubuntu archive URL, defaults to archive.ubuntu.com
 }
 
 // DebSpec declares a top-level .deb package to include. The builder
@@ -97,6 +101,10 @@ func ParseSpec(path string) (*Spec, error) {
 
 // applySpecDefaults fills in default values for optional fields.
 func applySpecDefaults(s *Spec) {
+	if s.Ubuntu.Mirror == "" {
+		s.Ubuntu.Mirror = DefaultUbuntuMirror
+	}
+	s.Ubuntu.Mirror = strings.TrimRight(s.Ubuntu.Mirror, "/")
 	if s.RKE2 != nil {
 		if s.RKE2.ImageMode == "" {
 			s.RKE2.ImageMode = ImageModeAllInOne
