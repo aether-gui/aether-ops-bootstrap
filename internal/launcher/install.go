@@ -124,7 +124,22 @@ func Install(ctx context.Context, opts InstallOpts) error {
 		return err
 	}
 
-	log.Println("bootstrap complete")
+	if !opts.DryRun {
+		log.Println("")
+		log.Println("========================================")
+		log.Println("  Bootstrap complete!")
+		log.Println("========================================")
+		log.Println("")
+		log.Println("  aether-ops is running at http://127.0.0.1:8186")
+		log.Println("")
+		log.Println("  The default onramp user credentials are:")
+		log.Println("    user: aether")
+		log.Println("    pass: <as configured>")
+		log.Println("")
+		log.Println("  Change the default password immediately.")
+		log.Println("")
+	}
+
 	return nil
 }
 

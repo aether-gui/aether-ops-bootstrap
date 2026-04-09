@@ -1,7 +1,6 @@
 package aetherops
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -50,10 +49,13 @@ func TestCurrentVersion(t *testing.T) {
 	}
 }
 
-func TestPlanNotImplemented(t *testing.T) {
+func TestPlanNoOpWhenNilManifest(t *testing.T) {
 	c := New("", nil)
-	_, err := c.Plan("", "1.4.0")
-	if !errors.Is(err, components.ErrNotImplemented) {
-		t.Errorf("Plan error = %v, want ErrNotImplemented", err)
+	plan, err := c.Plan("", "1.4.0")
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if !plan.NoOp {
+		t.Error("Plan should be NoOp when manifest is nil")
 	}
 }
