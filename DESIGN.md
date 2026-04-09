@@ -192,6 +192,20 @@ Top-level commands walk the components in dependency order, call `Plan` to compu
 
 Initial component set, in order: `debs`, `ssh`, `sudoers`, `service_account`, `rke2`, `aether_ops`.
 
+### Onramp deployment user
+
+aether-ops uses Ansible over SSH to manage nodes. This requires an OS user on the management node (and target nodes) with:
+
+- SSH password authentication enabled
+- A known password for initial Ansible connections
+- Passwordless sudo (`NOPASSWD: ALL`) for running privileged commands remotely
+
+The bootstrap configures this via the `aether_ops.onramp_user` and `aether_ops.onramp_password` spec fields (defaulting to `aether`/`aether`). The `aether_ops` component creates the user, sets the password, drops a sudoers file at `/etc/sudoers.d/{user}`, and the `ssh` component drops `/etc/ssh/sshd_config.d/01-aether-password-auth.conf` to enable password authentication.
+
+The onramp user (`aether`) is distinct from the service account (`aether-ops`). The service account runs the aether-ops daemon; the onramp user is the identity Ansible uses to SSH into nodes.
+
+The default password should be changed immediately after initial setup. The password can be overridden at install time via the `AETHER_ONRAMP_PASSWORD` environment variable without modifying the spec file.
+
 ### State file
 
 Lives at `/var/lib/aether-ops-bootstrap/state.json`. Records launcher version, bundle version, bundle hash, per-component version and config hash, and a history array of every action taken. The launcher refuses to read a state file with a `schema_version` it doesn't recognize.

@@ -76,6 +76,12 @@ func TestParseSpec(t *testing.T) {
 	if s.AetherOps.Repo != DefaultAetherOpsRepo {
 		t.Errorf("AetherOps.Repo = %q, want default %q", s.AetherOps.Repo, DefaultAetherOpsRepo)
 	}
+	if s.AetherOps.OnrampUser != "aether" {
+		t.Errorf("AetherOps.OnrampUser = %q, want default %q", s.AetherOps.OnrampUser, "aether")
+	}
+	if s.AetherOps.OnrampPassword != "aether" {
+		t.Errorf("AetherOps.OnrampPassword = %q, want default %q", s.AetherOps.OnrampPassword, "aether")
+	}
 	// Templates.
 	if s.TemplatesDir != "./templates" {
 		t.Errorf("TemplatesDir = %q, want %q", s.TemplatesDir, "./templates")
