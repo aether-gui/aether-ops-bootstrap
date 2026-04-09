@@ -9,10 +9,12 @@ import (
 )
 
 // Component manages sudoers drop-in files for the aether-ops service account.
-type Component struct{}
+type Component struct {
+	extractDir string
+}
 
-func New() *Component {
-	return &Component{}
+func New(extractDir string) *Component {
+	return &Component{extractDir: extractDir}
 }
 
 func (c *Component) Name() string { return "sudoers" }

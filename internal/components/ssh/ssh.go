@@ -9,10 +9,12 @@ import (
 )
 
 // Component configures sshd with drop-in snippets and manages service keypairs.
-type Component struct{}
+type Component struct {
+	extractDir string
+}
 
-func New() *Component {
-	return &Component{}
+func New(extractDir string) *Component {
+	return &Component{extractDir: extractDir}
 }
 
 func (c *Component) Name() string { return "ssh" }

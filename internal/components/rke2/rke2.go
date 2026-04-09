@@ -9,10 +9,13 @@ import (
 )
 
 // Component installs RKE2 from vendored tarballs and manages its systemd service.
-type Component struct{}
+type Component struct {
+	extractDir string
+	manifest   *bundle.Manifest
+}
 
-func New() *Component {
-	return &Component{}
+func New(extractDir string, manifest *bundle.Manifest) *Component {
+	return &Component{extractDir: extractDir, manifest: manifest}
 }
 
 func (c *Component) Name() string { return "rke2" }

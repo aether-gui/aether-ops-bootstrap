@@ -9,10 +9,13 @@ import (
 )
 
 // Component installs the aether-ops daemon binary, systemd unit, and config.
-type Component struct{}
+type Component struct {
+	extractDir string
+	manifest   *bundle.Manifest
+}
 
-func New() *Component {
-	return &Component{}
+func New(extractDir string, manifest *bundle.Manifest) *Component {
+	return &Component{extractDir: extractDir, manifest: manifest}
 }
 
 func (c *Component) Name() string { return "aether_ops" }

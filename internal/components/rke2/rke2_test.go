@@ -12,14 +12,14 @@ import (
 var _ components.Component = (*Component)(nil)
 
 func TestName(t *testing.T) {
-	c := New()
+	c := New("", nil)
 	if c.Name() != "rke2" {
 		t.Errorf("Name() = %q, want %q", c.Name(), "rke2")
 	}
 }
 
 func TestDesiredVersion(t *testing.T) {
-	c := New()
+	c := New("", nil)
 	m := &bundle.Manifest{
 		Components: bundle.ComponentList{
 			RKE2: &bundle.RKE2Entry{Version: "v1.33.1+rke2r1"},
@@ -31,7 +31,7 @@ func TestDesiredVersion(t *testing.T) {
 }
 
 func TestDesiredVersionNilRKE2(t *testing.T) {
-	c := New()
+	c := New("", nil)
 	m := &bundle.Manifest{}
 	if v := c.DesiredVersion(m); v != "" {
 		t.Errorf("DesiredVersion with nil RKE2 = %q, want empty", v)
@@ -39,7 +39,7 @@ func TestDesiredVersionNilRKE2(t *testing.T) {
 }
 
 func TestCurrentVersion(t *testing.T) {
-	c := New()
+	c := New("", nil)
 	s := &state.State{
 		Components: map[string]state.ComponentState{
 			"rke2": {Version: "v1.32.0+rke2r1"},
@@ -51,7 +51,7 @@ func TestCurrentVersion(t *testing.T) {
 }
 
 func TestPlanNotImplemented(t *testing.T) {
-	c := New()
+	c := New("", nil)
 	_, err := c.Plan("", "v1.33.1+rke2r1")
 	if !errors.Is(err, components.ErrNotImplemented) {
 		t.Errorf("Plan error = %v, want ErrNotImplemented", err)

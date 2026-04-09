@@ -12,14 +12,14 @@ import (
 var _ components.Component = (*Component)(nil)
 
 func TestName(t *testing.T) {
-	c := New()
+	c := New("")
 	if c.Name() != "ssh" {
 		t.Errorf("Name() = %q, want %q", c.Name(), "ssh")
 	}
 }
 
 func TestDesiredVersion(t *testing.T) {
-	c := New()
+	c := New("")
 	m := &bundle.Manifest{BundleVersion: "2026.04.1"}
 	if v := c.DesiredVersion(m); v != "2026.04.1" {
 		t.Errorf("DesiredVersion = %q, want %q", v, "2026.04.1")
@@ -27,7 +27,7 @@ func TestDesiredVersion(t *testing.T) {
 }
 
 func TestCurrentVersion(t *testing.T) {
-	c := New()
+	c := New("")
 	s := &state.State{
 		Components: map[string]state.ComponentState{
 			"ssh": {Version: "2026.03.1"},
@@ -39,7 +39,7 @@ func TestCurrentVersion(t *testing.T) {
 }
 
 func TestPlanNotImplemented(t *testing.T) {
-	c := New()
+	c := New("")
 	_, err := c.Plan("", "2026.04.1")
 	if !errors.Is(err, components.ErrNotImplemented) {
 		t.Errorf("Plan error = %v, want ErrNotImplemented", err)
