@@ -15,6 +15,7 @@ debs:
   - name: jq
   - name: ssh
   - name: sshpass
+  - name: iptables
 
 rke2:
   version: "v1.33.1+rke2r1"
@@ -28,8 +29,10 @@ rke2:
 aether_ops:
   version: "v0.0.0-dev"
   source: ./build/aether-ops  # local pre-built binary
-  # ref: "main"        # build from source at this git ref (mutually exclusive with source)
+  # ref: "main"           # build from source at this git ref (mutually exclusive with source)
   # repo: aether-gui/aether-ops
-  # frontend_ref: ""   # override frontend submodule (source build only)
+  # frontend_ref: ""     # override frontend submodule (source build only)
+  # onramp_user: aether  # OS user for Ansible SSH deployments (default: aether)
+  # onramp_password not shown here — provide at runtime, not in checked-in specs
 
 templates_dir: ./templates

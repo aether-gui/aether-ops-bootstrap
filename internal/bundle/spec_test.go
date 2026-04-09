@@ -76,6 +76,12 @@ func TestParseSpec(t *testing.T) {
 	if s.AetherOps.Repo != DefaultAetherOpsRepo {
 		t.Errorf("AetherOps.Repo = %q, want default %q", s.AetherOps.Repo, DefaultAetherOpsRepo)
 	}
+	if s.AetherOps.OnrampUser != "aether" {
+		t.Errorf("AetherOps.OnrampUser = %q, want default %q", s.AetherOps.OnrampUser, "aether")
+	}
+	if s.AetherOps.OnrampPassword != "aether" {
+		t.Error("AetherOps.OnrampPassword does not match expected default")
+	}
 	// Templates.
 	if s.TemplatesDir != "./templates" {
 		t.Errorf("TemplatesDir = %q, want %q", s.TemplatesDir, "./templates")
@@ -257,7 +263,7 @@ func TestValidateSpecAetherOpsVersionOnly(t *testing.T) {
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "./templates",
-		AetherOps:     &AetherOpsSpec{Version: "v1.0.0"},
+		AetherOps:     &AetherOpsSpec{Version: "v1.0.0", OnrampUser: "aether"},
 	}
 	if err := ValidateSpec(s); err != nil {
 		t.Fatalf("version-only (download mode) should be valid: %v", err)
@@ -270,7 +276,7 @@ func TestValidateSpecAetherOpsRefWithVersion(t *testing.T) {
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "./templates",
-		AetherOps:     &AetherOpsSpec{Version: "v0.0.0-dev", Ref: "main"},
+		AetherOps:     &AetherOpsSpec{Version: "v0.0.0-dev", Ref: "main", OnrampUser: "aether"},
 	}
 	if err := ValidateSpec(s); err != nil {
 		t.Fatalf("ref+version (source mode) should be valid: %v", err)

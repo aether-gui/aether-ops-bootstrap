@@ -3,10 +3,13 @@ package bundle
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+var validUnixUser = regexp.MustCompile(`^[a-z_][a-z0-9_-]*$`)
 
 // DefaultRKE2Source is the base URL for RKE2 release artifacts.
 const DefaultRKE2Source = "https://github.com/rancher/rke2/releases/download"
@@ -76,11 +79,13 @@ type RKE2Spec struct {
 //   - Source build: ref set → clone repo at ref, build from source
 //   - Local: source set → use a local pre-built binary or release archive
 type AetherOpsSpec struct {
-	Version     string `yaml:"version"`                // required: version string (used for ldflags and release URL)
-	Source      string `yaml:"source,omitempty"`       // local path to pre-built binary or release tar.gz
-	Ref         string `yaml:"ref,omitempty"`          // git ref (tag/branch/SHA) → build from source
-	FrontendRef string `yaml:"frontend_ref,omitempty"` // override frontend submodule ref (source build only)
-	Repo        string `yaml:"repo,omitempty"`         // GitHub owner/name, default: aether-gui/aether-ops
+	Version        string `yaml:"version"`                   // required: version string (used for ldflags and release URL)
+	Source         string `yaml:"source,omitempty"`          // local path to pre-built binary or release tar.gz
+	Ref            string `yaml:"ref,omitempty"`             // git ref (tag/branch/SHA) → build from source
+	FrontendRef    string `yaml:"frontend_ref,omitempty"`    // override frontend submodule ref (source build only)
+	Repo           string `yaml:"repo,omitempty"`            // GitHub owner/name, default: aether-gui/aether-ops
+	OnrampUser     string `yaml:"onramp_user,omitempty"`     // OS user for Ansible SSH deployments, default: "aether"
+	OnrampPassword string `yaml:"onramp_password,omitempty"` // default: "aether"; change immediately after initial setup
 }
 
 // ParseSpec reads and parses a bundle.yaml file.
@@ -116,6 +121,12 @@ func applySpecDefaults(s *Spec) {
 	if s.AetherOps != nil {
 		if s.AetherOps.Repo == "" {
 			s.AetherOps.Repo = DefaultAetherOpsRepo
+		}
+		if s.AetherOps.OnrampUser == "" {
+			s.AetherOps.OnrampUser = "aether"
+		}
+		if s.AetherOps.OnrampPassword == "" {
+			s.AetherOps.OnrampPassword = "aether"
 		}
 	}
 }
@@ -183,6 +194,9 @@ func ValidateSpec(s *Spec) error {
 		}
 		if s.AetherOps.FrontendRef != "" && s.AetherOps.Ref == "" {
 			return fmt.Errorf("aether_ops.frontend_ref requires aether_ops.ref (only meaningful for source builds)")
+		}
+		if !validUnixUser.MatchString(s.AetherOps.OnrampUser) {
+			return fmt.Errorf("aether_ops.onramp_user %q is not a valid Unix username", s.AetherOps.OnrampUser)
 		}
 	}
 
