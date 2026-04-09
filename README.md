@@ -2,68 +2,118 @@
 
 `aether-ops-bootstrap` takes a freshly installed Ubuntu Server host and produces a running aether-ops management plane on top of RKE2. It runs once per management node, requires no internet access, and hands off to aether-ops for all further configuration.
 
-Two artifacts are produced: a statically linked Go launcher binary and an offline payload bundle (`aether-ops-bundle-<version>-linux-<arch>.tar.zst`). Together they bring up the platform layer — RKE2, aether-ops, and all OS-level prerequisites — without touching the network.
+Two artifacts are produced: a statically linked Go launcher binary and an offline payload bundle (`aether-ops-bundle-<version>-linux-amd64.tar.zst`). Together they bring up the platform layer — RKE2, aether-ops, Helm, and all OS-level prerequisites — without touching the network.
 
 See [DESIGN.md](DESIGN.md) for full architecture and design details.
 
-## How It Works
+## Building
 
-### Building the Bundle
+### Prerequisites
 
-The `build-bundle` tool reads a declarative spec (`bundle.yaml`) and assembles an offline payload containing all dependencies — no manual downloading or packaging.
+- Go 1.22+
+- Node.js 20+ and npm (only if building aether-ops from source)
+- golangci-lint (optional, for linting: `make install-lint`)
 
-```mermaid
-flowchart LR
-    spec["bundle.yaml<br/><i>human-edited spec</i>"]
-    resolve["Resolve"]
-    fetch["Fetch"]
-    verify["Verify"]
-    lock["Lock"]
-    stage["Stage"]
-    assemble["Assemble"]
-    lockfile["bundle.lock.json"]
-    tarball["bundle.tar.zst"]
-    manifest["manifest.json"]
-
-    spec --> resolve --> fetch --> verify --> lock --> stage --> assemble
-    lock --> lockfile
-    assemble --> tarball
-    assemble --> manifest
-```
-
-### Bootstrapping a Host
-
-The launcher binary reads the bundle, walks each component in dependency order, and brings the host from bare Ubuntu to a running aether-ops management plane.
-
-```mermaid
-flowchart TD
-    start(["aether-ops-bootstrap install"])
-    preflight["Preflight<br/><i>OS version, arch, disk, RAM</i>"]
-    debs["Install .debs<br/><i>git, make, ansible + deps</i>"]
-    ssh["Configure SSH<br/><i>sshd drop-ins, keypair</i>"]
-    sudoers["Configure sudoers<br/><i>drop-in for service account</i>"]
-    svcacct["Create service account<br/><i>useradd, groupadd</i>"]
-    rke2["Install RKE2<br/><i>extract, config, systemd, wait</i>"]
-    aetherops["Install aether-ops<br/><i>binary, config, systemd, wait</i>"]
-    done(["Handoff complete"])
-
-    start --> preflight --> debs --> ssh --> sudoers --> svcacct --> rke2 --> aetherops --> done
-```
-
-Each component follows the same **Plan/Apply** pattern: compare current state to the bundle's desired state, compute what needs to change, then apply it. If nothing changed, the component is a no-op — making every run idempotent.
-
-## Quick Start
+### Build the launcher
 
 ```bash
 make build
 ```
 
-Produces `dist/aether-ops-bootstrap`.
+Produces `dist/aether-ops-bootstrap` — the static binary that runs on target hosts.
+
+### Build the bundle tool
 
 ```bash
-./dist/aether-ops-bootstrap version
-./dist/aether-ops-bootstrap install
+make build-bundle
 ```
+
+Produces `dist/build-bundle` — the tool that assembles offline bundles from `bundle.yaml`.
+
+### Build a bundle
+
+```bash
+./dist/build-bundle --spec bundle.yaml --output dist/bundle.tar.zst
+```
+
+This reads `bundle.yaml` and:
+
+1. **Fetches RKE2** airgap artifacts (binary + container images) from GitHub releases, verifies SHA256 checksums
+2. **Fetches Helm** binary from get.helm.sh, verifies SHA256
+3. **Acquires aether-ops** binary (from source, GitHub release, or local path depending on spec)
+4. **Resolves .deb dependencies** from Ubuntu Packages indexes (main + universe), downloads and SHA256-verifies each package
+5. **Stages templates** (RKE2 config, SSH drop-ins, sudoers)
+6. **Generates `manifest.json`** recording every artifact with version, hash, and size
+7. **Archives** everything into a `tar.zst` bundle with a `.sha256` sidecar
+
+The tool also writes/verifies `bundle.lock.json` to detect upstream dependency drift between builds.
+
+#### Multi-bundle mode
+
+Pass a directory of `.yaml` spec files to build multiple bundles:
+
+```bash
+./dist/build-bundle --spec specs/ --output dist/
+```
+
+### Bundle spec (`bundle.yaml`)
+
+The spec declares what goes into a bundle:
+
+```yaml
+schema_version: 1
+bundle_version: "2026.04.1"
+
+ubuntu:
+  suites: [noble]
+  architectures: [amd64]
+  # mirror: https://archive.ubuntu.com/ubuntu  # override for internal mirrors
+
+debs:
+  - name: ansible
+  - name: git
+  - name: make
+  - name: curl
+  - name: jq
+  - name: ssh
+  - name: sshpass
+  - name: iptables
+
+rke2:
+  version: "v1.33.1+rke2r1"
+  variants: [canal]
+  image_mode: all-in-one
+
+helm:
+  version: "v3.17.3"
+
+aether_ops:
+  version: "v1.0.0"              # download pre-built from GitHub releases
+  # ref: "main"                  # OR build from source at this git ref
+  # source: ./build/aether-ops   # OR use a local pre-built binary
+
+templates_dir: ./templates
+```
+
+## CI/CD Workflows
+
+Three GitHub Actions workflows:
+
+### `launcher.yml` — on push/PR to main
+
+Runs on every push and pull request:
+- `go vet ./...`
+- `golangci-lint`
+- `go test -race -cover ./...`
+- `make build`
+
+### `bundle.yml` — on tag push (`v*`)
+
+Triggered when a version tag is pushed. Sets up Go and Node.js, then runs the bundle builder against `bundle.yaml`.
+
+### `integration.yml` — manual trigger
+
+Placeholder for VM-based integration tests that will validate the full airgap install flow on Ubuntu 22.04/24.04.
 
 ## Development
 
@@ -71,5 +121,6 @@ Produces `dist/aether-ops-bootstrap`.
 make test          # run tests with race detector and coverage
 make vet           # go vet
 make lint          # golangci-lint (install with: make install-lint)
+make build-all     # build both launcher and bundle tool
 make clean         # remove build artifacts
 ```
