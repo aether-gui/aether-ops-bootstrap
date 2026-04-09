@@ -30,17 +30,17 @@ func main() {
 
 	switch os.Args[1] {
 	case "install":
-		cmdInstall(false)
+		cmdRun("install", false, false)
 	case "upgrade":
-		fmt.Println("upgrade: not implemented")
+		cmdRun("upgrade", false, false)
 	case "repair":
-		fmt.Println("repair: not implemented")
+		cmdRun("repair", false, true)
 	case "check":
-		cmdInstall(true)
+		cmdRun("check", true, false)
 	case "state":
 		cmdState()
 	case "version":
-		fmt.Printf("aether-ops-bootstrap %s\n", version)
+		cmdVersion()
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -50,11 +50,10 @@ func main() {
 	}
 }
 
-func cmdInstall(dryRun bool) {
+func cmdRun(action string, dryRun, repair bool) {
 	bundlePath := ""
 	force := false
 
-	// Simple arg parsing for install subcommand.
 	for i := 2; i < len(os.Args); i++ {
 		switch os.Args[i] {
 		case "--bundle":
@@ -72,18 +71,35 @@ func cmdInstall(dryRun bool) {
 	}
 
 	if bundlePath == "" {
-		log.Fatal("--bundle is required for install")
+		log.Fatalf("--bundle is required for %s", action)
+	}
+
+	// upgrade and repair always allow re-running on existing state.
+	if action == "upgrade" || action == "repair" {
+		force = true
 	}
 
 	opts := launcher.InstallOpts{
 		BundlePath: bundlePath,
 		Force:      force,
 		DryRun:     dryRun,
+		Repair:     repair,
+		Action:     action,
 		Version:    version,
 	}
 
 	if err := launcher.Install(context.Background(), opts); err != nil {
 		log.Fatalf("install failed: %v", err)
+	}
+}
+
+func cmdVersion() {
+	fmt.Printf("aether-ops-bootstrap %s\n", version)
+
+	// If state exists, show installed bundle version.
+	st, err := state.Read(state.DefaultPath)
+	if err == nil && st.BundleVersion != "" {
+		fmt.Printf("installed bundle: %s\n", st.BundleVersion)
 	}
 }
 

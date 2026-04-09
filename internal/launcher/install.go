@@ -19,8 +19,10 @@ import (
 // InstallOpts configures the install command.
 type InstallOpts struct {
 	BundlePath string
-	Force      bool // override prior successful install
-	DryRun     bool // plan only, don't apply
+	Force      bool   // override prior successful install
+	DryRun     bool   // plan only, don't apply
+	Repair     bool   // re-apply all components regardless of state
+	Action     string // "install", "upgrade", "repair", "check" — recorded in history
 	Version    string
 }
 
@@ -33,7 +35,9 @@ func Install(ctx context.Context, opts InstallOpts) error {
 	}
 
 	// Load or initialize state.
-	st, err := loadOrInitState(opts.Force)
+	// DryRun (check), upgrade, and repair always allow existing state.
+	allowExisting := opts.Force || opts.DryRun || opts.Repair
+	st, err := loadOrInitState(allowExisting)
 	if err != nil {
 		return err
 	}
@@ -71,6 +75,11 @@ func Install(ctx context.Context, opts InstallOpts) error {
 	for _, comp := range registry.All() {
 		desired := comp.DesiredVersion(manifest)
 		current := comp.CurrentVersion(st)
+
+		// In repair mode, pretend nothing is installed so all components re-apply.
+		if opts.Repair {
+			current = ""
+		}
 
 		plan, err := comp.Plan(current, desired)
 		if errors.Is(err, components.ErrNotImplemented) {
@@ -114,8 +123,12 @@ func Install(ctx context.Context, opts InstallOpts) error {
 	}
 
 	// Write final state.
+	action := opts.Action
+	if action == "" {
+		action = "install"
+	}
 	st.History = append(st.History, state.HistoryEntry{
-		Action:          "install",
+		Action:          action,
 		Timestamp:       time.Now().UTC(),
 		LauncherVersion: opts.Version,
 		BundleVersion:   manifest.BundleVersion,

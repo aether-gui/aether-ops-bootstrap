@@ -65,6 +65,18 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 
 	actions := []components.Action{
 		{
+			Description: "stop aether-ops if running",
+			Fn: func(ctx context.Context) error {
+				mgr := &systemd.SystemctlManager{}
+				status, _ := mgr.Status(ctx, "aether-ops")
+				if status.ActiveState == "active" {
+					log.Printf("  stopping aether-ops for upgrade")
+					return mgr.Stop(ctx, "aether-ops")
+				}
+				return nil
+			},
+		},
+		{
 			Description: "create config and state directories",
 			Fn: func(ctx context.Context) error {
 				for _, dir := range []string{configDir, stateDir} {
