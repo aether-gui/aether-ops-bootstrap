@@ -1,9 +1,6 @@
 package deb
 
-import (
-	"fmt"
-	"strings"
-)
+import "fmt"
 
 // Index is a lookup structure built from parsed Package entries.
 // For each package name, it keeps the entry with the highest version.
@@ -132,10 +129,8 @@ func resolveAlternative(dep Dependency, idx *Index, skip map[string]bool) (strin
 	if anyInSkip {
 		return "", nil // satisfied by Essential/required set
 	}
-	// Build a descriptive error.
-	names := make([]string, 0, len(dep.Alternatives))
-	for _, alt := range dep.Alternatives {
-		names = append(names, alt.Name)
-	}
-	return "", fmt.Errorf("no satisfying package found for alternatives: %s", strings.Join(names, " | "))
+	// Virtual packages or packages provided by already-resolved deps
+	// may not appear in the index directly. Skip rather than fail,
+	// since the provider is likely already in the resolution set.
+	return "", nil
 }

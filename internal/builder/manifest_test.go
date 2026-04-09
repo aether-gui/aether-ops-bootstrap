@@ -39,7 +39,14 @@ func TestBuildManifest(t *testing.T) {
 		},
 	}
 
-	m := BuildManifest(spec, "abc1234", rke2Entry, aetherOpsEntry, debEntries, templatesEntry)
+	helmEntry := &bundle.HelmEntry{
+		Version: "v3.17.3",
+		Files: []bundle.BundleFile{
+			{Path: "helm/helm", SHA256: "helm123", Size: 50000},
+		},
+	}
+
+	m := BuildManifest(spec, "abc1234", rke2Entry, helmEntry, aetherOpsEntry, debEntries, templatesEntry)
 
 	if m.SchemaVersion != bundle.SchemaVersion {
 		t.Errorf("SchemaVersion = %d, want %d", m.SchemaVersion, bundle.SchemaVersion)
@@ -65,6 +72,12 @@ func TestBuildManifest(t *testing.T) {
 	if m.Components.RKE2.Version != "v1.33.1+rke2r1" {
 		t.Errorf("RKE2.Version = %q", m.Components.RKE2.Version)
 	}
+	if m.Components.Helm == nil {
+		t.Fatal("Helm is nil")
+	}
+	if m.Components.Helm.Version != "v3.17.3" {
+		t.Errorf("Helm.Version = %q", m.Components.Helm.Version)
+	}
 	if m.Components.AetherOps == nil {
 		t.Fatal("AetherOps is nil")
 	}
@@ -88,10 +101,13 @@ func TestBuildManifestNilEntries(t *testing.T) {
 		BundleVersion: "2026.04.1",
 	}
 
-	m := BuildManifest(spec, "", nil, nil, nil, nil)
+	m := BuildManifest(spec, "", nil, nil, nil, nil, nil)
 
 	if m.Components.RKE2 != nil {
 		t.Error("RKE2 should be nil")
+	}
+	if m.Components.Helm != nil {
+		t.Error("Helm should be nil")
 	}
 	if m.Components.AetherOps != nil {
 		t.Error("AetherOps should be nil")

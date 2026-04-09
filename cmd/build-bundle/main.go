@@ -105,6 +105,17 @@ func buildOne(specPath, outputPath, lockPath string) error {
 		log.Printf("RKE2 artifacts staged (%d files)", len(rke2Entry.Artifacts))
 	}
 
+	// Fetch Helm binary.
+	var helmEntry *bundle.HelmEntry
+	if spec.Helm != nil {
+		log.Printf("fetching Helm %s...", spec.Helm.Version)
+		helmEntry, err = builder.FetchHelm(ctx, dl, spec.Helm, stageDir)
+		if err != nil {
+			return err
+		}
+		log.Printf("Helm staged (%d files)", len(helmEntry.Files))
+	}
+
 	// Build aether-ops artifacts.
 	var aetherOpsEntry *bundle.AetherOpsEntry
 	if spec.AetherOps != nil {
@@ -155,7 +166,7 @@ func buildOne(specPath, outputPath, lockPath string) error {
 	}
 
 	// Generate and write manifest.
-	manifest := builder.BuildManifest(spec, gitSHA, rke2Entry, aetherOpsEntry, debEntries, templatesEntry)
+	manifest := builder.BuildManifest(spec, gitSHA, rke2Entry, helmEntry, aetherOpsEntry, debEntries, templatesEntry)
 	manifestPath := filepath.Join(stageDir, "manifest.json")
 	if err := bundle.Write(manifestPath, manifest); err != nil {
 		return err
