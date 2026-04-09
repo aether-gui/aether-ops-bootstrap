@@ -204,7 +204,9 @@ The bootstrap configures this via the `aether_ops.onramp_user` and `aether_ops.o
 
 The onramp user (`aether`) is distinct from the service account (`aether-ops`). The service account runs the aether-ops daemon; the onramp user is the identity Ansible uses to SSH into nodes.
 
-The default password should be changed immediately after initial setup. The password can be overridden at install time via the `AETHER_ONRAMP_PASSWORD` environment variable without modifying the spec file.
+The default password should be changed immediately after initial setup. A future enhancement will allow overriding the password at install time via the `AETHER_ONRAMP_PASSWORD` environment variable.
+
+SSH password authentication is scoped to only the onramp user via a `Match User` block in the sshd drop-in, rather than enabled globally. Other users must use SSH key-based authentication.
 
 ### State file
 

@@ -33,6 +33,6 @@ aether_ops:
   # repo: aether-gui/aether-ops
   # frontend_ref: ""     # override frontend submodule (source build only)
   # onramp_user: aether  # OS user for Ansible SSH deployments (default: aether)
-  # onramp_password: aether  # default password, override via AETHER_ONRAMP_PASSWORD env var
+  # onramp_password not shown here — provide at runtime, not in checked-in specs
 
 templates_dir: ./templates

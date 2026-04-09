@@ -3,10 +3,13 @@ package bundle
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+var validUnixUser = regexp.MustCompile(`^[a-z_][a-z0-9_-]*$`)
 
 // DefaultRKE2Source is the base URL for RKE2 release artifacts.
 const DefaultRKE2Source = "https://github.com/rancher/rke2/releases/download"
@@ -82,7 +85,7 @@ type AetherOpsSpec struct {
 	FrontendRef    string `yaml:"frontend_ref,omitempty"`    // override frontend submodule ref (source build only)
 	Repo           string `yaml:"repo,omitempty"`            // GitHub owner/name, default: aether-gui/aether-ops
 	OnrampUser     string `yaml:"onramp_user,omitempty"`     // OS user for Ansible SSH deployments, default: "aether"
-	OnrampPassword string `yaml:"onramp_password,omitempty"` // default: "aether", overridable via AETHER_ONRAMP_PASSWORD env var at install time
+	OnrampPassword string `yaml:"onramp_password,omitempty"` // default: "aether"; change immediately after initial setup
 }
 
 // ParseSpec reads and parses a bundle.yaml file.
@@ -191,6 +194,9 @@ func ValidateSpec(s *Spec) error {
 		}
 		if s.AetherOps.FrontendRef != "" && s.AetherOps.Ref == "" {
 			return fmt.Errorf("aether_ops.frontend_ref requires aether_ops.ref (only meaningful for source builds)")
+		}
+		if !validUnixUser.MatchString(s.AetherOps.OnrampUser) {
+			return fmt.Errorf("aether_ops.onramp_user %q is not a valid Unix username", s.AetherOps.OnrampUser)
 		}
 	}
 
