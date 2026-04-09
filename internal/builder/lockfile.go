@@ -134,6 +134,20 @@ func VerifyLockfile(existing, current *Lockfile) error {
 		}
 	}
 
+	// Check for packages added in current that aren't in existing.
+	for key, currentPkgs := range current.Debs {
+		existingPkgs, ok := existing.Debs[key]
+		if !ok {
+			diffs = append(diffs, fmt.Sprintf("  %s: new section in current build", key))
+			continue
+		}
+		for name := range currentPkgs {
+			if _, ok := existingPkgs[name]; !ok {
+				diffs = append(diffs, fmt.Sprintf("  %s/%s: package added", key, name))
+			}
+		}
+	}
+
 	if len(diffs) == 0 {
 		return nil
 	}

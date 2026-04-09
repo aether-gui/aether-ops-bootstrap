@@ -36,12 +36,17 @@ func main() {
 	}
 
 	// Multi-spec mode: iterate over *.yaml files in the directory.
+	// When --spec is a directory, --output must be a directory too.
+	// If it looks like a file path (has an extension), use its parent.
 	entries, err := os.ReadDir(*specPath)
 	if err != nil {
 		log.Fatalf("reading spec directory: %v", err)
 	}
 
 	outputDir := *output
+	if filepath.Ext(outputDir) != "" {
+		outputDir = filepath.Dir(outputDir)
+	}
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		log.Fatalf("creating output directory: %v", err)
 	}

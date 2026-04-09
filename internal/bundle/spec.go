@@ -104,6 +104,7 @@ func applySpecDefaults(s *Spec) {
 	if s.Ubuntu.Mirror == "" {
 		s.Ubuntu.Mirror = DefaultUbuntuMirror
 	}
+	s.Ubuntu.Mirror = strings.TrimRight(s.Ubuntu.Mirror, "/")
 	if s.RKE2 != nil {
 		if s.RKE2.ImageMode == "" {
 			s.RKE2.ImageMode = ImageModeAllInOne

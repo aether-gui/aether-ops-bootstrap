@@ -39,27 +39,32 @@ func StageTemplates(templatesDir, stageDir string) (*bundle.TemplatesEntry, erro
 			return err
 		}
 
-		// Copy file.
+		// Copy file. Close handles explicitly (not defer) to avoid
+		// holding all FDs open until WalkDir completes.
 		in, err := os.Open(path)
 		if err != nil {
 			return err
 		}
-		defer in.Close()
 
 		out, err := os.Create(destPath)
 		if err != nil {
+			in.Close()
 			return err
 		}
 
 		h := sha256.New()
 		w := io.MultiWriter(out, h)
 		n, copyErr := io.Copy(w, in)
-		closeErr := out.Close()
+		inCloseErr := in.Close()
+		outCloseErr := out.Close()
 		if copyErr != nil {
 			return copyErr
 		}
-		if closeErr != nil {
-			return closeErr
+		if inCloseErr != nil {
+			return inCloseErr
+		}
+		if outCloseErr != nil {
+			return outCloseErr
 		}
 
 		files = append(files, bundle.BundleFile{
