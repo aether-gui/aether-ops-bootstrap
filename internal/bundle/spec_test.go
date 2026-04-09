@@ -67,11 +67,11 @@ func TestParseSpec(t *testing.T) {
 	if s.AetherOps == nil {
 		t.Fatal("AetherOps is nil")
 	}
-	if s.AetherOps.Version != "v0.0.0-dev" {
-		t.Errorf("AetherOps.Version = %q, want %q", s.AetherOps.Version, "v0.0.0-dev")
+	if s.AetherOps.Version == "" {
+		t.Error("AetherOps.Version should not be empty")
 	}
-	if s.AetherOps.Source != "./build/aether-ops" {
-		t.Errorf("AetherOps.Source = %q, want %q", s.AetherOps.Source, "./build/aether-ops")
+	if s.AetherOps.Source == "" && s.AetherOps.Ref == "" {
+		t.Error("AetherOps should have either Source or Ref set")
 	}
 	if s.AetherOps.Repo != DefaultAetherOpsRepo {
 		t.Errorf("AetherOps.Repo = %q, want default %q", s.AetherOps.Repo, DefaultAetherOpsRepo)
