@@ -207,7 +207,7 @@ For interactive users, the bootstrap drops `/etc/profile.d/rke2.sh` which adds `
 
 ### Helm
 
-Helm is installed as a standalone static binary from GitHub releases. The RKE2 component installs kubectl (via RKE2's bin directory), and the Helm component places the Helm binary at `/usr/local/bin/helm`. Both are available on PATH via the profile drop-in.
+Helm is installed as a standalone static binary fetched from `https://get.helm.sh`. The RKE2 component installs kubectl (via RKE2's bin directory), and the Helm component places the Helm binary at `/usr/local/bin/helm`. Both are available on PATH via the profile drop-in.
 
 ### State file
 

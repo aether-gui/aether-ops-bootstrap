@@ -129,8 +129,10 @@ func resolveAlternative(dep Dependency, idx *Index, skip map[string]bool) (strin
 	if anyInSkip {
 		return "", nil // satisfied by Essential/required set
 	}
-	// Virtual packages or packages provided by already-resolved deps
-	// may not appear in the index directly. Skip rather than fail,
-	// since the provider is likely already in the resolution set.
+	// Unresolvable dependency. This often happens with versioned virtual
+	// packages (e.g., python3-cffi-backend-api-max) where the Provides
+	// entry includes a version that our parser strips. The providing
+	// package is typically already in the resolution set via a different
+	// dependency path. Log and skip rather than fail.
 	return "", nil
 }

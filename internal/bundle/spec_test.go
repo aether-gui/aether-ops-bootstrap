@@ -251,6 +251,32 @@ func TestValidateSpecMissingTemplatesDir(t *testing.T) {
 	}
 }
 
+func TestValidateSpecHelmValid(t *testing.T) {
+	s := &Spec{
+		SchemaVersion: 1,
+		BundleVersion: "1.0.0",
+		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
+		TemplatesDir:  "./templates",
+		Helm:          &HelmSpec{Version: "v3.17.3"},
+	}
+	if err := ValidateSpec(s); err != nil {
+		t.Fatalf("valid helm spec should pass: %v", err)
+	}
+}
+
+func TestValidateSpecHelmMissingVersion(t *testing.T) {
+	s := &Spec{
+		SchemaVersion: 1,
+		BundleVersion: "1.0.0",
+		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
+		TemplatesDir:  "./templates",
+		Helm:          &HelmSpec{Version: ""},
+	}
+	if err := ValidateSpec(s); err == nil {
+		t.Fatal("should reject helm without version")
+	}
+}
+
 func TestValidateSpecAetherOpsVersionOnly(t *testing.T) {
 	s := &Spec{
 		SchemaVersion: 1,

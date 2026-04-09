@@ -32,6 +32,12 @@ func TestManifestRoundTrip(t *testing.T) {
 					{Type: "checksum", Arch: "amd64", Path: "rke2/sha256sum-amd64.txt", SHA256: "ccc", Size: 1234},
 				},
 			},
+			Helm: &HelmEntry{
+				Version: "v3.17.3",
+				Files: []BundleFile{
+					{Path: "helm/helm", SHA256: "helm123", Size: 50000},
+				},
+			},
 			AetherOps: &AetherOpsEntry{
 				Version: "1.4.0",
 				Files: []BundleFile{
@@ -73,6 +79,12 @@ func TestManifestRoundTrip(t *testing.T) {
 	}
 	if got.Components.Debs[0].Suite != "noble" {
 		t.Errorf("Debs[0].Suite = %q, want %q", got.Components.Debs[0].Suite, "noble")
+	}
+	if got.Components.Helm == nil {
+		t.Fatal("Helm is nil, want non-nil")
+	}
+	if got.Components.Helm.Version != "v3.17.3" {
+		t.Errorf("Helm.Version = %q, want %q", got.Components.Helm.Version, "v3.17.3")
 	}
 	if got.Components.RKE2 == nil {
 		t.Fatal("RKE2 is nil, want non-nil")

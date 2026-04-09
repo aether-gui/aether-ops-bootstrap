@@ -11,7 +11,7 @@ import (
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 )
 
-// FetchHelm downloads the Helm binary from GitHub releases, verifies
+// FetchHelm downloads the Helm binary from get.helm.sh, verifies
 // its checksum, and stages it for inclusion in the bundle.
 func FetchHelm(ctx context.Context, dl *Downloader, spec *bundle.HelmSpec, stageDir string) (*bundle.HelmEntry, error) {
 	helmDir := filepath.Join(stageDir, "helm")
