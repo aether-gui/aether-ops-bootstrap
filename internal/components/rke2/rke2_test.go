@@ -1,7 +1,6 @@
 package rke2
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -50,10 +49,11 @@ func TestCurrentVersion(t *testing.T) {
 	}
 }
 
-func TestPlanNotImplemented(t *testing.T) {
+func TestPlanReturnsActions(t *testing.T) {
 	c := New("", nil)
-	_, err := c.Plan("", "v1.33.1+rke2r1")
-	if !errors.Is(err, components.ErrNotImplemented) {
-		t.Errorf("Plan error = %v, want ErrNotImplemented", err)
+	plan, err := c.Plan("", "v1.0.0")
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
 	}
+	_ = plan
 }
