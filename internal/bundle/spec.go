@@ -38,14 +38,17 @@ var knownArchitectures = map[string]bool{
 // Spec is the top-level structure of bundle.yaml — the human-edited input
 // that drives the bundle builder.
 type Spec struct {
-	SchemaVersion int            `yaml:"schema_version"`
-	BundleVersion string         `yaml:"bundle_version"`
-	Ubuntu        UbuntuSpec     `yaml:"ubuntu"`
-	Debs          []DebSpec      `yaml:"debs"`
-	RKE2          *RKE2Spec      `yaml:"rke2,omitempty"`
-	Helm          *HelmSpec      `yaml:"helm,omitempty"`
-	AetherOps     *AetherOpsSpec `yaml:"aether_ops,omitempty"`
-	TemplatesDir  string         `yaml:"templates_dir"`
+	SchemaVersion int              `yaml:"schema_version"`
+	BundleVersion string           `yaml:"bundle_version"`
+	Ubuntu        UbuntuSpec       `yaml:"ubuntu"`
+	Debs          []DebSpec        `yaml:"debs"`
+	RKE2          *RKE2Spec        `yaml:"rke2,omitempty"`
+	Helm          *HelmSpec        `yaml:"helm,omitempty"`
+	AetherOps     *AetherOpsSpec   `yaml:"aether_ops,omitempty"`
+	Onramp        *OnrampSpec      `yaml:"onramp,omitempty"`
+	HelmCharts    []HelmChartsSpec `yaml:"helm_charts,omitempty"`
+	Images        *ImagesSpec      `yaml:"images,omitempty"`
+	TemplatesDir  string           `yaml:"templates_dir"`
 }
 
 // DefaultUbuntuMirror is the default Ubuntu archive URL.
@@ -77,6 +80,48 @@ type RKE2Spec struct {
 // HelmSpec declares the Helm version to include in the bundle.
 type HelmSpec struct {
 	Version string `yaml:"version"`
+}
+
+// OnrampSpec declares the aether-onramp repository to bundle for airgap deployments.
+// The builder clones the repo at build time, resolves Ref to a commit SHA, and
+// stores the working tree inside the bundle. The launcher extracts it to
+// /var/lib/aether-ops/aether-onramp on install.
+type OnrampSpec struct {
+	Repo              string `yaml:"repo"`                         // git URL (required)
+	Ref               string `yaml:"ref,omitempty"`                // branch, tag, or SHA; defaults to remote HEAD
+	RecurseSubmodules bool   `yaml:"recurse_submodules,omitempty"` // clone with --recurse-submodules
+}
+
+// HelmChartsSpec declares a helm chart repository to bundle. Multiple entries
+// are supported so bundles can ship several chart sets (e.g. sdcore + ran).
+type HelmChartsSpec struct {
+	Name string `yaml:"name"`          // short identifier used as the extraction dir name
+	Repo string `yaml:"repo"`          // git URL (required)
+	Ref  string `yaml:"ref,omitempty"` // branch, tag, or SHA; defaults to remote HEAD
+}
+
+// ImagesSpec controls which container images the builder pulls and stages
+// alongside RKE2's own airgap images. Auto-extraction scans cloned helm chart
+// directories for image references; disable it to pin an explicit list.
+type ImagesSpec struct {
+	// AutoExtract enables scanning of cloned helm charts' values.yaml files to
+	// discover image references. When true, the builder unions the extracted
+	// set with Extra. When false, only List is used.
+	AutoExtract bool `yaml:"auto_extract,omitempty"`
+
+	// Extra is appended to the auto-extracted set when AutoExtract is true.
+	// Used for standalone images that are not referenced by any bundled chart.
+	Extra []string `yaml:"extra,omitempty"`
+
+	// List is the explicit image set used when AutoExtract is false. When
+	// AutoExtract is false and images are needed, List must be non-empty.
+	List []string `yaml:"list,omitempty"`
+
+	// Exclude removes image references from the resolved set. Useful for
+	// dropping images that auto-extraction discovers but cannot be pulled —
+	// for example, quay.io images still using legacy Docker v1 manifests.
+	// Entries are matched as exact strings against the post-resolution set.
+	Exclude []string `yaml:"exclude,omitempty"`
 }
 
 // AetherOpsSpec declares how to acquire the aether-ops binary.
@@ -209,6 +254,37 @@ func ValidateSpec(s *Spec) error {
 		}
 		if !validUnixUser.MatchString(s.AetherOps.OnrampUser) {
 			return fmt.Errorf("aether_ops.onramp_user %q is not a valid Unix username", s.AetherOps.OnrampUser)
+		}
+	}
+
+	if s.Onramp != nil {
+		if s.Onramp.Repo == "" {
+			return fmt.Errorf("onramp.repo is required when onramp section is present")
+		}
+	}
+
+	chartNames := map[string]bool{}
+	for i, hc := range s.HelmCharts {
+		if hc.Name == "" {
+			return fmt.Errorf("helm_charts[%d].name is required", i)
+		}
+		if hc.Repo == "" {
+			return fmt.Errorf("helm_charts[%d].repo is required", i)
+		}
+		if chartNames[hc.Name] {
+			return fmt.Errorf("helm_charts[%d].name %q is duplicated", i, hc.Name)
+		}
+		chartNames[hc.Name] = true
+	}
+
+	if s.Images != nil {
+		if !s.Images.AutoExtract && len(s.Images.Extra) > 0 {
+			return fmt.Errorf("images.extra is only meaningful when images.auto_extract is true; use images.list instead")
+		}
+		for i, ref := range append(append([]string{}, s.Images.List...), s.Images.Extra...) {
+			if strings.TrimSpace(ref) == "" {
+				return fmt.Errorf("images entry %d is empty", i)
+			}
 		}
 	}
 

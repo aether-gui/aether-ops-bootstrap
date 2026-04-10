@@ -347,3 +347,100 @@ func TestValidateSpecAetherOpsFrontendRefWithoutRef(t *testing.T) {
 		t.Fatal("should reject frontend_ref without ref")
 	}
 }
+
+func baseValidSpec() *Spec {
+	return &Spec{
+		SchemaVersion: 1,
+		BundleVersion: "1.0.0",
+		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
+		TemplatesDir:  "./templates",
+	}
+}
+
+func TestValidateSpecOnrampRequiresRepo(t *testing.T) {
+	s := baseValidSpec()
+	s.Onramp = &OnrampSpec{Ref: "master"}
+	if err := ValidateSpec(s); err == nil {
+		t.Fatal("should reject onramp without repo")
+	}
+}
+
+func TestValidateSpecOnrampValid(t *testing.T) {
+	s := baseValidSpec()
+	s.Onramp = &OnrampSpec{
+		Repo:              "https://github.com/opennetworkinglab/aether-onramp.git",
+		Ref:               "master",
+		RecurseSubmodules: true,
+	}
+	if err := ValidateSpec(s); err != nil {
+		t.Fatalf("valid onramp spec should pass: %v", err)
+	}
+}
+
+func TestValidateSpecHelmChartsRequiresRepoAndName(t *testing.T) {
+	s := baseValidSpec()
+	s.HelmCharts = []HelmChartsSpec{{Name: "", Repo: "https://example/charts.git"}}
+	if err := ValidateSpec(s); err == nil {
+		t.Fatal("should reject helm_charts entry with empty name")
+	}
+
+	s.HelmCharts = []HelmChartsSpec{{Name: "charts", Repo: ""}}
+	if err := ValidateSpec(s); err == nil {
+		t.Fatal("should reject helm_charts entry with empty repo")
+	}
+}
+
+func TestValidateSpecHelmChartsRejectsDuplicates(t *testing.T) {
+	s := baseValidSpec()
+	s.HelmCharts = []HelmChartsSpec{
+		{Name: "sdcore", Repo: "https://example/sdcore.git"},
+		{Name: "sdcore", Repo: "https://example/sdcore2.git"},
+	}
+	if err := ValidateSpec(s); err == nil {
+		t.Fatal("should reject duplicate helm_charts names")
+	}
+}
+
+func TestValidateSpecImagesAutoExtract(t *testing.T) {
+	s := baseValidSpec()
+	s.Images = &ImagesSpec{
+		AutoExtract: true,
+		Extra:       []string{"ghcr.io/omec-project/5gc-gnbsim:rel-1.8.0"},
+	}
+	if err := ValidateSpec(s); err != nil {
+		t.Fatalf("auto-extract + extras should be valid: %v", err)
+	}
+}
+
+func TestValidateSpecImagesExplicitList(t *testing.T) {
+	s := baseValidSpec()
+	s.Images = &ImagesSpec{
+		AutoExtract: false,
+		List:        []string{"ghcr.io/example/app:v1"},
+	}
+	if err := ValidateSpec(s); err != nil {
+		t.Fatalf("explicit list should be valid: %v", err)
+	}
+}
+
+func TestValidateSpecImagesExtraRequiresAutoExtract(t *testing.T) {
+	s := baseValidSpec()
+	s.Images = &ImagesSpec{
+		AutoExtract: false,
+		Extra:       []string{"ghcr.io/example/app:v1"},
+	}
+	if err := ValidateSpec(s); err == nil {
+		t.Fatal("should reject images.extra without auto_extract")
+	}
+}
+
+func TestValidateSpecImagesRejectsEmptyEntry(t *testing.T) {
+	s := baseValidSpec()
+	s.Images = &ImagesSpec{
+		AutoExtract: false,
+		List:        []string{"ghcr.io/example/app:v1", "   "},
+	}
+	if err := ValidateSpec(s); err == nil {
+		t.Fatal("should reject empty/whitespace image entry")
+	}
+}
