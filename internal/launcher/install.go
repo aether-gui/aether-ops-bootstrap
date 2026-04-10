@@ -165,8 +165,9 @@ func loadOrInitState(allowExisting bool) (*state.State, error) {
 		return st, nil
 	}
 
-	// Missing file — start fresh.
-	if os.IsNotExist(err) {
+	// Missing file — start fresh. errors.Is unwraps the wrapping added
+	// by state.Read, unlike the legacy os.IsNotExist predicate.
+	if errors.Is(err, os.ErrNotExist) {
 		return &state.State{
 			SchemaVersion: state.SchemaVersion,
 			Components:    make(map[string]state.ComponentState),
