@@ -165,8 +165,58 @@ func buildOne(specPath, outputPath, lockPath string) error {
 		}
 	}
 
+	// Clone aether-onramp into the bundle for airgap deployments.
+	var onrampEntry *bundle.OnrampEntry
+	if spec.Onramp != nil {
+		log.Printf("cloning aether-onramp from %s...", spec.Onramp.Repo)
+		onrampEntry, err = builder.BuildOnramp(ctx, spec.Onramp, stageDir)
+		if err != nil {
+			return err
+		}
+		log.Printf("onramp staged at %s (sha %s, %d files)", onrampEntry.Path, onrampEntry.ResolvedSHA[:min(12, len(onrampEntry.ResolvedSHA))], len(onrampEntry.Files))
+	}
+
+	// Clone helm chart repositories.
+	var helmChartsEntries []bundle.HelmChartsEntry
+	if len(spec.HelmCharts) > 0 {
+		log.Printf("cloning %d helm chart repositories...", len(spec.HelmCharts))
+		helmChartsEntries, err = builder.BuildHelmCharts(ctx, spec.HelmCharts, stageDir)
+		if err != nil {
+			return err
+		}
+		for _, hc := range helmChartsEntries {
+			log.Printf("helm chart %q staged at %s (sha %s)", hc.Name, hc.Path, hc.ResolvedSHA[:min(12, len(hc.ResolvedSHA))])
+		}
+	}
+
+	// Resolve the set of container images to include in the bundle.
+	var imagesEntry *bundle.ImagesEntry
+	if spec.Images != nil {
+		refs, err := resolveImageRefs(spec.Images, helmChartsEntries, stageDir)
+		if err != nil {
+			return err
+		}
+		if len(refs) > 0 {
+			log.Printf("pulling %d container images...", len(refs))
+			imagesEntry, err = builder.BuildImages(ctx, refs, stageDir)
+			if err != nil {
+				return err
+			}
+			log.Printf("staged %d images", len(imagesEntry.Images))
+		}
+	}
+
 	// Generate and write manifest.
-	manifest := builder.BuildManifest(spec, gitSHA, rke2Entry, helmEntry, aetherOpsEntry, debEntries, templatesEntry)
+	manifest := builder.BuildManifest(spec, gitSHA, builder.ManifestInputs{
+		RKE2:       rke2Entry,
+		Helm:       helmEntry,
+		AetherOps:  aetherOpsEntry,
+		Debs:       debEntries,
+		Templates:  templatesEntry,
+		Onramp:     onrampEntry,
+		HelmCharts: helmChartsEntries,
+		Images:     imagesEntry,
+	})
 	manifestPath := filepath.Join(stageDir, "manifest.json")
 	if err := bundle.Write(manifestPath, manifest); err != nil {
 		return err
@@ -188,4 +238,53 @@ func buildOne(specPath, outputPath, lockPath string) error {
 
 	log.Printf("bundle written to %s (SHA256: %s)", outputPath, hash)
 	return nil
+}
+
+// resolveImageRefs computes the final set of image references to pull
+// for a given spec. When auto_extract is true, it walks each cloned helm
+// chart's values.yaml files and unions the discovered set with the
+// operator-provided Extra list. When auto_extract is false, it simply
+// returns the explicit List from the spec. Entries in Exclude are then
+// removed — useful for skipping images that cannot be pulled (for
+// example, legacy Docker v1 manifests).
+func resolveImageRefs(spec *bundle.ImagesSpec, charts []bundle.HelmChartsEntry, stageDir string) ([]string, error) {
+	var refs []string
+	if spec.AutoExtract {
+		for _, hc := range charts {
+			chartDir := filepath.Join(stageDir, hc.Path)
+			extracted, err := builder.ExtractImagesFromChart(chartDir)
+			if err != nil {
+				return nil, err
+			}
+			log.Printf("extracted %d image refs from chart %q", len(extracted), hc.Name)
+			refs = append(refs, extracted...)
+		}
+		refs = append(refs, spec.Extra...)
+	} else {
+		refs = spec.List
+	}
+
+	if len(spec.Exclude) == 0 {
+		return refs, nil
+	}
+	excluded := map[string]bool{}
+	for _, e := range spec.Exclude {
+		excluded[e] = true
+	}
+	out := refs[:0]
+	for _, r := range refs {
+		if excluded[r] {
+			log.Printf("excluding image %s (listed in images.exclude)", r)
+			continue
+		}
+		out = append(out, r)
+	}
+	return out, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
