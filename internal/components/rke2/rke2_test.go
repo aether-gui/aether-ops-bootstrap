@@ -10,6 +10,33 @@ import (
 
 var _ components.Component = (*Component)(nil)
 
+func TestStageAppImages_NilManifest(t *testing.T) {
+	c := New("", nil)
+	if err := c.stageAppImages(); err != nil {
+		t.Errorf("stageAppImages with nil manifest should be no-op: %v", err)
+	}
+}
+
+func TestStageAppImages_NoImagesEntry(t *testing.T) {
+	m := &bundle.Manifest{}
+	c := New("", m)
+	if err := c.stageAppImages(); err != nil {
+		t.Errorf("stageAppImages with nil Images entry should be no-op: %v", err)
+	}
+}
+
+func TestStageAppImages_EmptyImagesSlice(t *testing.T) {
+	m := &bundle.Manifest{
+		Components: bundle.ComponentList{
+			Images: &bundle.ImagesEntry{},
+		},
+	}
+	c := New("", m)
+	if err := c.stageAppImages(); err != nil {
+		t.Errorf("stageAppImages with empty Images should be no-op: %v", err)
+	}
+}
+
 func TestName(t *testing.T) {
 	c := New("", nil)
 	if c.Name() != "rke2" {
