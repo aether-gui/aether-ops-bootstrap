@@ -6,6 +6,7 @@ import (
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/aetherops"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/debs"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/helm"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/components/onramp"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/rke2"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/serviceaccount"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/ssh"
@@ -32,6 +33,9 @@ func BuildRegistry(extractDir string, manifest *bundle.Manifest, suite string) *
 	r.Register(svcComp)
 	r.Register(rke2.New(extractDir, manifest))
 	r.Register(helm.New(extractDir, manifest))
+	// onramp extracts the bundled Ansible toolchain and helm charts so
+	// the aether-ops daemon has its content in place before it starts.
+	r.Register(onramp.New(extractDir, manifest))
 	r.Register(aetherops.New(extractDir, manifest))
 
 	return r
