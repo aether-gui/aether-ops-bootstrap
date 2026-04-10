@@ -20,10 +20,17 @@ const sudoersDir = "/etc/sudoers.d"
 // Component manages sudoers drop-in files for the service accounts.
 type Component struct {
 	extractDir string
+	manifest   *bundle.Manifest
 }
 
 func New(extractDir string) *Component {
 	return &Component{extractDir: extractDir}
+}
+
+// SetManifest allows the launcher to pass the manifest for reading
+// onramp user configuration.
+func (c *Component) SetManifest(m *bundle.Manifest) {
+	c.manifest = m
 }
 
 func (c *Component) Name() string { return "sudoers" }
@@ -44,13 +51,16 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 		return components.Plan{NoOp: true}, nil
 	}
 
-	// Check for sudoers templates in the bundle.
 	sudoersTemplateDir := filepath.Join(c.extractDir, "templates", "sudoers.d")
 	entries, err := os.ReadDir(sudoersTemplateDir)
-	if err != nil {
-		// No sudoers templates — skip.
+	if os.IsNotExist(err) {
 		return components.Plan{NoOp: true}, nil
 	}
+	if err != nil {
+		return components.Plan{}, fmt.Errorf("reading sudoers templates: %w", err)
+	}
+
+	onrampUser := c.onrampUser()
 
 	var actions []components.Action
 	for _, entry := range entries {
@@ -67,13 +77,13 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 					return err
 				}
 
-				// Render Go template if it has template syntax.
+				// Render Go template.
 				tmpl, err := template.New(entryName).Parse(string(raw))
 				if err != nil {
 					return fmt.Errorf("parsing sudoers template %s: %w", entryName, err)
 				}
 				var buf bytes.Buffer
-				if err := tmpl.Execute(&buf, map[string]string{"OnrampUser": "aether"}); err != nil {
+				if err := tmpl.Execute(&buf, map[string]string{"OnrampUser": onrampUser}); err != nil {
 					return fmt.Errorf("rendering sudoers template %s: %w", entryName, err)
 				}
 				data := buf.Bytes()
@@ -92,15 +102,12 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 				}
 				tmpFile.Close()
 
-				// Validate.
 				cmd := exec.CommandContext(ctx, "visudo", "-c", "-f", tmpPath)
 				if output, err := cmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("sudoers validation failed for %s: %w\n%s", entryName, err, output)
 				}
 
-				// Install with correct permissions.
 				destName := entryName
-				// Strip .tmpl extension for installed file.
 				if filepath.Ext(destName) == ".tmpl" {
 					destName = destName[:len(destName)-5]
 				}
@@ -131,4 +138,11 @@ func (c *Component) Apply(ctx context.Context, plan components.Plan) error {
 		}
 	}
 	return nil
+}
+
+func (c *Component) onrampUser() string {
+	if c.manifest != nil && c.manifest.Components.AetherOps != nil && c.manifest.Components.AetherOps.OnrampUser != "" {
+		return c.manifest.Components.AetherOps.OnrampUser
+	}
+	return "aether"
 }

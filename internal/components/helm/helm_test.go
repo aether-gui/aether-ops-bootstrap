@@ -49,11 +49,13 @@ func TestCurrentVersion(t *testing.T) {
 	}
 }
 
-func TestPlanReturnsActions(t *testing.T) {
+func TestPlanNilManifestReturnsNoOp(t *testing.T) {
 	c := New("", nil)
 	plan, err := c.Plan("", "v1.0.0")
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
-	_ = plan
+	if !plan.NoOp {
+		t.Error("Plan with nil manifest should return NoOp")
+	}
 }

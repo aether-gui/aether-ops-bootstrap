@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"text/template"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
-	"github.com/aether-gui/aether-ops-bootstrap/internal/systemd"
 )
 
 const sshdDropInDir = "/etc/ssh/sshd_config.d"
@@ -20,10 +20,17 @@ const sshdDropInDir = "/etc/ssh/sshd_config.d"
 // Component configures sshd with drop-in snippets from the bundle templates.
 type Component struct {
 	extractDir string
+	manifest   *bundle.Manifest
 }
 
 func New(extractDir string) *Component {
 	return &Component{extractDir: extractDir}
+}
+
+// SetManifest allows the launcher to pass the manifest for reading
+// onramp user configuration.
+func (c *Component) SetManifest(m *bundle.Manifest) {
+	c.manifest = m
 }
 
 func (c *Component) Name() string { return "ssh" }
@@ -46,9 +53,10 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 
 	srcPath := filepath.Join(c.extractDir, "templates", "sshd_config.d", "01-aether-password-auth.conf")
 	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
-		// No SSH template in bundle — skip.
 		return components.Plan{NoOp: true}, nil
 	}
+
+	onrampUser := c.onrampUser()
 
 	actions := []components.Action{
 		{
@@ -61,27 +69,24 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 				if err != nil {
 					return fmt.Errorf("reading sshd template: %w", err)
 				}
-				// Render Go template.
 				tmpl, err := template.New("sshd").Parse(string(raw))
 				if err != nil {
 					return fmt.Errorf("parsing sshd template: %w", err)
 				}
 				var buf bytes.Buffer
-				if err := tmpl.Execute(&buf, map[string]string{"OnrampUser": "aether"}); err != nil {
+				if err := tmpl.Execute(&buf, map[string]string{"OnrampUser": onrampUser}); err != nil {
 					return fmt.Errorf("rendering sshd template: %w", err)
 				}
-				data := buf.Bytes()
 				destPath := filepath.Join(sshdDropInDir, "01-aether-password-auth.conf")
-				if err := os.WriteFile(destPath, data, 0644); err != nil {
+				if err := os.WriteFile(destPath, buf.Bytes(), 0644); err != nil {
 					return fmt.Errorf("writing sshd drop-in: %w", err)
 				}
 				log.Printf("  wrote %s", destPath)
 
-				// Restart sshd.
-				mgr := &systemd.SystemctlManager{}
-				// Try both "ssh" and "sshd" unit names (Ubuntu uses "ssh").
+				// Restart sshd to pick up config changes.
 				for _, unit := range []string{"ssh", "sshd"} {
-					if err := mgr.Start(ctx, unit); err == nil {
+					cmd := exec.CommandContext(ctx, "systemctl", "restart", unit)
+					if err := cmd.Run(); err == nil {
 						log.Printf("  restarted %s", unit)
 						return nil
 					}
@@ -102,4 +107,11 @@ func (c *Component) Apply(ctx context.Context, plan components.Plan) error {
 		}
 	}
 	return nil
+}
+
+func (c *Component) onrampUser() string {
+	if c.manifest != nil && c.manifest.Components.AetherOps != nil && c.manifest.Components.AetherOps.OnrampUser != "" {
+		return c.manifest.Components.AetherOps.OnrampUser
+	}
+	return "aether"
 }

@@ -134,7 +134,14 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 			Fn: func(ctx context.Context) error {
 				src := "/var/lib/rancher/rke2/bin/kubectl"
 				dst := "/usr/local/bin/kubectl"
-				os.Remove(dst) // remove stale symlink if exists
+				// Only remove if it's a symlink — don't delete a real binary.
+				if info, err := os.Lstat(dst); err == nil {
+					if info.Mode()&os.ModeSymlink != 0 {
+						os.Remove(dst)
+					} else {
+						return fmt.Errorf("symlink kubectl: %s exists and is not a symlink", dst)
+					}
+				}
 				if err := os.Symlink(src, dst); err != nil {
 					return fmt.Errorf("symlink kubectl: %w", err)
 				}
@@ -221,7 +228,15 @@ func (c *Component) extractBinary(rke2 *bundle.RKE2Entry) error {
 			return err
 		}
 
-		target := filepath.Join("/usr/local", header.Name)
+		// Validate path — reject absolute paths, traversal, and symlinks.
+		clean := filepath.Clean(header.Name)
+		if filepath.IsAbs(clean) || strings.Contains(clean, "..") {
+			return fmt.Errorf("invalid tar entry path: %s", header.Name)
+		}
+		if header.Typeflag == tar.TypeSymlink || header.Typeflag == tar.TypeLink {
+			continue // skip symlinks/hardlinks for security
+		}
+		target := filepath.Join("/usr/local", clean)
 
 		switch header.Typeflag {
 		case tar.TypeDir:

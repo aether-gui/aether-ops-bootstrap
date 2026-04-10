@@ -156,24 +156,25 @@ func Install(ctx context.Context, opts InstallOpts) error {
 	return nil
 }
 
-func loadOrInitState(force bool) (*state.State, error) {
+func loadOrInitState(allowExisting bool) (*state.State, error) {
 	st, err := state.Read(state.DefaultPath)
 	if err == nil {
-		// State file exists with a prior install.
-		if !force {
-			// Check if all components are installed.
-			if len(st.Components) > 0 {
-				return nil, fmt.Errorf("prior install detected (use --force to override); state at %s", state.DefaultPath)
-			}
+		if !allowExisting && len(st.Components) > 0 {
+			return nil, fmt.Errorf("prior install detected (use --force to override); state at %s", state.DefaultPath)
 		}
 		return st, nil
 	}
 
-	// No state file or read error — start fresh.
-	return &state.State{
-		SchemaVersion: state.SchemaVersion,
-		Components:    make(map[string]state.ComponentState),
-	}, nil
+	// Missing file — start fresh.
+	if os.IsNotExist(err) {
+		return &state.State{
+			SchemaVersion: state.SchemaVersion,
+			Components:    make(map[string]state.ComponentState),
+		}, nil
+	}
+
+	// Schema mismatch or corruption — don't silently ignore.
+	return nil, fmt.Errorf("reading state: %w", err)
 }
 
 func writeState(st *state.State, launcherVersion string, manifest *bundle.Manifest) error {

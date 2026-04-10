@@ -180,7 +180,8 @@ func (c *Component) waitForHealth(ctx context.Context) error {
 
 	deadline := time.Now().Add(2 * time.Minute)
 	for {
-		resp, err := client.Get(healthURL)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
+		resp, err := client.Do(req)
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {

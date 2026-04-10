@@ -67,6 +67,10 @@ func parseOSRelease(path, key string) (string, error) {
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
 	return "", fmt.Errorf("%s not found in %s", key, path)
 }
 

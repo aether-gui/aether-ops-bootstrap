@@ -42,12 +42,12 @@ func BuildAetherOps(ctx context.Context, dl *Downloader, spec *bundle.AetherOpsS
 		}
 	}
 
-	return buildAetherOpsEntry(spec.Version, aopsDir)
+	return buildAetherOpsEntry(spec, aopsDir)
 }
 
 // buildAetherOpsEntry computes hashes and sizes for the staged files
 // and returns a manifest entry.
-func buildAetherOpsEntry(version, aopsDir string) (*bundle.AetherOpsEntry, error) {
+func buildAetherOpsEntry(spec *bundle.AetherOpsSpec, aopsDir string) (*bundle.AetherOpsEntry, error) {
 	var files []bundle.BundleFile
 	for _, name := range []string{"aether-ops", "aether-ops.service"} {
 		path := filepath.Join(aopsDir, name)
@@ -69,8 +69,10 @@ func buildAetherOpsEntry(version, aopsDir string) (*bundle.AetherOpsEntry, error
 	}
 
 	return &bundle.AetherOpsEntry{
-		Version: version,
-		Files:   files,
+		Version:        spec.Version,
+		Files:          files,
+		OnrampUser:     spec.OnrampUser,
+		OnrampPassword: spec.OnrampPassword,
 	}, nil
 }
 

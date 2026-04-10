@@ -37,11 +37,13 @@ func TestCurrentVersion(t *testing.T) {
 	}
 }
 
-func TestPlanReturnsActions(t *testing.T) {
+func TestPlanEmptyExtractDirReturnsNoOp(t *testing.T) {
 	c := New("")
 	plan, err := c.Plan("", "2026.04.1")
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
-	_ = plan
+	if !plan.NoOp {
+		t.Error("Plan with empty extractDir should return NoOp")
+	}
 }

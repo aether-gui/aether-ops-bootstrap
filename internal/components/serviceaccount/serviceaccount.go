@@ -15,10 +15,18 @@ import (
 
 // Component creates the aether-ops service account and the onramp
 // deployment user.
-type Component struct{}
+type Component struct {
+	manifest *bundle.Manifest
+}
 
 func New() *Component {
 	return &Component{}
+}
+
+// SetManifest allows the launcher to pass the manifest for reading
+// onramp user configuration.
+func (c *Component) SetManifest(m *bundle.Manifest) {
+	c.manifest = m
 }
 
 func (c *Component) Name() string { return "service_account" }
@@ -39,6 +47,17 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 		return components.Plan{NoOp: true}, nil
 	}
 
+	onrampUser := "aether"
+	onrampPassword := "aether"
+	if c.manifest != nil && c.manifest.Components.AetherOps != nil {
+		if c.manifest.Components.AetherOps.OnrampUser != "" {
+			onrampUser = c.manifest.Components.AetherOps.OnrampUser
+		}
+		if c.manifest.Components.AetherOps.OnrampPassword != "" {
+			onrampPassword = c.manifest.Components.AetherOps.OnrampPassword
+		}
+	}
+
 	actions := []components.Action{
 		{
 			Description: "create aether-ops service account",
@@ -47,9 +66,9 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 			},
 		},
 		{
-			Description: "create onramp deployment user",
+			Description: fmt.Sprintf("create onramp user %s", onrampUser),
 			Fn: func(ctx context.Context) error {
-				return createOnrampUser(ctx, "aether", "aether")
+				return createOnrampUser(ctx, onrampUser, onrampPassword)
 			},
 		},
 	}
@@ -93,7 +112,10 @@ func createServiceAccount(ctx context.Context) error {
 }
 
 func createOnrampUser(ctx context.Context, username, password string) error {
-	if _, err := user.Lookup(username); err != nil {
+	_, err := user.Lookup(username)
+	userExists := err == nil
+
+	if !userExists {
 		cmd := exec.CommandContext(ctx, "useradd",
 			"--create-home",
 			"--shell", "/bin/bash",
@@ -103,14 +125,17 @@ func createOnrampUser(ctx context.Context, username, password string) error {
 			return fmt.Errorf("useradd %s: %w\n%s", username, err, output)
 		}
 		log.Printf("  created user %s", username)
+
+		// Only set password on initial creation — don't reset on upgrades.
+		cmd = exec.CommandContext(ctx, "chpasswd")
+		cmd.Stdin = strings.NewReader(fmt.Sprintf("%s:%s\n", username, password))
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("chpasswd for %s: %w\n%s", username, err, output)
+		}
+		log.Printf("  set password for %s", username)
+	} else {
+		log.Printf("  user %s already exists (password unchanged)", username)
 	}
 
-	// Set password via chpasswd.
-	cmd := exec.CommandContext(ctx, "chpasswd")
-	cmd.Stdin = strings.NewReader(fmt.Sprintf("%s:%s\n", username, password))
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("chpasswd for %s: %w\n%s", username, err, output)
-	}
-	log.Printf("  set password for %s", username)
 	return nil
 }

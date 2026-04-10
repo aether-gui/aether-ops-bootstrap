@@ -43,5 +43,7 @@ func TestPlanReturnsActions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
-	_ = plan
+	if len(plan.Actions) == 0 {
+		t.Error("Plan should return actions for new install")
+	}
 }

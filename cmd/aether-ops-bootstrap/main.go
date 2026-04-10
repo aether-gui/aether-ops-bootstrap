@@ -89,7 +89,7 @@ func cmdRun(action string, dryRun, repair bool) {
 	}
 
 	if err := launcher.Install(context.Background(), opts); err != nil {
-		log.Fatalf("install failed: %v", err)
+		log.Fatalf("%s failed: %v", action, err)
 	}
 }
 
