@@ -1,0 +1,41 @@
+version: 2
+project_name: aether-ops-bootstrap
+
+builds:
+  - main: ./cmd/aether-ops-bootstrap
+    binary: aether-ops-bootstrap
+    ldflags:
+      - -X 'main.version={{.Version}}'
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: aether-gui
+    name: aether-ops-bootstrap
+  draft: false
+  prerelease: auto
