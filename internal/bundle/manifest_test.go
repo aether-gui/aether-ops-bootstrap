@@ -156,6 +156,67 @@ func TestWriteAndReadEmptyManifest(t *testing.T) {
 	}
 }
 
+func TestManifestOnrampChartsImagesRoundTrip(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: SchemaVersion,
+		BundleVersion: "1.0.0",
+		Components: ComponentList{
+			Onramp: &OnrampEntry{
+				Repo:        "https://github.com/opennetworkinglab/aether-onramp.git",
+				Ref:         "master",
+				ResolvedSHA: "abcdef1234567890",
+				Path:        "onramp/aether-onramp",
+				Files: []BundleFile{
+					{Path: "onramp/aether-onramp/Makefile", SHA256: "aa", Size: 1024},
+				},
+			},
+			HelmCharts: []HelmChartsEntry{
+				{
+					Name:        "sdcore",
+					Repo:        "https://github.com/omec-project/sdcore-helm-charts.git",
+					Ref:         "master",
+					ResolvedSHA: "1111222233334444",
+					Path:        "helm-charts/sdcore",
+				},
+			},
+			Images: &ImagesEntry{
+				Images: []ImageArtifact{
+					{
+						Ref:    "ghcr.io/omec-project/amf:rel-1.8.0",
+						Digest: "sha256:cafebabe",
+						Path:   "images/ghcr.io_omec-project_amf_rel-1.8.0.tar",
+						SHA256: "hash",
+						Size:   987654,
+					},
+				},
+			},
+		},
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "manifest.json")
+	if err := Write(path, m); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	got, err := Read(path)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	if got.Components.Onramp == nil || got.Components.Onramp.ResolvedSHA != "abcdef1234567890" {
+		t.Errorf("Onramp.ResolvedSHA not round-tripped: %+v", got.Components.Onramp)
+	}
+	if len(got.Components.HelmCharts) != 1 || got.Components.HelmCharts[0].Name != "sdcore" {
+		t.Errorf("HelmCharts not round-tripped: %+v", got.Components.HelmCharts)
+	}
+	if got.Components.Images == nil || len(got.Components.Images.Images) != 1 {
+		t.Fatalf("Images not round-tripped: %+v", got.Components.Images)
+	}
+	if got.Components.Images.Images[0].Ref != "ghcr.io/omec-project/amf:rel-1.8.0" {
+		t.Errorf("Images[0].Ref = %q", got.Components.Images.Images[0].Ref)
+	}
+}
+
 func TestReadSchemaVersionMismatch(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad-schema.json")

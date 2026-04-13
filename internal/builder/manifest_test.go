@@ -46,7 +46,13 @@ func TestBuildManifest(t *testing.T) {
 		},
 	}
 
-	m := BuildManifest(spec, "abc1234", rke2Entry, helmEntry, aetherOpsEntry, debEntries, templatesEntry)
+	m := BuildManifest(spec, "abc1234", ManifestInputs{
+		RKE2:      rke2Entry,
+		Helm:      helmEntry,
+		AetherOps: aetherOpsEntry,
+		Debs:      debEntries,
+		Templates: templatesEntry,
+	})
 
 	if m.SchemaVersion != bundle.SchemaVersion {
 		t.Errorf("SchemaVersion = %d, want %d", m.SchemaVersion, bundle.SchemaVersion)
@@ -101,7 +107,7 @@ func TestBuildManifestNilEntries(t *testing.T) {
 		BundleVersion: "2026.04.1",
 	}
 
-	m := BuildManifest(spec, "", nil, nil, nil, nil, nil)
+	m := BuildManifest(spec, "", ManifestInputs{})
 
 	if m.Components.RKE2 != nil {
 		t.Error("RKE2 should be nil")

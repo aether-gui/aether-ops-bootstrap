@@ -38,4 +38,34 @@ aether_ops:
   # onramp_user: aether  # OS user for Ansible SSH deployments (default: aether)
   # onramp_password not shown here — provide at runtime, not in checked-in specs
 
+# aether-onramp is the Ansible toolchain the aether-ops service invokes
+# to deploy 5G workloads. The builder clones it at build time (pinning
+# the resolved commit SHA in the manifest) and the launcher extracts it
+# to /var/lib/aether-ops/aether-onramp on install.
+onramp:
+  repo: https://github.com/opennetworkinglab/aether-onramp.git
+  ref: main
+  recurse_submodules: true
+
+# Helm chart repositories to bundle. Each entry is cloned to
+# /var/lib/aether-ops/helm-charts/<name> on the target host.
+helm_charts:
+  - name: sdcore-helm-charts
+    repo: https://github.com/omec-project/sdcore-helm-charts.git
+    ref: main
+
+# Container images to pre-pull and stage for RKE2's airgap image loader.
+# When auto_extract is true, the builder scans the cloned helm charts for
+# image references and unions them with `extra`. When false, only `list`
+# is used and it must be the complete set of images needed.
+images:
+  auto_extract: true
+  # list: []             # used when auto_extract is false — must be complete
+  # extra:               # standalone images added to the auto-extracted set
+  exclude:
+    # Legacy Docker v1 manifest; go-containerregistry cannot pull these.
+    # Dependent services should be pointed at a newer image, or this entry
+    # should be pulled out-of-band.
+    - quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+
 templates_dir: ./templates

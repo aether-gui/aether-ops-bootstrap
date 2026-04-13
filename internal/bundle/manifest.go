@@ -32,11 +32,14 @@ type BuildInfo struct {
 
 // ComponentList groups all component entries in the manifest.
 type ComponentList struct {
-	Debs      []DebEntry      `json:"debs,omitempty"`
-	RKE2      *RKE2Entry      `json:"rke2,omitempty"`
-	Helm      *HelmEntry      `json:"helm,omitempty"`
-	AetherOps *AetherOpsEntry `json:"aether_ops,omitempty"`
-	Templates *TemplatesEntry `json:"templates,omitempty"`
+	Debs       []DebEntry        `json:"debs,omitempty"`
+	RKE2       *RKE2Entry        `json:"rke2,omitempty"`
+	Helm       *HelmEntry        `json:"helm,omitempty"`
+	AetherOps  *AetherOpsEntry   `json:"aether_ops,omitempty"`
+	Onramp     *OnrampEntry      `json:"onramp,omitempty"`
+	HelmCharts []HelmChartsEntry `json:"helm_charts,omitempty"`
+	Images     *ImagesEntry      `json:"images,omitempty"`
+	Templates  *TemplatesEntry   `json:"templates,omitempty"`
 }
 
 // DebEntry describes a vendored .deb package in the bundle.
@@ -82,6 +85,43 @@ type AetherOpsEntry struct {
 type HelmEntry struct {
 	Version string       `json:"version"`
 	Files   []BundleFile `json:"files"`
+}
+
+// OnrampEntry describes the aether-onramp repository bundled as an offline
+// payload. The repo is stored as a flat file tree under Path inside the
+// bundle. ResolvedSHA is the commit the builder checked out so installs
+// are reproducible even when the source Ref is a mutable branch.
+type OnrampEntry struct {
+	Repo        string       `json:"repo"`
+	Ref         string       `json:"ref,omitempty"`
+	ResolvedSHA string       `json:"resolved_sha"`
+	Path        string       `json:"path"` // directory inside the bundle (e.g. "onramp/aether-onramp")
+	Files       []BundleFile `json:"files,omitempty"`
+}
+
+// HelmChartsEntry describes a single bundled helm-charts repository.
+type HelmChartsEntry struct {
+	Name        string       `json:"name"`
+	Repo        string       `json:"repo"`
+	Ref         string       `json:"ref,omitempty"`
+	ResolvedSHA string       `json:"resolved_sha"`
+	Path        string       `json:"path"` // directory inside the bundle (e.g. "helm-charts/sdcore-helm-charts")
+	Files       []BundleFile `json:"files,omitempty"`
+}
+
+// ImagesEntry describes the container images staged in the bundle for
+// RKE2's airgap image loader.
+type ImagesEntry struct {
+	Images []ImageArtifact `json:"images"`
+}
+
+// ImageArtifact is one container image saved as an OCI tarball.
+type ImageArtifact struct {
+	Ref    string `json:"ref"`    // fully qualified image reference
+	Digest string `json:"digest"` // sha256:... descriptor digest pinned at pull time
+	Path   string `json:"path"`   // bundle-relative tarball path (e.g. "images/ghcr.io_omec-project_amf_rel-1.8.0.tar")
+	SHA256 string `json:"sha256"` // hash of the saved tarball
+	Size   int64  `json:"size"`
 }
 
 // TemplatesEntry describes bundled configuration templates.

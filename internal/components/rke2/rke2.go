@@ -105,6 +105,10 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 			Fn:          func(ctx context.Context) error { return c.stageImages(rke2) },
 		},
 		{
+			Description: "stage bundled container images",
+			Fn:          func(ctx context.Context) error { return c.stageAppImages() },
+		},
+		{
 			Description: "install profile drop-in",
 			Fn:          func(ctx context.Context) error { return c.installProfile() },
 		},
@@ -298,6 +302,61 @@ func (c *Component) stageImages(rke2 *bundle.RKE2Entry) error {
 		}
 	}
 
+	return nil
+}
+
+// stageAppImages copies container image tarballs bundled alongside RKE2
+// (under images/ in the bundle root) into rke2's airgap image directory.
+// RKE2 loads every tarball it finds there on startup, which means any
+// pre-pulled application images become available to the cluster without
+// external registry access. This is how we deliver SD-Core and other
+// workload images in a fully airgapped bundle.
+//
+// Re-runs are idempotent: existing files with the same name are
+// truncated and rewritten. Missing bundle data is a silent no-op so
+// bundles without an images section continue to work unchanged.
+func (c *Component) stageAppImages() error {
+	if c.manifest == nil || c.manifest.Components.Images == nil {
+		return nil
+	}
+	images := c.manifest.Components.Images.Images
+	if len(images) == 0 {
+		return nil
+	}
+
+	if err := os.MkdirAll(rke2ImageDir, 0755); err != nil {
+		return err
+	}
+
+	for _, img := range images {
+		srcPath := filepath.Join(c.extractDir, img.Path)
+		// Reject path traversal — img.Path is trusted because the
+		// builder wrote it, but defense-in-depth is cheap here.
+		if !strings.HasPrefix(filepath.Clean(srcPath), c.extractDir) {
+			return fmt.Errorf("invalid image path %q escapes bundle root", img.Path)
+		}
+		dstPath := filepath.Join(rke2ImageDir, filepath.Base(img.Path))
+
+		log.Printf("  staging image tarball %s", filepath.Base(img.Path))
+		src, err := os.Open(srcPath)
+		if err != nil {
+			return fmt.Errorf("opening %s: %w", img.Path, err)
+		}
+		dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			src.Close()
+			return fmt.Errorf("creating %s: %w", dstPath, err)
+		}
+		_, copyErr := io.Copy(dst, src)
+		src.Close()
+		closeErr := dst.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+	}
 	return nil
 }
 
