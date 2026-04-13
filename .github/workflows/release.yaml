@@ -12,7 +12,7 @@ permissions:
 jobs:
   release:
     name: Release
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, bundle-dist]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,3 +32,20 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare bundle spec for CI
+        run: |
+          # Remove the local source path so the builder downloads the
+          # aether-ops release from GitHub instead.
+          sed -i '/^\s*source:.*artifacts\//d' bundle.yaml
+
+      - name: Build bundle
+        run: go run ./cmd/build-bundle --spec bundle.yaml --output dist/bundle.tar.zst
+
+      - name: Upload bundle to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" \
+            dist/bundle.tar.zst \
+            dist/bundle.tar.zst.sha256
