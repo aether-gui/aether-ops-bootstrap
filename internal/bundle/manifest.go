@@ -72,8 +72,10 @@ type RKE2Artifact struct {
 
 // AetherOpsEntry describes the aether-ops binary and config in the bundle.
 type AetherOpsEntry struct {
-	Version string       `json:"version"`
-	Files   []BundleFile `json:"files"`
+	Version        string       `json:"version"`
+	Files          []BundleFile `json:"files"`
+	OnrampUser     string       `json:"onramp_user,omitempty"`
+	OnrampPassword string       `json:"onramp_password,omitempty"`
 }
 
 // HelmEntry describes the Helm binary in the bundle.

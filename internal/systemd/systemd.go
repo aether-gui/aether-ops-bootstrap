@@ -3,6 +3,9 @@ package systemd
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os/exec"
+	"strings"
 )
 
 // ErrNotImplemented is returned by stub implementations.
@@ -25,28 +28,53 @@ type Manager interface {
 	Status(ctx context.Context, unit string) (UnitStatus, error)
 }
 
-// DBusManager implements Manager using the system D-Bus connection.
-// Currently a stub; the real implementation will use go-systemd/dbus.
-type DBusManager struct{}
+// SystemctlManager implements Manager by executing systemctl commands.
+// This is simpler than D-Bus and systemctl is always available on
+// systems with systemd.
+type SystemctlManager struct{}
 
-func (d *DBusManager) DaemonReload(ctx context.Context) error {
-	return ErrNotImplemented
+func (s *SystemctlManager) DaemonReload(ctx context.Context) error {
+	return runSystemctl(ctx, "daemon-reload")
 }
 
-func (d *DBusManager) Start(ctx context.Context, unit string) error {
-	return ErrNotImplemented
+func (s *SystemctlManager) Start(ctx context.Context, unit string) error {
+	return runSystemctl(ctx, "start", unit)
 }
 
-func (d *DBusManager) Stop(ctx context.Context, unit string) error {
-	return ErrNotImplemented
+func (s *SystemctlManager) Stop(ctx context.Context, unit string) error {
+	return runSystemctl(ctx, "stop", unit)
 }
 
-func (d *DBusManager) Enable(ctx context.Context, unit string) error {
-	return ErrNotImplemented
+func (s *SystemctlManager) Enable(ctx context.Context, unit string) error {
+	return runSystemctl(ctx, "enable", unit)
 }
 
-func (d *DBusManager) Status(ctx context.Context, unit string) (UnitStatus, error) {
-	return UnitStatus{}, ErrNotImplemented
+func (s *SystemctlManager) Status(ctx context.Context, unit string) (UnitStatus, error) {
+	cmd := exec.CommandContext(ctx, "systemctl", "show", unit, "--property=ActiveState,SubState", "--no-pager")
+	output, err := cmd.Output()
+	if err != nil {
+		return UnitStatus{}, fmt.Errorf("systemctl show %s: %w", unit, err)
+	}
+
+	status := UnitStatus{Name: unit}
+	for _, line := range strings.Split(string(output), "\n") {
+		if strings.HasPrefix(line, "ActiveState=") {
+			status.ActiveState = strings.TrimPrefix(line, "ActiveState=")
+		}
+		if strings.HasPrefix(line, "SubState=") {
+			status.SubState = strings.TrimPrefix(line, "SubState=")
+		}
+	}
+	return status, nil
+}
+
+func runSystemctl(ctx context.Context, args ...string) error {
+	cmd := exec.CommandContext(ctx, "systemctl", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("systemctl %s: %w\n%s", strings.Join(args, " "), err, output)
+	}
+	return nil
 }
 
 // MockManager records calls for testing. Each method appends to Calls

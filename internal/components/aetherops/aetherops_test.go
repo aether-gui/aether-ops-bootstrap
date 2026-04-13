@@ -1,7 +1,6 @@
 package aetherops
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -12,14 +11,14 @@ import (
 var _ components.Component = (*Component)(nil)
 
 func TestName(t *testing.T) {
-	c := New()
+	c := New("", nil)
 	if c.Name() != "aether_ops" {
 		t.Errorf("Name() = %q, want %q", c.Name(), "aether_ops")
 	}
 }
 
 func TestDesiredVersion(t *testing.T) {
-	c := New()
+	c := New("", nil)
 	m := &bundle.Manifest{
 		Components: bundle.ComponentList{
 			AetherOps: &bundle.AetherOpsEntry{Version: "1.4.0"},
@@ -31,7 +30,7 @@ func TestDesiredVersion(t *testing.T) {
 }
 
 func TestDesiredVersionNilAetherOps(t *testing.T) {
-	c := New()
+	c := New("", nil)
 	m := &bundle.Manifest{}
 	if v := c.DesiredVersion(m); v != "" {
 		t.Errorf("DesiredVersion with nil AetherOps = %q, want empty", v)
@@ -39,7 +38,7 @@ func TestDesiredVersionNilAetherOps(t *testing.T) {
 }
 
 func TestCurrentVersion(t *testing.T) {
-	c := New()
+	c := New("", nil)
 	s := &state.State{
 		Components: map[string]state.ComponentState{
 			"aether_ops": {Version: "1.3.0"},
@@ -50,10 +49,13 @@ func TestCurrentVersion(t *testing.T) {
 	}
 }
 
-func TestPlanNotImplemented(t *testing.T) {
-	c := New()
-	_, err := c.Plan("", "1.4.0")
-	if !errors.Is(err, components.ErrNotImplemented) {
-		t.Errorf("Plan error = %v, want ErrNotImplemented", err)
+func TestPlanNoOpWhenNilManifest(t *testing.T) {
+	c := New("", nil)
+	plan, err := c.Plan("", "1.4.0")
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if !plan.NoOp {
+		t.Error("Plan should be NoOp when manifest is nil")
 	}
 }

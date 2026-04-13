@@ -1,7 +1,6 @@
 package serviceaccount
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -38,10 +37,13 @@ func TestCurrentVersion(t *testing.T) {
 	}
 }
 
-func TestPlanNotImplemented(t *testing.T) {
+func TestPlanReturnsActions(t *testing.T) {
 	c := New()
-	_, err := c.Plan("", "2026.04.1")
-	if !errors.Is(err, components.ErrNotImplemented) {
-		t.Errorf("Plan error = %v, want ErrNotImplemented", err)
+	plan, err := c.Plan("", "2026.04.1")
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if len(plan.Actions) == 0 {
+		t.Error("Plan should return actions for new install")
 	}
 }

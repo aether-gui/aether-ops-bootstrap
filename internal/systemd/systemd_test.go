@@ -7,7 +7,7 @@ import (
 )
 
 // Compile-time interface check.
-var _ Manager = (*DBusManager)(nil)
+var _ Manager = (*SystemctlManager)(nil)
 var _ Manager = (*MockManager)(nil)
 
 func TestMockManagerRecordsCalls(t *testing.T) {
@@ -77,23 +77,7 @@ func TestMockManagerStatusResult(t *testing.T) {
 	}
 }
 
-func TestDBusManagerReturnsNotImplemented(t *testing.T) {
-	ctx := context.Background()
-	d := &DBusManager{}
-
-	if err := d.Start(ctx, "foo.service"); !errors.Is(err, ErrNotImplemented) {
-		t.Errorf("Start error = %v, want ErrNotImplemented", err)
-	}
-	if err := d.Stop(ctx, "foo.service"); !errors.Is(err, ErrNotImplemented) {
-		t.Errorf("Stop error = %v, want ErrNotImplemented", err)
-	}
-	if err := d.Enable(ctx, "foo.service"); !errors.Is(err, ErrNotImplemented) {
-		t.Errorf("Enable error = %v, want ErrNotImplemented", err)
-	}
-	if err := d.DaemonReload(ctx); !errors.Is(err, ErrNotImplemented) {
-		t.Errorf("DaemonReload error = %v, want ErrNotImplemented", err)
-	}
-	if _, err := d.Status(ctx, "foo.service"); !errors.Is(err, ErrNotImplemented) {
-		t.Errorf("Status error = %v, want ErrNotImplemented", err)
-	}
+func TestSystemctlManagerCompileTimeCheck(t *testing.T) {
+	// Verify SystemctlManager satisfies Manager interface at compile time.
+	var _ Manager = (*SystemctlManager)(nil)
 }

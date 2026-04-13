@@ -1,8 +1,14 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+
+	"github.com/aether-gui/aether-ops-bootstrap/internal/launcher"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
 )
 
 var version = "dev"
@@ -24,17 +30,17 @@ func main() {
 
 	switch os.Args[1] {
 	case "install":
-		fmt.Println("install: not implemented")
+		cmdRun("install", false, false)
 	case "upgrade":
-		fmt.Println("upgrade: not implemented")
+		cmdRun("upgrade", false, false)
 	case "repair":
-		fmt.Println("repair: not implemented")
+		cmdRun("repair", false, true)
 	case "check":
-		fmt.Println("check: not implemented")
+		cmdRun("check", true, false)
 	case "state":
-		fmt.Println("state: not implemented")
+		cmdState()
 	case "version":
-		fmt.Printf("aether-ops-bootstrap %s\n", version)
+		cmdVersion()
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -44,12 +50,80 @@ func main() {
 	}
 }
 
+func cmdRun(action string, dryRun, repair bool) {
+	bundlePath := ""
+	force := false
+
+	for i := 2; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "--bundle":
+			if i+1 < len(os.Args) {
+				bundlePath = os.Args[i+1]
+				i++
+			} else {
+				log.Fatal("--bundle requires a path argument")
+			}
+		case "--force":
+			force = true
+		default:
+			log.Fatalf("unknown flag: %s", os.Args[i])
+		}
+	}
+
+	if bundlePath == "" {
+		log.Fatalf("--bundle is required for %s", action)
+	}
+
+	// upgrade and repair always allow re-running on existing state.
+	if action == "upgrade" || action == "repair" {
+		force = true
+	}
+
+	opts := launcher.InstallOpts{
+		BundlePath: bundlePath,
+		Force:      force,
+		DryRun:     dryRun,
+		Repair:     repair,
+		Action:     action,
+		Version:    version,
+	}
+
+	if err := launcher.Install(context.Background(), opts); err != nil {
+		log.Fatalf("%s failed: %v", action, err)
+	}
+}
+
+func cmdVersion() {
+	fmt.Printf("aether-ops-bootstrap %s\n", version)
+
+	// If state exists, show installed bundle version.
+	st, err := state.Read(state.DefaultPath)
+	if err == nil && st.BundleVersion != "" {
+		fmt.Printf("installed bundle: %s\n", st.BundleVersion)
+	}
+}
+
+func cmdState() {
+	st, err := state.Read(state.DefaultPath)
+	if err != nil {
+		log.Fatalf("reading state: %v", err)
+	}
+	data, err := json.MarshalIndent(st, "", "  ")
+	if err != nil {
+		log.Fatalf("marshaling state: %v", err)
+	}
+	fmt.Println(string(data))
+}
+
 func usage() {
-	fmt.Println("Usage: aether-ops-bootstrap <command>")
+	fmt.Println("Usage: aether-ops-bootstrap <command> [flags]")
 	fmt.Println()
 	fmt.Println("Commands:")
-	// Print in a stable order matching the design doc.
 	for _, name := range []string{"install", "upgrade", "repair", "check", "state", "version"} {
 		fmt.Printf("  %-10s %s\n", name, commands[name])
 	}
+	fmt.Println()
+	fmt.Println("Install flags:")
+	fmt.Println("  --bundle <path>   Path to the bundle tar.zst file (required)")
+	fmt.Println("  --force           Override a prior successful install")
 }
