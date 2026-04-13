@@ -53,6 +53,7 @@ func main() {
 func cmdRun(action string, dryRun, repair bool) {
 	bundlePath := ""
 	force := false
+	rolesCSV := ""
 
 	for i := 2; i < len(os.Args); i++ {
 		switch os.Args[i] {
@@ -65,6 +66,13 @@ func cmdRun(action string, dryRun, repair bool) {
 			}
 		case "--force":
 			force = true
+		case "--roles":
+			if i+1 < len(os.Args) {
+				rolesCSV = os.Args[i+1]
+				i++
+			} else {
+				log.Fatal("--roles requires a comma-separated list (e.g., mgmt,core)")
+			}
 		default:
 			log.Fatalf("unknown flag: %s", os.Args[i])
 		}
@@ -79,6 +87,15 @@ func cmdRun(action string, dryRun, repair bool) {
 		force = true
 	}
 
+	var roles []launcher.Role
+	if rolesCSV != "" {
+		var err error
+		roles, err = launcher.ParseRoles(rolesCSV)
+		if err != nil {
+			log.Fatalf("invalid --roles: %v", err)
+		}
+	}
+
 	opts := launcher.InstallOpts{
 		BundlePath: bundlePath,
 		Force:      force,
@@ -86,6 +103,7 @@ func cmdRun(action string, dryRun, repair bool) {
 		Repair:     repair,
 		Action:     action,
 		Version:    version,
+		Roles:      roles,
 	}
 
 	if err := launcher.Install(context.Background(), opts); err != nil {
@@ -123,7 +141,19 @@ func usage() {
 		fmt.Printf("  %-10s %s\n", name, commands[name])
 	}
 	fmt.Println()
-	fmt.Println("Install flags:")
-	fmt.Println("  --bundle <path>   Path to the bundle tar.zst file (required)")
-	fmt.Println("  --force           Override a prior successful install")
+	fmt.Println("Flags:")
+	fmt.Println("  --bundle <path>    Path to the bundle tar.zst file (required)")
+	fmt.Println("  --force            Override a prior successful install")
+	fmt.Println("  --roles <roles>    Comma-separated node roles (default: all)")
+	fmt.Println()
+	fmt.Println("Roles:")
+	fmt.Println("  mgmt       Management plane (aether-ops, Ansible)")
+	fmt.Println("             Aliases: management")
+	fmt.Println("  core       SD-Core control plane (RKE2, Helm)")
+	fmt.Println("             Aliases: sd-core")
+	fmt.Println("  ran        Radio access network")
+	fmt.Println("             Aliases: srs-ran, ocudu")
+	fmt.Println()
+	fmt.Println("If --roles is omitted, all components are installed (single-node mode).")
+	fmt.Println("Multiple roles can be combined: --roles mgmt,core")
 }

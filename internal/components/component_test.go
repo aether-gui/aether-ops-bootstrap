@@ -70,6 +70,40 @@ func TestRegistryAllReturnsCopy(t *testing.T) {
 	}
 }
 
+func TestRegistryFilter(t *testing.T) {
+	r := &Registry{}
+	r.Register(&stubComponent{name: "debs"})
+	r.Register(&stubComponent{name: "ssh"})
+	r.Register(&stubComponent{name: "rke2"})
+	r.Register(&stubComponent{name: "aether_ops"})
+
+	allowed := map[string]bool{"debs": true, "rke2": true}
+	filtered := r.Filter(allowed)
+
+	all := filtered.All()
+	if len(all) != 2 {
+		t.Fatalf("len(filtered) = %d, want 2", len(all))
+	}
+	if all[0].Name() != "debs" || all[1].Name() != "rke2" {
+		t.Errorf("filtered = [%s, %s], want [debs, rke2]", all[0].Name(), all[1].Name())
+	}
+
+	// Original registry unaffected.
+	if len(r.All()) != 4 {
+		t.Error("original registry should be unchanged")
+	}
+}
+
+func TestRegistryFilterEmpty(t *testing.T) {
+	r := &Registry{}
+	r.Register(&stubComponent{name: "debs"})
+
+	filtered := r.Filter(map[string]bool{"nonexistent": true})
+	if len(filtered.All()) != 0 {
+		t.Errorf("expected empty filtered registry")
+	}
+}
+
 func TestPlanNoOp(t *testing.T) {
 	p := Plan{NoOp: true}
 	if !p.NoOp {

@@ -53,6 +53,18 @@ func (r *Registry) All() []Component {
 	return out
 }
 
+// Filter returns a new Registry containing only components whose names
+// appear in the allowed set. Registration order is preserved.
+func (r *Registry) Filter(allowed map[string]bool) *Registry {
+	filtered := &Registry{}
+	for _, c := range r.components {
+		if allowed[c.Name()] {
+			filtered.components = append(filtered.components, c)
+		}
+	}
+	return filtered
+}
+
 // ByName returns the component with the given name, or nil if not found.
 func (r *Registry) ByName(name string) Component {
 	for _, c := range r.components {
