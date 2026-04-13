@@ -22,6 +22,7 @@ type State struct {
 	LauncherVersion string                    `json:"launcher_version"`
 	BundleVersion   string                    `json:"bundle_version"`
 	BundleHash      string                    `json:"bundle_hash"`
+	Roles           []string                  `json:"roles,omitempty"`
 	Components      map[string]ComponentState `json:"components"`
 	History         []HistoryEntry            `json:"history"`
 }
@@ -42,6 +43,7 @@ type HistoryEntry struct {
 	Timestamp       time.Time `json:"timestamp"`
 	LauncherVersion string    `json:"launcher_version"`
 	BundleVersion   string    `json:"bundle_version"`
+	Roles           []string  `json:"roles,omitempty"`
 }
 
 // ErrSchemaVersion is returned when a state file has an unrecognized schema version.

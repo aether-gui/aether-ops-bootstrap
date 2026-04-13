@@ -24,6 +24,7 @@ type InstallOpts struct {
 	Repair     bool   // re-apply all components regardless of state
 	Action     string // "install", "upgrade", "repair", "check" — recorded in history
 	Version    string
+	Roles      []Role // nil = all components (single-node backward compat)
 }
 
 // Install runs the full bootstrap sequence.
@@ -68,8 +69,30 @@ func Install(ctx context.Context, opts InstallOpts) error {
 	}
 	log.Printf("detected host suite: %s", suite)
 
+	// Inherit roles from state when not explicitly specified. Prevents
+	// operators from accidentally applying a different component set on
+	// upgrade/repair.
+	if len(opts.Roles) == 0 && len(st.Roles) > 0 {
+		inherited, err := ParseRoleStrings(st.Roles)
+		if err != nil {
+			return fmt.Errorf("invalid role in state file: %w", err)
+		}
+		opts.Roles = inherited
+		log.Printf("inheriting roles from state: %v", opts.Roles)
+	}
+
 	// Build component registry.
 	registry := BuildRegistry(extractDir, manifest, suite)
+
+	// Filter registry by role when roles are specified.
+	if len(opts.Roles) > 0 {
+		allowed := ComponentsForRoles(opts.Roles)
+		registry = registry.Filter(allowed)
+		if len(registry.All()) == 0 {
+			return fmt.Errorf("no components to install for roles %v", opts.Roles)
+		}
+		log.Printf("roles %v: %d components selected", opts.Roles, len(registry.All()))
+	}
 
 	// Walk components: Plan → Apply.
 	for _, comp := range registry.All() {
@@ -127,11 +150,15 @@ func Install(ctx context.Context, opts InstallOpts) error {
 	if action == "" {
 		action = "install"
 	}
+	if len(opts.Roles) > 0 {
+		st.Roles = RoleStrings(opts.Roles)
+	}
 	st.History = append(st.History, state.HistoryEntry{
 		Action:          action,
 		Timestamp:       time.Now().UTC(),
 		LauncherVersion: opts.Version,
 		BundleVersion:   manifest.BundleVersion,
+		Roles:           st.Roles,
 	})
 	if err := writeState(st, opts.Version, manifest); err != nil {
 		return err
@@ -142,14 +169,17 @@ func Install(ctx context.Context, opts InstallOpts) error {
 		log.Println("========================================")
 		log.Println("  Bootstrap complete!")
 		log.Println("========================================")
-		log.Println("")
-		log.Println("  aether-ops is running at http://127.0.0.1:8186")
-		log.Println("")
-		log.Println("  The default onramp user credentials are:")
-		log.Println("    user: aether")
-		log.Println("    pass: <as configured>")
-		log.Println("")
-		log.Println("  Change the default password immediately.")
+
+		if len(opts.Roles) == 0 || ContainsRole(opts.Roles, RoleMgmt) {
+			log.Println("")
+			log.Println("  aether-ops is running at http://127.0.0.1:8186")
+			log.Println("")
+			log.Println("  The default onramp user credentials are:")
+			log.Println("    user: aether")
+			log.Println("    pass: <as configured>")
+			log.Println("")
+			log.Println("  Change the default password immediately.")
+		}
 		log.Println("")
 	}
 
