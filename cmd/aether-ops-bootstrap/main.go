@@ -4,22 +4,28 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"path/filepath"
 
+	"github.com/aether-gui/aether-ops-bootstrap/internal/diagnostics"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/launcher"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
 )
 
+const logPath = "/var/lib/aether-ops-bootstrap/bootstrap.log"
+
 var version = "dev"
 
 var commands = map[string]string{
-	"install": "Full bootstrap from scratch",
-	"upgrade": "Compare bundle manifest to state and apply deltas",
-	"repair":  "Re-run all reconciliation steps regardless of state",
-	"check":   "Preflight and plan only, no changes (dry-run)",
-	"state":   "Print the current state file",
-	"version": "Print version information",
+	"install":  "Full bootstrap from scratch",
+	"upgrade":  "Compare bundle manifest to state and apply deltas",
+	"repair":   "Re-run all reconciliation steps regardless of state",
+	"check":    "Preflight and plan only, no changes (dry-run)",
+	"diagnose": "Collect diagnostic bundle for remote troubleshooting",
+	"state":    "Print the current state file",
+	"version":  "Print version information",
 }
 
 func main() {
@@ -37,6 +43,8 @@ func main() {
 		cmdRun("repair", false, true)
 	case "check":
 		cmdRun("check", true, false)
+	case "diagnose":
+		cmdDiagnose()
 	case "state":
 		cmdState()
 	case "version":
@@ -96,6 +104,12 @@ func cmdRun(action string, dryRun, repair bool) {
 		}
 	}
 
+	// Tee log output to a persistent file so diagnostics can capture it.
+	logFile, logErr := setupLogTee(logPath)
+	if logErr != nil {
+		log.Printf("warning: could not tee logs to %s: %v", logPath, logErr)
+	}
+
 	opts := launcher.InstallOpts{
 		BundlePath: bundlePath,
 		Force:      force,
@@ -107,8 +121,64 @@ func cmdRun(action string, dryRun, repair bool) {
 	}
 
 	if err := launcher.Install(context.Background(), opts); err != nil {
+		// Flush the log file before collecting diagnostics.
+		if logFile != nil {
+			logFile.Close()
+		}
+		diagPath, diagErr := diagnostics.Collect("/tmp", diagnostics.CollectOpts{
+			LogFile: logPath,
+			Version: version,
+		})
+		if diagErr != nil {
+			log.Printf("warning: diagnostic collection failed: %v", diagErr)
+		} else {
+			log.Printf("diagnostic bundle saved to %s", diagPath)
+			log.Println("please send this file for troubleshooting support")
+		}
 		log.Fatalf("%s failed: %v", action, err)
 	}
+
+	if logFile != nil {
+		logFile.Close()
+	}
+}
+
+func cmdDiagnose() {
+	outputDir := "/tmp"
+	for i := 2; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "--output":
+			if i+1 < len(os.Args) {
+				outputDir = os.Args[i+1]
+				i++
+			} else {
+				log.Fatal("--output requires a path argument")
+			}
+		default:
+			log.Fatalf("unknown flag: %s", os.Args[i])
+		}
+	}
+
+	path, err := diagnostics.Collect(outputDir, diagnostics.CollectOpts{
+		LogFile: logPath,
+		Version: version,
+	})
+	if err != nil {
+		log.Fatalf("diagnostic collection failed: %v", err)
+	}
+	fmt.Printf("diagnostic bundle saved to %s\n", path)
+}
+
+func setupLogTee(path string) (*os.File, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return nil, err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return nil, err
+	}
+	log.SetOutput(io.MultiWriter(os.Stderr, f))
+	return f, nil
 }
 
 func cmdVersion() {
@@ -137,7 +207,7 @@ func usage() {
 	fmt.Println("Usage: aether-ops-bootstrap <command> [flags]")
 	fmt.Println()
 	fmt.Println("Commands:")
-	for _, name := range []string{"install", "upgrade", "repair", "check", "state", "version"} {
+	for _, name := range []string{"install", "upgrade", "repair", "check", "diagnose", "state", "version"} {
 		fmt.Printf("  %-10s %s\n", name, commands[name])
 	}
 	fmt.Println()
