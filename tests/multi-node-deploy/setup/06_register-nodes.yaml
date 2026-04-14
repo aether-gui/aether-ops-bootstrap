@@ -42,3 +42,16 @@
       command: |
         curl -sf -X POST http://localhost:8186/api/v1/onramp/inventory/sync \
           -H 'Authorization: Bearer test-token-e2e' | jq .
+
+# aether-onramp's vars/main.yml ships with core.data_iface=ens18, which
+# does not exist on LXD VMs. Apply config defaults so data_iface and
+# other role-derived fields are rewritten from each registered node's
+# facts (default route interface / primary IP) into vars/main.yml.
+- name: apply config defaults from node facts
+  node: mgmt-vm
+  step:
+    type: execute
+    options:
+      command: |
+        curl -sf -X POST http://localhost:8186/api/v1/onramp/config/defaults \
+          -H 'Authorization: Bearer test-token-e2e' | jq .

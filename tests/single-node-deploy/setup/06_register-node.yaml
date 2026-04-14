@@ -15,3 +15,17 @@
             "sudo_password": "aether",
             "roles": ["master", "worker"]
           }' | jq -e '.id != ""'
+
+# aether-onramp's vars/main.yml ships with core.data_iface=ens18, which
+# does not exist on LXD VMs (interface is enp5s0 or similar). Apply
+# config defaults so the configdefaults provider rewrites data_iface
+# and other role-derived fields from the registered node's facts
+# (default route interface / primary IP) into vars/main.yml.
+- name: apply config defaults from node facts
+  node: sn-vm
+  step:
+    type: execute
+    options:
+      command: |
+        curl -sf -X POST http://localhost:8186/api/v1/onramp/config/defaults \
+          -H 'Authorization: Bearer test-token-e2e' | jq .
