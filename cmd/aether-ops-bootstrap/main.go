@@ -121,9 +121,11 @@ func cmdRun(action string, dryRun, repair bool) {
 	}
 
 	if err := launcher.Install(context.Background(), opts); err != nil {
-		// Flush the log file before collecting diagnostics.
+		// Reset logger to stderr-only and sync the log file so
+		// diagnostics can capture the complete output.
+		log.SetOutput(os.Stderr)
 		if logFile != nil {
-			logFile.Close()
+			_ = logFile.Sync()
 		}
 		diagPath, diagErr := diagnostics.Collect("/tmp", diagnostics.CollectOpts{
 			LogFile: logPath,
@@ -134,6 +136,9 @@ func cmdRun(action string, dryRun, repair bool) {
 		} else {
 			log.Printf("diagnostic bundle saved to %s", diagPath)
 			log.Println("please send this file for troubleshooting support")
+		}
+		if logFile != nil {
+			logFile.Close()
 		}
 		log.Fatalf("%s failed: %v", action, err)
 	}

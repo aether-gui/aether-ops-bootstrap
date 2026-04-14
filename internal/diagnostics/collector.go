@@ -1,7 +1,7 @@
 // Package diagnostics collects system state into a tar.gz bundle for
-// remote troubleshooting. Individual collectors are fault-tolerant —
-// missing files or commands are recorded in collection-errors.txt but
-// never abort the overall collection.
+// remote troubleshooting. Individual collector errors are accumulated in
+// collection-errors.txt inside the bundle but never abort the overall
+// collection process.
 package diagnostics
 
 import (
@@ -180,13 +180,24 @@ func collectKubernetes(stagingDir string) error {
 	return nil
 }
 
+// secretBasenames lists filenames that are excluded from the diagnostic
+// bundle to avoid accidental credential exfiltration.
+var secretBasenames = map[string]bool{
+	"env":          true, // API tokens, passwords
+	".env":         true,
+	"secrets.yaml": true,
+	"secrets.json": true,
+	"token":        true,
+	"password":     true,
+}
+
 func collectConfigs(stagingDir string) error {
 	dir := filepath.Join(stagingDir, "configs")
 
 	copyFileIfExists("/etc/rancher/rke2/config.yaml", dir, "rke2-config.yaml")
 	copyFileIfExists("/etc/systemd/system/aether-ops.service", dir, "aether-ops.service")
 
-	// Copy the entire /etc/aether-ops/ directory if it exists.
+	// Copy /etc/aether-ops/ excluding known secret files.
 	copyDirIfExists("/etc/aether-ops", dir, "aether-ops-config")
 
 	return nil
@@ -239,9 +250,10 @@ func copyFileIfExists(src, baseDir, subpath string) {
 	_ = writeFile(baseDir, subpath, data)
 }
 
-// copyDirIfExists copies all regular files from srcDir into
-// baseDir/subpath, preserving relative paths. Missing source is
-// silently ignored.
+// copyDirIfExists copies regular files from srcDir into
+// baseDir/subpath, preserving relative paths. Symlinks, special files,
+// and files whose basenames appear in secretBasenames are skipped.
+// Missing source directory is silently ignored.
 func copyDirIfExists(srcDir, baseDir, subpath string) {
 	info, err := os.Stat(srcDir)
 	if err != nil || !info.IsDir() {
@@ -249,6 +261,13 @@ func copyDirIfExists(srcDir, baseDir, subpath string) {
 	}
 	_ = filepath.WalkDir(srcDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
+			return nil
+		}
+		fi, err := d.Info()
+		if err != nil || !fi.Mode().IsRegular() {
+			return nil
+		}
+		if secretBasenames[filepath.Base(path)] {
 			return nil
 		}
 		rel, err := filepath.Rel(srcDir, path)
@@ -272,7 +291,7 @@ func createTarGz(sourceDir, outputPath string) error {
 		return err
 	}
 
-	outFile, err := os.Create(outputPath)
+	outFile, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -303,7 +322,7 @@ func createTarGz(sourceDir, outputPath string) error {
 		if err != nil {
 			return err
 		}
-		header.Name = rel
+		header.Name = filepath.ToSlash(rel)
 
 		if err := tw.WriteHeader(header); err != nil {
 			return err
@@ -317,9 +336,12 @@ func createTarGz(sourceDir, outputPath string) error {
 		if err != nil {
 			return err
 		}
-		defer f.Close()
 		_, err = io.Copy(tw, f)
-		return err
+		closeErr := f.Close()
+		if err != nil {
+			return err
+		}
+		return closeErr
 	})
 
 	if err != nil {
