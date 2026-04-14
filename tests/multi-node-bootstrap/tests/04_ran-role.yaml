@@ -1,0 +1,44 @@
+- name: verify ran has base packages (ansible)
+  node: gnb-vm
+  type: execute
+  options:
+    command: dpkg -l ansible | grep -q '^ii' && echo "ansible installed"
+    evaluate:
+      exit_code: 0
+      contains: "ansible installed"
+
+- name: verify ran has ssh configured
+  node: gnb-vm
+  type: execute
+  options:
+    command: systemctl is-active ssh
+    evaluate:
+      exit_code: 0
+      match: "active"
+
+- name: verify ran does NOT have RKE2
+  node: gnb-vm
+  type: execute
+  options:
+    command: "! systemctl is-active rke2-server 2>/dev/null && echo 'no k8s on ran'"
+    evaluate:
+      exit_code: 0
+      contains: "no k8s on ran"
+
+- name: verify ran does NOT have aether-ops
+  node: gnb-vm
+  type: execute
+  options:
+    command: "! systemctl is-active aether-ops 2>/dev/null && echo 'no aether-ops on ran'"
+    evaluate:
+      exit_code: 0
+      contains: "no aether-ops on ran"
+
+- name: verify ran state records ran role
+  node: gnb-vm
+  type: execute
+  options:
+    command: cat /var/lib/aether-ops-bootstrap/state.json | jq -r '.roles[]'
+    evaluate:
+      exit_code: 0
+      match: "ran"

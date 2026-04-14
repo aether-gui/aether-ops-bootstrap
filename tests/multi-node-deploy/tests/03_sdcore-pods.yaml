@@ -1,0 +1,22 @@
+- name: verify SD-Core pods are running on core node
+  node: core-vm
+  type: execute
+  options:
+    command: |
+      export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+      RUNNING=$(/var/lib/rancher/rke2/bin/kubectl get pods -n omec --no-headers 2>/dev/null | grep -c Running)
+      echo "running pods in omec namespace: $RUNNING"
+      [ "$RUNNING" -gt 0 ]
+    evaluate:
+      exit_code: 0
+      contains: "running pods in omec namespace:"
+
+- name: list all pods on core for diagnostic visibility
+  node: core-vm
+  type: execute
+  options:
+    command: |
+      export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+      /var/lib/rancher/rke2/bin/kubectl get pods -A
+    evaluate:
+      exit_code: 0

@@ -1,0 +1,12 @@
+- name: push artifacts to all VMs
+  node: host
+  step:
+    type: execute
+    options:
+      command: |
+        for VM in mgmt-vm core-vm gnb-vm; do
+          echo "pushing to $VM..."
+          lxc file push dist/aether-ops-bootstrap ${VM}/root/aether-ops-bootstrap --mode 0755
+          lxc file push dist/bundle.tar.zst ${VM}/root/bundle.tar.zst
+        done
+        echo "all artifacts pushed"

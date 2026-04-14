@@ -1,0 +1,17 @@
+- name: verify aether-ops service is running
+  node: sn-vm
+  type: execute
+  options:
+    command: systemctl is-active aether-ops
+    evaluate:
+      exit_code: 0
+      match: "active"
+
+- name: verify aether-ops health endpoint
+  node: sn-vm
+  type: execute
+  options:
+    command: curl -sf http://localhost:8186/healthz | jq -r '.status'
+    evaluate:
+      exit_code: 0
+      match: "healthy"

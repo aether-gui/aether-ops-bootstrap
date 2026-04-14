@@ -1,0 +1,8 @@
+- name: verify no internet access (airgap enforced)
+  node: [mgmt-vm, core-vm, gnb-vm]
+  type: execute
+  options:
+    command: "! ping -c 1 -W 3 1.1.1.1 2>/dev/null && echo 'airgap confirmed'"
+    evaluate:
+      exit_code: 0
+      contains: "airgap confirmed"

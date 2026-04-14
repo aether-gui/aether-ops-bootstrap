@@ -1,0 +1,13 @@
+- name: verify 5GC deployment task succeeded
+  node: sn-vm
+  type: execute
+  options:
+    command: |
+      TASKS=$(curl -sf http://localhost:8186/api/v1/onramp/tasks \
+        -H 'Authorization: Bearer test-token-e2e')
+      STATUS=$(echo "$TASKS" | jq -r '[.[] | select(.component == "5gc" and .action == "install")] | last | .status')
+      echo "5gc install status: $STATUS"
+      [ "$STATUS" = "succeeded" ]
+    evaluate:
+      exit_code: 0
+      contains: "succeeded"

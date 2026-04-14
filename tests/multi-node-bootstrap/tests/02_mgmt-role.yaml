@@ -1,0 +1,44 @@
+- name: verify mgmt has aether-ops running
+  node: mgmt-vm
+  type: execute
+  options:
+    command: systemctl is-active aether-ops
+    evaluate:
+      exit_code: 0
+      match: "active"
+
+- name: verify mgmt has aether-ops health endpoint
+  node: mgmt-vm
+  type: execute
+  options:
+    command: curl -sf http://localhost:8186/healthz | jq -r '.status'
+    evaluate:
+      exit_code: 0
+      match: "healthy"
+
+- name: verify mgmt has onramp extracted
+  node: mgmt-vm
+  type: execute
+  options:
+    command: test -d /var/lib/aether-ops/aether-onramp/deps && echo "onramp present"
+    evaluate:
+      exit_code: 0
+      contains: "onramp present"
+
+- name: verify mgmt does NOT have RKE2
+  node: mgmt-vm
+  type: execute
+  options:
+    command: "! systemctl is-active rke2-server 2>/dev/null && echo 'no k8s on mgmt'"
+    evaluate:
+      exit_code: 0
+      contains: "no k8s on mgmt"
+
+- name: verify mgmt state records mgmt role
+  node: mgmt-vm
+  type: execute
+  options:
+    command: cat /var/lib/aether-ops-bootstrap/state.json | jq -r '.roles[]'
+    evaluate:
+      exit_code: 0
+      match: "mgmt"

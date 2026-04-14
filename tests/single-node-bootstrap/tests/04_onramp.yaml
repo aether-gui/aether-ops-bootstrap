@@ -1,0 +1,26 @@
+- name: verify aether-onramp extracted
+  node: sn-vm
+  type: execute
+  options:
+    command: test -d /var/lib/aether-ops/aether-onramp/deps && echo "onramp present"
+    evaluate:
+      exit_code: 0
+      contains: "onramp present"
+
+- name: verify sdcore-helm-charts extracted
+  node: sn-vm
+  type: execute
+  options:
+    command: test -d /var/lib/aether-ops/helm-charts/sdcore-helm-charts && echo "charts present"
+    evaluate:
+      exit_code: 0
+      contains: "charts present"
+
+- name: verify onramp ownership
+  node: sn-vm
+  type: execute
+  options:
+    command: stat -c '%U:%G' /var/lib/aether-ops/aether-onramp
+    evaluate:
+      exit_code: 0
+      match: "aether-ops:aether-ops"

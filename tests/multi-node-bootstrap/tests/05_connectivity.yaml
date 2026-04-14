@@ -1,0 +1,44 @@
+- name: mgmt can reach core
+  node: mgmt-vm
+  type: execute
+  options:
+    command: ping -c 2 -W 3 10.200.3.11
+    evaluate:
+      exit_code: 0
+      contains: "0% packet loss"
+
+- name: mgmt can reach gnb
+  node: mgmt-vm
+  type: execute
+  options:
+    command: ping -c 2 -W 3 10.200.3.12
+    evaluate:
+      exit_code: 0
+      contains: "0% packet loss"
+
+- name: core can reach mgmt
+  node: core-vm
+  type: execute
+  options:
+    command: ping -c 2 -W 3 10.200.3.10
+    evaluate:
+      exit_code: 0
+      contains: "0% packet loss"
+
+- name: core can reach gnb
+  node: core-vm
+  type: execute
+  options:
+    command: ping -c 2 -W 3 10.200.3.12
+    evaluate:
+      exit_code: 0
+      contains: "0% packet loss"
+
+- name: gnb can reach mgmt
+  node: gnb-vm
+  type: execute
+  options:
+    command: ping -c 2 -W 3 10.200.3.10
+    evaluate:
+      exit_code: 0
+      contains: "0% packet loss"

@@ -3,6 +3,8 @@ COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS := -X main.version=$(VERSION)
 
 .PHONY: dist build build-bundle build-all bundle package test lint install-lint vet clean
+.PHONY: test-e2e test-e2e-quick test-e2e-bootstrap test-e2e-deploy
+.PHONY: test-e2e-multi-bootstrap test-e2e-multi-deploy
 
 dist:
 	mkdir -p dist
@@ -37,6 +39,25 @@ install-lint:
 
 vet:
 	go vet ./...
+
+# E2E tests (require DART CLI and LXD with a 'default' storage pool)
+# Quick tests verify bootstrap only (~10-15 min each)
+test-e2e-bootstrap: build bundle
+	dart -c tests/single-node-bootstrap/single-node-bootstrap.yaml -s
+
+test-e2e-multi-bootstrap: build bundle
+	dart -c tests/multi-node-bootstrap/multi-node-bootstrap.yaml -s
+
+# Full tests deploy SD-Core via the aether-ops API (~30-45 min each)
+test-e2e-deploy: build bundle
+	dart -c tests/single-node-deploy/single-node-deploy.yaml -s
+
+test-e2e-multi-deploy: build bundle
+	dart -c tests/multi-node-deploy/multi-node-deploy.yaml -s
+
+# Convenience targets
+test-e2e-quick: test-e2e-bootstrap test-e2e-multi-bootstrap
+test-e2e: test-e2e-quick test-e2e-deploy test-e2e-multi-deploy
 
 clean:
 	rm -rf dist/

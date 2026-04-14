@@ -1,0 +1,20 @@
+- name: bootstrap mgmt-vm with mgmt role
+  node: mgmt-vm
+  step:
+    type: execute
+    options:
+      command: /root/aether-ops-bootstrap install --bundle /root/bundle.tar.zst --roles mgmt
+
+- name: bootstrap core-vm with core role
+  node: core-vm
+  step:
+    type: execute
+    options:
+      command: /root/aether-ops-bootstrap install --bundle /root/bundle.tar.zst --roles core
+
+- name: bootstrap gnb-vm with ran role
+  node: gnb-vm
+  step:
+    type: execute
+    options:
+      command: /root/aether-ops-bootstrap install --bundle /root/bundle.tar.zst --roles ran

@@ -1,0 +1,41 @@
+- name: host
+  type: local
+  options:
+    exec_opts:
+      shell: /bin/bash
+
+- name: mgmt-vm
+  type: lxd-vm
+  options:
+    image: "ubuntu:24.04"
+    exec_opts:
+      shell: /bin/bash
+    networks:
+      - name: mn-deploy-net
+        ip: 10.200.4.10
+    profiles:
+      - mn-deploy-mgmt
+
+- name: core-vm
+  type: lxd-vm
+  options:
+    image: "ubuntu:24.04"
+    exec_opts:
+      shell: /bin/bash
+    networks:
+      - name: mn-deploy-net
+        ip: 10.200.4.11
+    profiles:
+      - mn-deploy-core
+
+- name: gnb-vm
+  type: lxd-vm
+  options:
+    image: "ubuntu:24.04"
+    exec_opts:
+      shell: /bin/bash
+    networks:
+      - name: mn-deploy-net
+        ip: 10.200.4.12
+    profiles:
+      - mn-deploy-gnb

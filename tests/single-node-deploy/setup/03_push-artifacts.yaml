@@ -1,0 +1,13 @@
+- name: push bootstrap binary to VM
+  node: host
+  step:
+    type: execute
+    options:
+      command: lxc file push dist/aether-ops-bootstrap sn-vm/root/aether-ops-bootstrap --mode 0755
+
+- name: push bundle to VM
+  node: host
+  step:
+    type: execute
+    options:
+      command: lxc file push dist/bundle.tar.zst sn-vm/root/bundle.tar.zst

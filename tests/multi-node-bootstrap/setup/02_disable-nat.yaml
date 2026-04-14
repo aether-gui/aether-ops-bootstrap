@@ -1,0 +1,6 @@
+- name: disable internet access (enforce airgap)
+  node: host
+  step:
+    type: execute
+    options:
+      command: lxc network set mn-boot-net ipv4.nat false

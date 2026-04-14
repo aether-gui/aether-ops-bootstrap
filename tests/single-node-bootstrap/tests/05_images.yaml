@@ -1,0 +1,23 @@
+- name: verify container images loaded in containerd
+  node: sn-vm
+  type: execute
+  options:
+    command: |
+      COUNT=$(/var/lib/rancher/rke2/bin/crictl --runtime-endpoint unix:///run/k3s/containerd/containerd.sock images 2>/dev/null | grep -c omec)
+      echo "omec images: $COUNT"
+      [ "$COUNT" -gt 0 ]
+    evaluate:
+      exit_code: 0
+      contains: "omec images:"
+
+- name: verify bootstrap state file exists and has components
+  node: sn-vm
+  type: execute
+  options:
+    command: |
+      COMPS=$(cat /var/lib/aether-ops-bootstrap/state.json | jq '.components | length')
+      echo "components: $COMPS"
+      [ "$COMPS" -gt 0 ]
+    evaluate:
+      exit_code: 0
+      contains: "components:"

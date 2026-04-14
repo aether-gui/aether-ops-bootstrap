@@ -1,0 +1,36 @@
+- name: verify RKE2 server is running
+  node: sn-vm
+  type: execute
+  options:
+    command: systemctl is-active rke2-server
+    evaluate:
+      exit_code: 0
+      match: "active"
+
+- name: verify kubectl reports node Ready
+  node: sn-vm
+  type: execute
+  options:
+    command: |
+      export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+      /var/lib/rancher/rke2/bin/kubectl get nodes --no-headers
+    evaluate:
+      exit_code: 0
+      contains: "Ready"
+
+- name: verify helm is installed
+  node: sn-vm
+  type: execute
+  options:
+    command: /usr/local/bin/helm version --short
+    evaluate:
+      exit_code: 0
+      contains: "v3"
+
+- name: verify kubectl symlink works
+  node: sn-vm
+  type: execute
+  options:
+    command: /usr/local/bin/kubectl version --client --short 2>/dev/null || /usr/local/bin/kubectl version --client
+    evaluate:
+      exit_code: 0
