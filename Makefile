@@ -2,9 +2,9 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS := -X main.version=$(VERSION)
 
-.PHONY: dist build build-bundle build-all bundle package test lint install-lint vet clean \
-	test-e2e test-e2e-quick test-e2e-bootstrap test-e2e-deploy \
-	test-e2e-multi-bootstrap test-e2e-multi-deploy
+.PHONY: dist build build-bundle build-all bundle package test lint install-lint vet clean
+.PHONY: test-e2e test-e2e-quick test-e2e-bootstrap test-e2e-deploy
+.PHONY: test-e2e-multi-bootstrap test-e2e-multi-deploy
 
 dist:
 	mkdir -p dist
