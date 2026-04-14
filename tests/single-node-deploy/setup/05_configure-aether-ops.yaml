@@ -1,0 +1,43 @@
+- name: configure aether-ops for API access
+  node: sn-vm
+  step:
+    type: execute
+    options:
+      command: |
+        mkdir -p /etc/aether-ops
+        cat > /etc/aether-ops/env <<'ENVEOF'
+        AETHER_LISTEN=0.0.0.0:8186
+        AETHER_API_TOKEN=test-token-e2e
+        ANSIBLE_HOST_KEY_CHECKING=False
+        HOME=/var/lib/aether-ops
+        ENVEOF
+        systemctl restart aether-ops
+
+- name: wait for aether-ops to be ready after restart
+  node: sn-vm
+  step:
+    type: execute
+    options:
+      command: |
+        for i in $(seq 1 60); do
+          curl -sf http://localhost:8186/healthz -H 'Authorization: Bearer test-token-e2e' >/dev/null 2>&1 && exit 0
+          sleep 2
+        done
+        echo "aether-ops not ready after 120s" >&2
+        exit 1
+
+- name: wait for onramp provider to be ready
+  node: sn-vm
+  step:
+    type: execute
+    options:
+      command: |
+        for i in $(seq 1 120); do
+          DEGRADED=$(curl -sf http://localhost:8186/api/v1/meta/providers \
+            -H 'Authorization: Bearer test-token-e2e' 2>/dev/null | \
+            jq -r '.providers[] | select(.name == "onramp") | .degraded' 2>/dev/null)
+          [ "$DEGRADED" = "false" ] && echo "onramp provider ready" && exit 0
+          sleep 2
+        done
+        echo "onramp provider not ready after 240s" >&2
+        exit 1

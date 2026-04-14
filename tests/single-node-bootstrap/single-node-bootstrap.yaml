@@ -1,0 +1,42 @@
+---
+suite: Single Node Bootstrap (Airgapped)
+
+lxd:
+  networks:
+    - name: sn-boot-net
+      type: bridge
+      subnet: 10.200.1.0/24
+      gateway: 10.200.1.1
+
+  profiles:
+    - name: sn-boot-profile
+      description: Single-node bootstrap VM (8 CPU, 16GB RAM, 100GB disk)
+      devices:
+        root:
+          type: disk
+          path: /
+          pool: default
+          size: 100GB
+      config:
+        limits.cpu: "8"
+        limits.memory: "16GB"
+        user.user-data: |
+          #cloud-config
+          users:
+            - name: aether
+              groups: [sudo]
+              shell: /bin/bash
+              lock_passwd: false
+              passwd: "$6$rounds=4096$salt$JDZz0k9OIkMfDGNfPMlCvPqvH9yOjVVJ8aGm6Bra/G1S5drVYJJDQo6.aNHJ3cWWM4BDNmJi5Juf96FZDvtS."
+              sudo: ALL=(ALL) NOPASSWD:ALL
+          ssh_pwauth: true
+          runcmd:
+            - [ bash, -c, "sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/; s/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config" ]
+            - [ rm, -f, /etc/ssh/sshd_config.d/60-cloudimg-settings.conf ]
+            - [ systemctl, restart, ssh ]
+            - [ touch, /tmp/cloud-init.complete ]
+
+nodes: !!load_from(nodes)
+setup: !!load_from(setup)
+tests: !!load_from(tests)
+teardown: !!load_from(teardown)

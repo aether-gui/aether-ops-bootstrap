@@ -1,0 +1,44 @@
+- name: register core-vm as master+worker
+  node: mgmt-vm
+  step:
+    type: execute
+    options:
+      command: |
+        curl -sf -X POST http://localhost:8186/api/v1/nodes \
+          -H 'Authorization: Bearer test-token-e2e' \
+          -H 'Content-Type: application/json' \
+          -d '{
+            "name": "core",
+            "ansible_host": "10.200.4.11",
+            "ansible_user": "aether",
+            "password": "aether",
+            "sudo_password": "aether",
+            "roles": ["master", "worker"]
+          }' | jq -e '.id != ""'
+
+- name: register gnb-vm as srsran
+  node: mgmt-vm
+  step:
+    type: execute
+    options:
+      command: |
+        curl -sf -X POST http://localhost:8186/api/v1/nodes \
+          -H 'Authorization: Bearer test-token-e2e' \
+          -H 'Content-Type: application/json' \
+          -d '{
+            "name": "gnb",
+            "ansible_host": "10.200.4.12",
+            "ansible_user": "aether",
+            "password": "aether",
+            "sudo_password": "aether",
+            "roles": ["srsran"]
+          }' | jq -e '.id != ""'
+
+- name: sync inventory
+  node: mgmt-vm
+  step:
+    type: execute
+    options:
+      command: |
+        curl -sf -X POST http://localhost:8186/api/v1/onramp/inventory/sync \
+          -H 'Authorization: Bearer test-token-e2e' | jq .

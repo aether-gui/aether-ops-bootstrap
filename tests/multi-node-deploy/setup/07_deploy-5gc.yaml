@@ -1,0 +1,32 @@
+- name: trigger 5GC installation and wait for completion
+  node: mgmt-vm
+  step:
+    type: execute
+    options:
+      command: |
+        TASK_ID=$(curl -sf -X POST http://localhost:8186/api/v1/onramp/components/5gc/install \
+          -H 'Authorization: Bearer test-token-e2e' | jq -r '.id')
+        if [ -z "$TASK_ID" ] || [ "$TASK_ID" = "null" ]; then
+          echo "ERROR: failed to get task ID" >&2
+          exit 1
+        fi
+        echo "5GC install task: $TASK_ID"
+        for i in $(seq 1 1800); do
+          STATUS=$(curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" \
+            -H 'Authorization: Bearer test-token-e2e' | jq -r '.status')
+          case "$STATUS" in
+            succeeded)
+              echo "5GC install succeeded"
+              exit 0
+              ;;
+            failed)
+              echo "5GC install FAILED" >&2
+              curl -sf "http://localhost:8186/api/v1/onramp/tasks/${TASK_ID}" \
+                -H 'Authorization: Bearer test-token-e2e' | jq . >&2
+              exit 1
+              ;;
+          esac
+          sleep 1
+        done
+        echo "5GC install timed out after 1800s" >&2
+        exit 1

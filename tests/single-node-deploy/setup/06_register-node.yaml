@@ -1,0 +1,17 @@
+- name: register localhost as single-node (master+worker)
+  node: sn-vm
+  step:
+    type: execute
+    options:
+      command: |
+        curl -sf -X POST http://localhost:8186/api/v1/nodes \
+          -H 'Authorization: Bearer test-token-e2e' \
+          -H 'Content-Type: application/json' \
+          -d '{
+            "name": "localhost",
+            "ansible_host": "127.0.0.1",
+            "ansible_user": "aether",
+            "password": "aether",
+            "sudo_password": "aether",
+            "roles": ["master", "worker"]
+          }' | jq -e '.id != ""'

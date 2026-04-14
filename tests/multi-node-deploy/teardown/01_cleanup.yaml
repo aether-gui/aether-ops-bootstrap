@@ -1,0 +1,6 @@
+- name: re-enable NAT for cleanup
+  node: host
+  step:
+    type: execute
+    options:
+      command: lxc network set mn-deploy-net ipv4.nat true

@@ -1,0 +1,23 @@
+- name: verify docker is running on gnb node
+  node: gnb-vm
+  type: execute
+  options:
+    command: systemctl is-active docker 2>/dev/null || systemctl is-active containerd 2>/dev/null
+    evaluate:
+      exit_code: 0
+
+- name: verify gnb containers are present
+  node: gnb-vm
+  type: execute
+  options:
+    command: |
+      if command -v docker >/dev/null 2>&1; then
+        COUNT=$(docker ps --format '{{.Names}}' 2>/dev/null | wc -l)
+        echo "running containers: $COUNT"
+        [ "$COUNT" -gt 0 ]
+      else
+        echo "docker not available, checking for srsran process"
+        pgrep -f srsran || pgrep -f gnb
+      fi
+    evaluate:
+      exit_code: 0

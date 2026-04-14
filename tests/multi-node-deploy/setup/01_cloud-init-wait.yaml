@@ -1,0 +1,12 @@
+- name: wait for cloud-init to complete
+  node: [mgmt-vm, core-vm, gnb-vm]
+  step:
+    type: execute
+    options:
+      command: |
+        for i in $(seq 1 300); do
+          [ -f /tmp/cloud-init.complete ] && echo "cloud-init complete" && exit 0
+          sleep 1
+        done
+        echo "cloud-init timed out after 300s" >&2
+        exit 1

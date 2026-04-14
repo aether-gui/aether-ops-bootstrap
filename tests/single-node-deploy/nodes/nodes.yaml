@@ -1,0 +1,17 @@
+- name: host
+  type: local
+  options:
+    exec_opts:
+      shell: /bin/bash
+
+- name: sn-vm
+  type: lxd-vm
+  options:
+    image: "ubuntu:24.04"
+    exec_opts:
+      shell: /bin/bash
+    networks:
+      - name: sn-deploy-net
+        ip: 10.200.2.10
+    profiles:
+      - sn-deploy-profile

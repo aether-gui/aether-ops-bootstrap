@@ -1,0 +1,6 @@
+- name: run aether-ops-bootstrap install
+  node: sn-vm
+  step:
+    type: execute
+    options:
+      command: /root/aether-ops-bootstrap install --bundle /root/bundle.tar.zst
