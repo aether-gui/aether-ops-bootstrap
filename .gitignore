@@ -9,6 +9,7 @@ docs/generated/
 *.tar.zst
 *.tar.gz
 *.deb
+!artifacts/**
 
 # Go
 *.exe
