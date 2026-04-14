@@ -41,18 +41,20 @@ vet:
 	go vet ./...
 
 # E2E tests (require DART CLI and LXD with a 'default' storage pool)
+# Each suite's setup/00_build-artifacts.yaml rebuilds the binary and bundle
+# on the host before pushing to the VM, so no build prereq is needed here.
 # Quick tests verify bootstrap only (~10-15 min each)
-test-e2e-bootstrap: build bundle
+test-e2e-bootstrap:
 	dart -c tests/single-node-bootstrap/single-node-bootstrap.yaml -s
 
-test-e2e-multi-bootstrap: build bundle
+test-e2e-multi-bootstrap:
 	dart -c tests/multi-node-bootstrap/multi-node-bootstrap.yaml -s
 
 # Full tests deploy SD-Core via the aether-ops API (~30-45 min each)
-test-e2e-deploy: build bundle
+test-e2e-deploy:
 	dart -c tests/single-node-deploy/single-node-deploy.yaml -s
 
-test-e2e-multi-deploy: build bundle
+test-e2e-multi-deploy:
 	dart -c tests/multi-node-deploy/multi-node-deploy.yaml -s
 
 # Convenience targets

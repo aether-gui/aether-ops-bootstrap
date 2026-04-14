@@ -1,0 +1,6 @@
+- name: rebuild bootstrap binary and bundle
+  node: host
+  step:
+    type: execute
+    options:
+      command: make build bundle
