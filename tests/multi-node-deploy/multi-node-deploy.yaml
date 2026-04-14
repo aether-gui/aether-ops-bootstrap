@@ -16,7 +16,8 @@ lxd:
           type: disk
           path: /
           pool: default
-          size: 50GB
+          opts:
+            size: 50GB
       config:
         limits.cpu: "2"
         limits.memory: "4GB"
@@ -43,7 +44,8 @@ lxd:
           type: disk
           path: /
           pool: default
-          size: 100GB
+          opts:
+            size: 100GB
       config:
         limits.cpu: "8"
         limits.memory: "16GB"
@@ -56,7 +58,8 @@ lxd:
           type: disk
           path: /
           pool: default
-          size: 50GB
+          opts:
+            size: 50GB
       config:
         limits.cpu: "4"
         limits.memory: "8GB"
