@@ -97,7 +97,7 @@ templates_dir: ./templates
 
 ## CI/CD Workflows
 
-Three GitHub Actions workflows:
+Two GitHub Actions workflows:
 
 ### `launcher.yml` — on push/PR to main
 
@@ -107,13 +107,31 @@ Runs on every push and pull request:
 - `go test -race -cover ./...`
 - `make build`
 
-### `bundle.yml` — on tag push (`v*`)
+### `release.yaml` — on tag push (`v*`)
 
-Triggered when a version tag is pushed. Sets up Go and Node.js, then runs the bundle builder against `bundle.yaml`.
+Triggered when a version tag is pushed. Builds the bundle and publishes release artifacts.
 
-### `integration.yml` — manual trigger
+## End-to-end tests
 
-Placeholder for VM-based integration tests that will validate the full airgap install flow on Ubuntu 22.04/24.04.
+VM-based tests under `tests/` use [DART](https://github.com/bgrewell/dart) to spin up LXD VMs, push freshly built artifacts, and exercise the full airgap install flow. Four suites:
+
+- `tests/single-node-bootstrap` — bootstrap only, single node
+- `tests/single-node-deploy` — bootstrap + SD-Core deployment, single node
+- `tests/multi-node-bootstrap` — bootstrap only, three roles
+- `tests/multi-node-deploy` — bootstrap + SD-Core deployment, three roles
+
+Each suite's `setup/00_build-artifacts.yaml` runs `make build bundle` on the host before pushing, so artifacts are always rebuilt from the current tree. Run via the Makefile:
+
+```bash
+make test-e2e-bootstrap        # single-node bootstrap (~10-15 min)
+make test-e2e-multi-bootstrap  # multi-node bootstrap
+make test-e2e-deploy           # single-node full deploy (~30-45 min)
+make test-e2e-multi-deploy     # multi-node full deploy
+make test-e2e-quick            # both bootstrap suites
+make test-e2e                  # all four suites
+```
+
+Requires the `dart` CLI and an LXD installation with a `default` storage pool.
 
 ## Development
 
