@@ -31,13 +31,20 @@
   step:
     type: execute
     options:
+      # ProviderInfo.Degraded is serialised with omitempty, so a healthy
+      # provider omits the field entirely. Treat running=true with the
+      # field absent (or false) as ready; only 'true' means degraded.
       command: |
         for i in $(seq 1 120); do
-          DEGRADED=$(curl -sf http://localhost:8186/api/v1/meta/providers \
-            -H 'Authorization: Bearer test-token-e2e' 2>/dev/null | \
-            jq -r '.providers[] | select(.name == "onramp") | .degraded' 2>/dev/null)
-          [ "$DEGRADED" = "false" ] && echo "onramp provider ready" && exit 0
+          RESP=$(curl -sf http://localhost:8186/api/v1/meta/providers \
+            -H 'Authorization: Bearer test-token-e2e' 2>/dev/null)
+          READY=$(echo "$RESP" | jq -r '.providers[] | select(.name == "onramp") | (.running == true and (.degraded != true))' 2>/dev/null)
+          [ "$READY" = "true" ] && echo "onramp provider ready" && exit 0
           sleep 2
         done
         echo "onramp provider not ready after 240s" >&2
+        echo "--- last providers response ---" >&2
+        echo "$RESP" | jq . >&2 || echo "$RESP" >&2
+        echo "--- aether-ops journal (last 200 lines) ---" >&2
+        journalctl -u aether-ops -n 200 --no-pager >&2 || true
         exit 1
