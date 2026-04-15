@@ -47,11 +47,18 @@ jobs:
         uses: anchore/scan-action/download-grype@v6
 
       - name: Scan source with Grype
+        env:
+          GRYPE_CHECK_FOR_APP_UPDATE: "false"
         run: |
-          set -euo pipefail
-          grype -q dir:. --fail-on never -o sarif > grype-source.sarif
-          grype -q dir:. --fail-on never -o json  > grype-source.json
-          ls -l grype-source.sarif grype-source.json
+          set -euxo pipefail
+          grype version
+          grype -q dir:. --fail-on never -o sarif --file grype-source.sarif
+          grype -q dir:. --fail-on never -o json  --file grype-source.json
+          ls -la grype-source.sarif grype-source.json
+          echo "---SARIF head---"
+          head -c 500 grype-source.sarif || true
+          echo
+          test -s grype-source.sarif
 
       - name: Upload SARIF to Security tab
         if: always()
