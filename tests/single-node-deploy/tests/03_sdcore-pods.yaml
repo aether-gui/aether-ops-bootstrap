@@ -1,15 +1,29 @@
-- name: verify SD-Core pods are running
+- name: verify SD-Core pods reach Running state
   node: sn-vm
   type: execute
   options:
+    # aether-onramp's 5gc core role installs the sd-core helm chart into
+    # the aether-5gc namespace. Helm returns once resources are created;
+    # pods then race through image-loading and init containers. Poll up
+    # to 10 minutes for at least one Running pod so the test doesn't
+    # flake on a just-finished install.
     command: |
       export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
-      RUNNING=$(/var/lib/rancher/rke2/bin/kubectl get pods -n omec --no-headers 2>/dev/null | grep -c Running)
-      echo "running pods in omec namespace: $RUNNING"
-      [ "$RUNNING" -gt 0 ]
+      KUBECTL=/var/lib/rancher/rke2/bin/kubectl
+      for i in $(seq 1 60); do
+        RUNNING=$($KUBECTL get pods -n aether-5gc --no-headers 2>/dev/null | grep -c Running || true)
+        if [ "$RUNNING" -gt 0 ]; then
+          echo "running pods in aether-5gc namespace: $RUNNING"
+          exit 0
+        fi
+        sleep 10
+      done
+      echo "no running pods in aether-5gc after 600s" >&2
+      $KUBECTL get pods -A >&2 || true
+      exit 1
     evaluate:
       exit_code: 0
-      contains: "running pods in omec namespace:"
+      contains: "running pods in aether-5gc namespace:"
 
 - name: list all pods for diagnostic visibility
   node: sn-vm
