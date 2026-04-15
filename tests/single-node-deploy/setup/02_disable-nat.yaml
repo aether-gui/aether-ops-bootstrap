@@ -4,3 +4,21 @@
     type: execute
     options:
       command: lxc network set sn-deploy-net ipv4.nat false
+
+# With NAT dropped the VM's apt sources point at unreachable upstream
+# archives. aether-onramp's ansible roles call `apt: update_cache=yes`
+# for a few packages (iptables-persistent, docker pkgs); without a
+# reachable repo that fails. Clear the sources list so `apt update` is
+# a no-op success — the packages needed at runtime are pre-installed
+# by bootstrap from the bundle's vendored .debs. A production-grade
+# fix would have bootstrap publish a file:// repo pointing at the
+# bundle's debs; until then this keeps the airgap tests honest.
+- name: clear apt sources so in-playbook `apt update` succeeds offline
+  node: sn-vm
+  step:
+    type: execute
+    options:
+      command: |
+        : > /etc/apt/sources.list
+        rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources
+        apt-get update

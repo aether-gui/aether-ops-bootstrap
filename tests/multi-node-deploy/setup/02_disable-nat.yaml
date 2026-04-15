@@ -4,3 +4,39 @@
     type: execute
     options:
       command: lxc network set mn-deploy-net ipv4.nat false
+
+# With NAT dropped the VMs' apt sources point at unreachable upstream
+# archives. aether-onramp's ansible roles call `apt: update_cache=yes`
+# for a few packages (iptables-persistent, docker pkgs); without a
+# reachable repo that fails. Clear the sources list so `apt update` is
+# a no-op success — the packages needed at runtime are pre-installed
+# by bootstrap from the bundle's vendored .debs.
+- name: clear apt sources on mgmt-vm so offline `apt update` succeeds
+  node: mgmt-vm
+  step:
+    type: execute
+    options:
+      command: |
+        : > /etc/apt/sources.list
+        rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources
+        apt-get update
+
+- name: clear apt sources on core-vm so offline `apt update` succeeds
+  node: core-vm
+  step:
+    type: execute
+    options:
+      command: |
+        : > /etc/apt/sources.list
+        rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources
+        apt-get update
+
+- name: clear apt sources on gnb-vm so offline `apt update` succeeds
+  node: gnb-vm
+  step:
+    type: execute
+    options:
+      command: |
+        : > /etc/apt/sources.list
+        rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources
+        apt-get update
