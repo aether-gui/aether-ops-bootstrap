@@ -54,8 +54,8 @@ jobs:
         run: |
           set -euxo pipefail
           grype version
-          grype -q dir:. --fail-on never -o sarif --file grype-source.sarif
-          grype -q dir:. --fail-on never -o json  --file grype-source.json
+          grype dir:. --fail-on never -o sarif --file grype-source.sarif
+          grype dir:. --fail-on never -o json  --file grype-source.json
           ls -la grype-source.sarif grype-source.json
           echo "---SARIF head---"
           head -c 500 grype-source.sarif || true
