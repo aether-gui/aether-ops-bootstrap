@@ -71,17 +71,19 @@ jobs:
 
       - name: Scan launcher SBOM with Grype
         run: |
+          set -euo pipefail
           grype sbom:dist/sbom-aether-ops-bootstrap-${{ github.ref_name }}.spdx.json \
-            --fail-on never -o sarif --file dist/grype-launcher.sarif
+            --fail-on never -o sarif > dist/grype-launcher.sarif
           grype sbom:dist/sbom-aether-ops-bootstrap-${{ github.ref_name }}.spdx.json \
-            --fail-on never -o json --file dist/grype-launcher.json
+            --fail-on never -o json  > dist/grype-launcher.json
 
       - name: Scan bundle SBOM with Grype
         run: |
+          set -euo pipefail
           grype sbom:dist/sbom-bundle-${{ github.ref_name }}.spdx.json \
-            --fail-on never -o sarif --file dist/grype-bundle.sarif
+            --fail-on never -o sarif > dist/grype-bundle.sarif
           grype sbom:dist/sbom-bundle-${{ github.ref_name }}.spdx.json \
-            --fail-on never -o json --file dist/grype-bundle.json
+            --fail-on never -o json  > dist/grype-bundle.json
 
       - name: Upload launcher SARIF to Security tab
         if: always()

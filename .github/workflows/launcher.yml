@@ -48,8 +48,10 @@ jobs:
 
       - name: Scan source with Grype
         run: |
-          grype dir:. --fail-on never -o sarif --file grype-source.sarif
-          grype dir:. --fail-on never -o json  --file grype-source.json
+          set -euo pipefail
+          grype dir:. --fail-on never -o sarif > grype-source.sarif
+          grype dir:. --fail-on never -o json  > grype-source.json
+          ls -l grype-source.sarif grype-source.json
 
       - name: Upload SARIF to Security tab
         if: always()
