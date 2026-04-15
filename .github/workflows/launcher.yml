@@ -50,6 +50,8 @@ jobs:
       - name: Scan source with Grype
         env:
           GRYPE_CHECK_FOR_APP_UPDATE: "false"
+          SYFT_SOURCE_NAME: aether-ops-bootstrap
+          SYFT_SOURCE_VERSION: ${{ github.sha }}
         run: |
           set -euo pipefail
           grype dir:. -o table
