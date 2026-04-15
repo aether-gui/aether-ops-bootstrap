@@ -33,3 +33,43 @@ jobs:
 
       - name: Build
         run: make build
+
+  vuln-scan:
+    name: Vulnerability scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan source with Grype (SARIF)
+        id: grype-sarif
+        uses: anchore/scan-action@v6
+        with:
+          path: "."
+          fail-build: false
+          severity-cutoff: medium
+          output-format: sarif
+
+      - name: Upload SARIF to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.grype-sarif.outputs.sarif }}
+          category: source
+
+      - name: Scan source with Grype (JSON)
+        id: grype-json
+        uses: anchore/scan-action@v6
+        with:
+          path: "."
+          fail-build: false
+          output-format: json
+
+      - name: Upload JSON report as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grype-source-report
+          path: ${{ steps.grype-json.outputs.json }}
