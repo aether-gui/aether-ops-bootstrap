@@ -3,6 +3,11 @@
 Working log for getting `make test-e2e-deploy` (single-node deploy) green.
 Pick up from here on the next machine.
 
+> The upstream-facing report summarising the onramp-side findings we
+> uncovered while integrating lives in
+> [`ONRAMP_AIRGAP_FINDINGS.md`](./ONRAMP_AIRGAP_FINDINGS.md). That's the
+> doc to share with the OnRamp dev team.
+
 ## Status as of last session
 
 `make test-e2e-bootstrap` (both single- and multi-node bootstrap) is green.
