@@ -75,11 +75,76 @@ should apply but the 3-VM suite will likely surface additional issues
 
 2. **Upstream aether-onramp `update_cache: yes` issue.** Our test-side
    workaround (stripped apt sources) papers over it, but real airgap
-   operators hit the same. Proposed upstream patch — drop `update_cache`
-   from three tasks:
+   operators hit the same. Call sites:
    - `deps/5gc/roles/router/tasks/install.yml:416–421` (iptables-persistent)
    - `deps/srsran/roles/docker/tasks/install.yml:89–92, 186–188`
    - `deps/ocudu/roles/docker/tasks/install.yml:89–92, 186–188`
+
+   **Proposed upstream fix** (keeps online installs updating the cache,
+   lets airgap installs skip it with zero behavioural change for
+   existing users):
+
+   a. Add a shared connectivity probe (e.g.
+   `roles/common/tasks/detect_airgap.yml`), included once per play via
+   `pre_tasks` or at the top of each role's `tasks/main.yml`:
+
+   ```yaml
+   - name: probe upstream apt archive reachability
+     ansible.builtin.uri:
+       url: http://archive.ubuntu.com/ubuntu/dists/{{ ansible_distribution_release }}/Release
+       method: HEAD
+       timeout: 5
+       status_code: [200, 301, 302]
+     register: _apt_probe
+     failed_when: false
+     changed_when: false
+     when: airgapped is not defined
+
+   - name: set airgapped fact
+     ansible.builtin.set_fact:
+       airgapped: "{{ _apt_probe.status is not defined or _apt_probe.status not in [200, 301, 302] }}"
+     when: airgapped is not defined
+   ```
+
+   b. Document an operator override in `vars/main.yml`:
+
+   ```yaml
+   # Skip network-dependent ansible tasks (apt update_cache, helm OCI
+   # pulls, etc.). Leave unset for auto-detect via connectivity probe.
+   # airgapped: true
+   ```
+
+   c. Gate each offending task on it. Example
+   (`deps/5gc/roles/router/tasks/install.yml:416`):
+
+   ```yaml
+   - name: install iptables-persistent package
+     ansible.builtin.apt:
+       name: iptables-persistent
+       state: present
+       update_cache: "{{ not airgapped }}"
+     when: inventory_hostname in groups['master_nodes']
+     become: true
+   ```
+
+   Same one-character change (`yes`/`true` → `"{{ not airgapped }}"`) at
+   the srsran and ocudu docker-install sites.
+
+   Shape rationale:
+   - Zero behaviour change online — `airgapped` is `false`,
+     `update_cache` stays `true`.
+   - Operators on offline sites can set `airgapped: true` in inventory
+     vars and skip the probe entirely.
+   - One detection task, one fact, reused at each call site — easy to
+     review, easy to grep for.
+   - `uri` with `failed_when: false` tolerates DNS failure / no route;
+     the status check catches "reached something but not actually the
+     apt archive" (captive portals, internal mirrors at `/`, etc.).
+   - HEAD on a concrete dists/Release path is cheaper than GET and
+     fails fast on misdirected DNS.
+   - For sites with an internal apt mirror that blocks direct
+     `archive.ubuntu.com`, expose the probe URL as a variable
+     (`airgap_probe_url: ...`) so it can point at the local mirror.
 
    Ben will sync with the onramp developer on this.
 
