@@ -10,8 +10,11 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -20,6 +23,30 @@ import (
 	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/systemd"
 )
+
+// userLookup resolves a Unix username to a user.User record. Extracted so the
+// rke2 component's kubeconfig installer can use it without depending on the
+// serviceaccount package.
+func userLookup(name string) (*user.User, error) {
+	return user.Lookup(name)
+}
+
+// chownPath sets ownership of path to u's uid/gid. The uid/gid fields on
+// user.User are numeric strings; we parse them once per call.
+func chownPath(path string, u *user.User) error {
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return fmt.Errorf("parse uid %q for %s: %w", u.Uid, u.Username, err)
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return fmt.Errorf("parse gid %q for %s: %w", u.Gid, u.Username, err)
+	}
+	if err := syscall.Chown(path, uid, gid); err != nil {
+		return fmt.Errorf("chown %s to %s: %w", path, u.Username, err)
+	}
+	return nil
+}
 
 const (
 	rke2ConfigDir = "/etc/rancher/rke2"
@@ -151,6 +178,12 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 				}
 				log.Printf("  symlinked %s → %s", src, dst)
 				return nil
+			},
+		},
+		{
+			Description: "install kubeconfig for onramp user",
+			Fn: func(ctx context.Context) error {
+				return c.installOnrampKubeconfig()
 			},
 		},
 	}
@@ -423,4 +456,46 @@ func (c *Component) waitForReady(ctx context.Context) error {
 		}
 		time.Sleep(5 * time.Second)
 	}
+}
+
+// installOnrampKubeconfig copies rke2.yaml into the onramp deployment
+// user's ~/.kube/config so helm and kubectl invoked over ansible SSH
+// (as that user) find a valid kubeconfig by default. aether-onramp's
+// k8s role normally does this after its own RKE2 install; bootstrap
+// short-circuits that role and must replicate the setup itself.
+func (c *Component) installOnrampKubeconfig() error {
+	onrampUser := "aether"
+	if c.manifest != nil && c.manifest.Components.AetherOps != nil &&
+		c.manifest.Components.AetherOps.OnrampUser != "" {
+		onrampUser = c.manifest.Components.AetherOps.OnrampUser
+	}
+
+	u, err := userLookup(onrampUser)
+	if err != nil {
+		log.Printf("  onramp user %s not found; skipping kubeconfig install", onrampUser)
+		return nil
+	}
+
+	src := filepath.Join(rke2ConfigDir, "rke2.yaml")
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", src, err)
+	}
+
+	kubeDir := filepath.Join(u.HomeDir, ".kube")
+	if err := os.MkdirAll(kubeDir, 0700); err != nil {
+		return fmt.Errorf("mkdir %s: %w", kubeDir, err)
+	}
+	dst := filepath.Join(kubeDir, "config")
+	if err := os.WriteFile(dst, data, 0600); err != nil {
+		return fmt.Errorf("write %s: %w", dst, err)
+	}
+	if err := chownPath(kubeDir, u); err != nil {
+		return err
+	}
+	if err := chownPath(dst, u); err != nil {
+		return err
+	}
+	log.Printf("  installed %s (owner %s)", dst, onrampUser)
+	return nil
 }

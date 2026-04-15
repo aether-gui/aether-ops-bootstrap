@@ -19,6 +19,10 @@ debs:
   # Required by aether-onramp's 5gc router role; installed up-front so the
   # role's `apt: name=iptables-persistent` task is a no-op in airgap mode.
   - name: iptables-persistent
+  # Required by aether-onramp's core role, which uses ansible's
+  # kubernetes.core.k8s module (via `Get Pods Status` etc.) backed by the
+  # python kubernetes client.
+  - name: python3-kubernetes
 
 rke2:
   version: "v1.33.1+rke2r1"
