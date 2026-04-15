@@ -44,7 +44,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Grype
-        uses: anchore/scan-action/download-grype@v6
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
 
       - name: Scan source with Grype
         env:

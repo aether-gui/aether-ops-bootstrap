@@ -44,10 +44,14 @@ jobs:
         run: go run ./cmd/build-bundle --spec bundle.yaml --output dist/bundle.tar.zst
 
       - name: Install Syft
-        uses: anchore/sbom-action/download-syft@v0
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
 
       - name: Install Grype
-        uses: anchore/scan-action/download-grype@v6
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
 
       - name: Locate launcher binary
         id: launcher
