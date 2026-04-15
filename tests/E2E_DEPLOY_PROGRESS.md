@@ -31,11 +31,38 @@ should apply but the 3-VM suite will likely surface additional issues
 
 ## Outstanding questions / likely next failures
 
-1. **SD-Core pods Running.** If the `d0eeb5c` run fails again, the new
-   diagnostics will print pod state every 60s + final events. Expect
-   either ImagePullBackOff (image not pre-staged in containerd) or init
-   container hangs. Look at the output of the latest run first; no need
-   to re-run blind.
+1. **SD-Core chart never actually deploys in airgap.** Confirmed from
+   the `d0eeb5c` run: across 15 minutes of polling, only `kube-system`
+   pods exist — the `aether-5gc` namespace is never created, yet test
+   00002 ("5GC deployment task succeeded") passes. Why:
+
+   - `deps/5gc/roles/core/tasks/install.yml` wraps the helm deploy in
+     `block: / rescue: / always:`.
+   - `core.helm.chart_ref` defaults to `oci://ghcr.io/omec-project/sd-core`.
+   - In airgap the helm OCI fetch fails.
+   - The `rescue:` block silently queries pods (empty) and loops a
+     "restart pods" task over an empty list, then `always: pause 60s`.
+   - Ansible treats the block as handled → playbook exits 0 → our
+     poll task sees status=succeeded even though nothing deployed.
+
+   **Path forward** (two options, TBD which we pick):
+   - **A. Local chart mirror**: package an `sd-core` umbrella chart at
+     bundle-build time (`helm package`), ship it as e.g.
+     `/var/lib/aether-ops/helm-charts/sdcore-helm-charts/sd-core/`,
+     have configdefaults rewrite `core.helm.chart_ref` to that path and
+     flip `core.helm.local_charts: true`. The bundled source repo has
+     `5g-control-plane`, `bess-upf`, `omec-control-plane`,
+     `omec-sub-provision`, etc., but NO top-level `sd-core` chart — it
+     appears to only be published as an OCI artifact.
+   - **B. Run a local OCI registry** (zot/distribution) as a container
+     on the node, `helm pull` the sd-core chart at build time, push it
+     to the local registry at install time, and rewrite `chart_ref` to
+     the local registry. Heavier.
+
+   **Also worth raising upstream**: the `block/rescue` pattern in
+   `core/install.yml` swallows helm-fetch failures. `rescue:` should
+   only catch recoverable conditions — a chart-not-found should
+   propagate as a failure, not be silently absorbed.
 
 2. **Upstream aether-onramp `update_cache: yes` issue.** Our test-side
    workaround (stripped apt sources) papers over it, but real airgap
