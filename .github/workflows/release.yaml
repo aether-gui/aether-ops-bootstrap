@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: write
-  security-events: write
-  actions: read
 
 jobs:
   release:
@@ -77,32 +75,18 @@ jobs:
       - name: Scan launcher SBOM with Grype
         run: |
           set -euo pipefail
-          grype -q sbom:dist/sbom-aether-ops-bootstrap-${{ github.ref_name }}.spdx.json \
-            -o sarif > dist/grype-launcher.sarif
-          grype -q sbom:dist/sbom-aether-ops-bootstrap-${{ github.ref_name }}.spdx.json \
-            -o json  > dist/grype-launcher.json
+          grype sbom:dist/sbom-aether-ops-bootstrap-${{ github.ref_name }}.spdx.json \
+            -o json --file dist/grype-launcher.json
+          grype sbom:dist/sbom-aether-ops-bootstrap-${{ github.ref_name }}.spdx.json \
+            -o table
 
       - name: Scan bundle SBOM with Grype
         run: |
           set -euo pipefail
-          grype -q sbom:dist/sbom-bundle-${{ github.ref_name }}.spdx.json \
-            -o sarif > dist/grype-bundle.sarif
-          grype -q sbom:dist/sbom-bundle-${{ github.ref_name }}.spdx.json \
-            -o json  > dist/grype-bundle.json
-
-      - name: Upload launcher SARIF to Security tab
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: dist/grype-launcher.sarif
-          category: launcher-release
-
-      - name: Upload bundle SARIF to Security tab
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: dist/grype-bundle.sarif
-          category: bundle-release
+          grype sbom:dist/sbom-bundle-${{ github.ref_name }}.spdx.json \
+            -o json --file dist/grype-bundle.json
+          grype sbom:dist/sbom-bundle-${{ github.ref_name }}.spdx.json \
+            -o table
 
       - name: Upload bundle and scan artifacts to release
         env:

@@ -39,8 +39,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
-      actions: read
     steps:
       - uses: actions/checkout@v4
 
@@ -53,24 +51,11 @@ jobs:
         env:
           GRYPE_CHECK_FOR_APP_UPDATE: "false"
         run: |
-          set -euxo pipefail
-          grype version
-          grype dir:. -o sarif --file grype-source.sarif
-          grype dir:. -o json  --file grype-source.json
-          ls -la grype-source.sarif grype-source.json
-          echo "---SARIF head---"
-          head -c 500 grype-source.sarif || true
-          echo
-          test -s grype-source.sarif
+          set -euo pipefail
+          grype dir:. -o table
+          grype dir:. -o json --file grype-source.json
 
-      - name: Upload SARIF to Security tab
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: grype-source.sarif
-          category: source
-
-      - name: Upload JSON report as artifact
+      - name: Upload vulnerability report
         if: always()
         uses: actions/upload-artifact@v4
         with:
