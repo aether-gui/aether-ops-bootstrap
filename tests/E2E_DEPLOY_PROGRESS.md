@@ -60,9 +60,18 @@ should apply but the 3-VM suite will likely surface additional issues
      the local registry. Heavier.
 
    **Also worth raising upstream**: the `block/rescue` pattern in
-   `core/install.yml` swallows helm-fetch failures. `rescue:` should
-   only catch recoverable conditions — a chart-not-found should
-   propagate as a failure, not be silently absorbed.
+   `deps/5gc/roles/core/tasks/install.yml` swallows helm-fetch
+   failures. Specifically:
+   - Line 186 — `- name: deploy aether 5gc`
+   - Line 187 — `block:` (the `kubernetes.core.helm` invocation)
+   - Line 203 — `rescue:` (queries pods + loops deletes, both no-ops
+     when the namespace doesn't exist)
+   - Line 228 — `always: pause 60`
+
+   The rescue should only catch recoverable conditions — a
+   chart-not-found should propagate as a failure, not be silently
+   absorbed. Either drop the rescue, or have it re-raise with `fail:`
+   when `pod_status.resources` is empty after a helm failure.
 
 2. **Upstream aether-onramp `update_cache: yes` issue.** Our test-side
    workaround (stripped apt sources) papers over it, but real airgap
