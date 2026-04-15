@@ -43,33 +43,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Scan source with Grype (SARIF)
-        id: grype-sarif
-        uses: anchore/scan-action@v6
-        with:
-          path: "."
-          fail-build: false
-          severity-cutoff: medium
-          output-format: sarif
+      - name: Install Grype
+        uses: anchore/scan-action/download-grype@v6
+
+      - name: Scan source with Grype
+        run: |
+          grype dir:. --fail-on never -o sarif --file grype-source.sarif
+          grype dir:. --fail-on never -o json  --file grype-source.json
 
       - name: Upload SARIF to Security tab
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: ${{ steps.grype-sarif.outputs.sarif }}
+          sarif_file: grype-source.sarif
           category: source
-
-      - name: Scan source with Grype (JSON)
-        id: grype-json
-        uses: anchore/scan-action@v6
-        with:
-          path: "."
-          fail-build: false
-          output-format: json
 
       - name: Upload JSON report as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: grype-source-report
-          path: ${{ steps.grype-json.outputs.json }}
+          path: grype-source.json
