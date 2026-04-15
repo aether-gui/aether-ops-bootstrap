@@ -37,7 +37,7 @@ helm:
   version: "v3.17.3"
 
 aether_ops:
-  version: "v0.1.41"
+  version: "v0.1.43"
   source: ./artifacts/aether-ops_0.1.43_linux_amd64.tar.gz  # local pre-built binary
   # ref: "main"           # build from source at this git ref (mutually exclusive with source)
   # repo: aether-gui/aether-ops
