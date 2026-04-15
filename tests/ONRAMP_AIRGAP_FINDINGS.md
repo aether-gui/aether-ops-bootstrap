@@ -341,15 +341,3 @@ role isn't the source of the cluster.
 
 Happy to follow up with patches against any of these — let me know
 which you'd like to take in which order.
-
----
-
-## Request: stable integration branch
-
-`main` on `aether-onramp` moves quickly enough that line numbers
-captured during an integration pass drift before a code review. To
-keep integration work reviewable against a known-good tree, could you
-cut a tagged release or a stable integration branch (e.g.
-`stable/aether-ops-YYYYMMDD` or a `v0.x` tag) that we can pin our
-bundle spec to? We can then open patches against that branch, and
-bump the pin on a cadence that both sides agree on.
