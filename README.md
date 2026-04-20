@@ -2,125 +2,46 @@
 
 `aether-ops-bootstrap` takes a freshly installed Ubuntu Server host and produces a running aether-ops management plane on top of RKE2. It runs once per management node, requires no internet access, and hands off to aether-ops for all further configuration.
 
-Two artifacts are produced: a statically linked Go launcher binary and an offline payload bundle (`aether-ops-bundle-<version>-linux-amd64.tar.zst`). Together they bring up the platform layer — RKE2, aether-ops, Helm, and all OS-level prerequisites — without touching the network.
+Two artifacts are produced: a statically linked Go launcher binary and an offline payload bundle (`bundle.tar.zst`). Together they bring up the platform layer — RKE2, aether-ops, Helm, and all OS-level prerequisites — without touching the network.
 
-See [DESIGN.md](DESIGN.md) for full architecture and design details.
+## Documentation
 
-## Building
+Full user-facing documentation lives at
+**<https://aether-gui.github.io/aether-ops-bootstrap/>**.
 
-### Prerequisites
+| | |
+|---|---|
+| Installing a pre-built bundle | [Getting Started](https://aether-gui.github.io/aether-ops-bootstrap/getting-started) |
+| Building bundles from `bundle.yaml` | [Build Guide](https://aether-gui.github.io/aether-ops-bootstrap/build-guide) |
+| Launcher reference, components, state | [Bootstrap Guide](https://aether-gui.github.io/aether-ops-bootstrap/bootstrap-guide) |
+| Project concepts and architecture | [Introduction](https://aether-gui.github.io/aether-ops-bootstrap/introduction) |
 
-- Go 1.22+
-- Node.js 20+ and npm (only if building aether-ops from source)
-- golangci-lint (optional, for linting: `make install-lint`)
+Internal design docs (historical / design-of-record):
+[`DESIGN.md`](DESIGN.md), [`MULTI-NODE-DESIGN.md`](MULTI-NODE-DESIGN.md).
 
-### Build the launcher
-
-```bash
-make build
-```
-
-Produces `dist/aether-ops-bootstrap` — the static binary that runs on target hosts.
-
-### Build the bundle tool
+## Quick build
 
 ```bash
-make build-bundle
+make build          # → dist/aether-ops-bootstrap (launcher)
+make bundle         # → dist/bundle.tar.zst (offline payload)
+make package        # → dist/aether-ops-bootstrap-<version>.tar.gz (everything)
 ```
 
-Produces `dist/build-bundle` — the tool that assembles offline bundles from `bundle.yaml`.
+See the [Build Guide](https://aether-gui.github.io/aether-ops-bootstrap/build-guide/building-locally) for details, prerequisites, and multi-bundle mode.
 
-### Build a bundle
+## Development
 
 ```bash
-./dist/build-bundle --spec bundle.yaml --output dist/bundle.tar.zst
+make test           # go test -race -cover ./...
+make vet            # go vet ./...
+make lint           # golangci-lint (install with: make install-lint)
+make build-all      # both launcher and bundle tool
+make clean          # remove build artifacts
 ```
 
-This reads `bundle.yaml` and:
+### End-to-end tests
 
-1. **Fetches RKE2** airgap artifacts (binary + container images) from GitHub releases, verifies SHA256 checksums
-2. **Fetches Helm** binary from get.helm.sh, verifies SHA256
-3. **Acquires aether-ops** binary (from source, GitHub release, or local path depending on spec)
-4. **Resolves .deb dependencies** from Ubuntu Packages indexes (main + universe), downloads and SHA256-verifies each package
-5. **Stages templates** (RKE2 config, SSH drop-ins, sudoers)
-6. **Generates `manifest.json`** recording every artifact with version, hash, and size
-7. **Archives** everything into a `tar.zst` bundle with a `.sha256` sidecar
-
-The tool also writes/verifies `bundle.lock.json` to detect upstream dependency drift between builds.
-
-#### Multi-bundle mode
-
-Pass a directory of `.yaml` spec files to build multiple bundles:
-
-```bash
-./dist/build-bundle --spec specs/ --output dist/
-```
-
-### Bundle spec (`bundle.yaml`)
-
-The spec declares what goes into a bundle:
-
-```yaml
-schema_version: 1
-bundle_version: "2026.04.1"
-
-ubuntu:
-  suites: [noble]
-  architectures: [amd64]
-  # mirror: https://archive.ubuntu.com/ubuntu  # override for internal mirrors
-
-debs:
-  - name: ansible
-  - name: git
-  - name: make
-  - name: curl
-  - name: jq
-  - name: ssh
-  - name: sshpass
-  - name: iptables
-
-rke2:
-  version: "v1.33.1+rke2r1"
-  variants: [canal]
-  image_mode: all-in-one
-
-helm:
-  version: "v3.17.3"
-
-aether_ops:
-  version: "v1.0.0"              # download pre-built from GitHub releases
-  # ref: "main"                  # OR build from source at this git ref
-  # source: ./build/aether-ops   # OR use a local pre-built binary
-
-templates_dir: ./templates
-```
-
-## CI/CD Workflows
-
-Two GitHub Actions workflows:
-
-### `launcher.yml` — on push/PR to main
-
-Runs on every push and pull request:
-- `go vet ./...`
-- `golangci-lint`
-- `go test -race -cover ./...`
-- `make build`
-
-### `release.yaml` — on tag push (`v*`)
-
-Triggered when a version tag is pushed. Builds the bundle and publishes release artifacts.
-
-## End-to-end tests
-
-VM-based tests under `tests/` use [DART](https://github.com/bgrewell/dart) to spin up LXD VMs, push freshly built artifacts, and exercise the full airgap install flow. Four suites:
-
-- `tests/single-node-bootstrap` — bootstrap only, single node
-- `tests/single-node-deploy` — bootstrap + SD-Core deployment, single node
-- `tests/multi-node-bootstrap` — bootstrap only, three roles
-- `tests/multi-node-deploy` — bootstrap + SD-Core deployment, three roles
-
-Each suite's `setup/00_build-artifacts.yaml` runs `make build bundle` on the host before pushing, so artifacts are always rebuilt from the current tree. Run via the Makefile:
+VM-based tests under `tests/` use [DART](https://github.com/bgrewell/dart) and LXD:
 
 ```bash
 make test-e2e-bootstrap        # single-node bootstrap (~10-15 min)
@@ -131,14 +52,19 @@ make test-e2e-quick            # both bootstrap suites
 make test-e2e                  # all four suites
 ```
 
-Requires the `dart` CLI and an LXD installation with a `default` storage pool.
-
-## Development
+### Docs site
 
 ```bash
-make test          # run tests with race detector and coverage
-make vet           # go vet
-make lint          # golangci-lint (install with: make install-lint)
-make build-all     # build both launcher and bundle tool
-make clean         # remove build artifacts
+make docs           # dev server at http://localhost:3000
+make docs-build     # production build in website/build
 ```
+
+The site is published to GitHub Pages by `.github/workflows/docs.yml` on every push to `main` and every `v*` tag.
+
+## CI/CD
+
+Three workflows in `.github/workflows/`:
+
+- **`launcher.yml`** — vet, lint, test, build, vuln scan on every push and PR.
+- **`release.yaml`** — on `v*` tag: GoReleaser, bundle build, SBOMs, vulnerability scans, upload to GitHub release.
+- **`docs.yml`** — docs site build on PRs (build-only) and deploy on `main` / `v*` tag.

@@ -1,5 +1,11 @@
 # Multi-Node, Multi-Role Bootstrap: Design Discussion
 
+> **Looking for user-facing docs?** See
+> <https://aether-gui.github.io/aether-ops-bootstrap/bootstrap-guide/roadmap>
+> for a condensed, published version. This file is the internal design-of-record
+> and contains the full phased roadmap and approaches-considered discussion.
+
+
 ## Context
 
 The bootstrap system today handles one role: take a clean Ubuntu server and produce a running management plane (RKE2 + aether-ops). Real deployments need multiple node types with different software stacks.

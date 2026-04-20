@@ -30,3 +30,12 @@ vendor/
 *.iws
 *.ipr
 out/
+
+# Docusaurus docs site
+website/node_modules/
+website/build/
+website/.docusaurus/
+website/.cache-loader/
+website/npm-debug.log*
+website/yarn-debug.log*
+website/yarn-error.log*
