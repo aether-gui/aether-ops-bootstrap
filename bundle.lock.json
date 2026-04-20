@@ -26,6 +26,10 @@
         "version": "20220827.1",
         "sha256": "9fcc11f433bf84c0eaea229aab126fa3c5cbbd8bafd423121fafc729faad1155"
       },
+      "iptables-persistent": {
+        "version": "1.0.20",
+        "sha256": "452d42136c03165e0f48b62d73ce3d5fea0ea71d9cb1c191b4dea8a6080e7f41"
+      },
       "liberror-perl": {
         "version": "0.17029-2",
         "sha256": "1907af6bf33dd8684447c09f216c675d2b8559fadd8ddace29fbf83c6fb2a636"
@@ -42,17 +46,49 @@
         "version": "6.4",
         "sha256": "8cdbc9c3dca01e660759bf9d840f72e45ac72faf5d19ca1faecacaf6a60c1a87"
       },
+      "netfilter-persistent": {
+        "version": "1.0.20",
+        "sha256": "39173939cc0a0dacf85b6cd0722998ffa9db36372ce0a5cd3625651d23ef5f1b"
+      },
       "perl-modules-5.38": {
         "version": "5.38.2-3.2build2",
         "sha256": "540b64b1be061236e50f617badc2b96e1af92766f106302b2fc84ba790d39610"
+      },
+      "python3-blinker": {
+        "version": "1.7.0-1",
+        "sha256": "bb671458cb2ef3fca3ba8819e03d318a7821870ecd508de8921afcf0190356f2"
+      },
+      "python3-cachetools": {
+        "version": "5.3.0-2",
+        "sha256": "14cdcc1e3a5933ee0896421cb43364c42d32bc21e024f649146f685ef6c071c0"
+      },
+      "python3-certifi": {
+        "version": "2023.11.17-1",
+        "sha256": "1a7ee6751fdc263319f4a2e559e8104f7a1e9af0cdb9926e5a145ebfec0dd148"
+      },
+      "python3-chardet": {
+        "version": "5.2.0+dfsg-1",
+        "sha256": "042ec127434ad634a1f312514680b8d0de7bd1e9733b255d93170a6bb843a043"
+      },
+      "python3-dateutil": {
+        "version": "2.8.2-3ubuntu1",
+        "sha256": "cdee46578ba57ad77ade552a1c8b92d7b9350384c60564cc22aafb898c517d68"
       },
       "python3-dnspython": {
         "version": "2.6.1-1ubuntu1",
         "sha256": "5d4a26bc9d3ede2d9a3b6fa0af72dfeb72215c9ef4043241cf90f0d8a8d1184f"
       },
+      "python3-google-auth": {
+        "version": "1.5.1-3",
+        "sha256": "765aebcf1e6f7fcaec41ab2b03cbd760275fa99f5b13f1f55b716f703a186cdb"
+      },
       "python3-httplib2": {
         "version": "0.20.4-3",
         "sha256": "ebf9b56acf993a8505a76f064c3db5911744ceeb73d927f7a8b8548c9a9d0e21"
+      },
+      "python3-idna": {
+        "version": "3.6-2",
+        "sha256": "d0e4bce3913409eb80e02bd3ba3b46dc3cd89201e6408bb32c33d540a541caf4"
       },
       "python3-importlib-resources": {
         "version": "6.0.1-1",
@@ -62,6 +98,14 @@
         "version": "3.1.2-1ubuntu1",
         "sha256": "e10e4bb7d13cb397210e8228ae616bafdc5229684a4e8a8aa79b8007c4606b39"
       },
+      "python3-jwt": {
+        "version": "2.7.0-1",
+        "sha256": "7bfe79497b17e71c7c4b05067682f0659628f1b3fe74b37d559ebe3292c2804e"
+      },
+      "python3-kubernetes": {
+        "version": "22.6.0-2",
+        "sha256": "44f9515d94aa39ec87f75fc05c9d8603a6e8c87149e3a23cc5d8f2473ec1c815"
+      },
       "python3-more-itertools": {
         "version": "10.2.0-1",
         "sha256": "f6ad092c9568b044befdb7d6edfd3f9ea35ec31de01c26fafac20a32c0d7b3e1"
@@ -70,17 +114,65 @@
         "version": "0.8.0-2ubuntu1",
         "sha256": "c80aadc72cf18fea752282970d1b0fb1f05b0f1c04a00e1259e0e105c2f0e7f6"
       },
+      "python3-oauthlib": {
+        "version": "3.2.2-1",
+        "sha256": "de2429f930ca495315d06eba8646ef5299c8cf3848f31afb948856639dca79ff"
+      },
       "python3-packaging": {
         "version": "24.0-1",
         "sha256": "decc936e9512c2de78fcf9e8d8459ce58952c40bf8bd1f06e62556d7fe887db6"
+      },
+      "python3-pkg-resources": {
+        "version": "68.1.2-2ubuntu1",
+        "sha256": "2ae733be7fe2dc55e1fe419c5483488f8ee91393aac467f18ba30cd70bed6766"
+      },
+      "python3-pyasn1": {
+        "version": "0.4.8-4",
+        "sha256": "5935da0c0bbe3813e7a47231f0350f133ce1c805f38eb42794057e259eefa4ac"
+      },
+      "python3-pyasn1-modules": {
+        "version": "0.2.8-1",
+        "sha256": "595f9684f9a8dc4dbbba560d868208e43112fb51d3bccf458f1752edb3a6cf54"
       },
       "python3-pyparsing": {
         "version": "3.1.1-1",
         "sha256": "ec2395b1fe34a7a828f5cfabc4262217f6a86fb6ecb993fc18fbad3fc9edabba"
       },
+      "python3-requests": {
+        "version": "2.31.0+dfsg-1ubuntu1",
+        "sha256": "ec7b3158d3850deff5feb5423fe4c898c1c3eceaf55b536857921a657f824ff0"
+      },
+      "python3-requests-oauthlib": {
+        "version": "1.3.1-1",
+        "sha256": "4a99100e77813567b3b06bdaf36d7c65d89bcba9f3d02cc96fe2c795df9c2455"
+      },
       "python3-resolvelib": {
         "version": "1.0.1-1",
         "sha256": "392748bce6d9018347e668bc9ceda89b661bd02a24cd1b240be295b54ec1dd9f"
+      },
+      "python3-rsa": {
+        "version": "4.9-2",
+        "sha256": "ceb03ca9b6c3287a4cdd715b7f2bfe6a620443bc68b56438c82f9ce371509535"
+      },
+      "python3-setuptools": {
+        "version": "68.1.2-2ubuntu1",
+        "sha256": "b9556fdad49db5716446fb45375edb0fe3bb48f2521b8eb40d87e70f4b2ee269"
+      },
+      "python3-six": {
+        "version": "1.16.0-4",
+        "sha256": "54e6bb624a89feccbcf6bc16f0641b9aa24231dd1988d4e0b50f430b44a7a1ae"
+      },
+      "python3-typing-extensions": {
+        "version": "4.10.0-1",
+        "sha256": "6aa1ce3d7aff6a7a1b9f12bd6d7f2ecb9015a394f0be2688de5dde1d75c40e8a"
+      },
+      "python3-urllib3": {
+        "version": "2.0.7-1",
+        "sha256": "735827361797996f8219439f1a7217d6bf1c122095d459202eeafa851ac885aa"
+      },
+      "python3-websocket": {
+        "version": "1.7.0-1",
+        "sha256": "9cbf7b4e2cd9f663d53e7f24d8bdd0518e36a893c6a224edab788cfcf4b6dbdc"
       },
       "python3-zipp": {
         "version": "1.0.0-6",
