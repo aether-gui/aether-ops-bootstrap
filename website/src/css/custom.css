@@ -1,0 +1,41 @@
+/**
+ * Docusaurus theme overrides for aether-ops-bootstrap docs.
+ * Palette leans on the Catppuccin-ish blue used in the DESIGN.md block diagrams.
+ */
+
+:root {
+  --ifm-color-primary: #1d7af3;
+  --ifm-color-primary-dark: #0a6ae6;
+  --ifm-color-primary-darker: #0964d9;
+  --ifm-color-primary-darkest: #0753b3;
+  --ifm-color-primary-light: #3d8df5;
+  --ifm-color-primary-lighter: #5099f6;
+  --ifm-color-primary-lightest: #7fb3f9;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #89b4fa;
+  --ifm-color-primary-dark: #6ea0f8;
+  --ifm-color-primary-darker: #5f95f7;
+  --ifm-color-primary-darkest: #2e72f4;
+  --ifm-color-primary-light: #a4c8fc;
+  --ifm-color-primary-lighter: #b3d3fd;
+  --ifm-color-primary-lightest: #e0ecfe;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+.navbar-version-badge {
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--ifm-color-primary-lightest);
+  color: var(--ifm-color-primary-darkest) !important;
+  font-size: 0.8rem;
+}
+
+[data-theme='dark'] .navbar-version-badge {
+  background: rgba(137, 180, 250, 0.15);
+  color: var(--ifm-color-primary-lightest) !important;
+}

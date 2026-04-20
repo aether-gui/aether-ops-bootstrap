@@ -5,6 +5,7 @@ LDFLAGS := -X main.version=$(VERSION)
 .PHONY: dist build build-bundle build-all bundle package test lint install-lint vet clean
 .PHONY: test-e2e test-e2e-quick test-e2e-bootstrap test-e2e-deploy
 .PHONY: test-e2e-multi-bootstrap test-e2e-multi-deploy
+.PHONY: docs docs-build docs-serve
 
 dist:
 	mkdir -p dist
@@ -63,3 +64,13 @@ test-e2e: test-e2e-quick test-e2e-deploy test-e2e-multi-deploy
 
 clean:
 	rm -rf dist/
+
+# Docusaurus docs site (published to GitHub Pages via .github/workflows/docs.yml)
+docs:
+	cd website && npm start
+
+docs-build:
+	cd website && npm ci && npm run build
+
+docs-serve: docs-build
+	cd website && npm run serve

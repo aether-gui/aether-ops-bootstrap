@@ -1,5 +1,10 @@
 # aether-ops-bootstrap — Design
 
+> **Looking for user-facing docs?** See <https://aether-gui.github.io/aether-ops-bootstrap/>.
+> This file is the internal design-of-record; the published site is the right
+> place to start for installing, building bundles, or operating the launcher.
+
+
 ## Purpose
 
 `aether-ops-bootstrap` takes a freshly installed Ubuntu Server host and produces a running aether-ops management plane on top of RKE2. It runs once per management node, requires no internet access, and hands off to aether-ops for all further configuration.
