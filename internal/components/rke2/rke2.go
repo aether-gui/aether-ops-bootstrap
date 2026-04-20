@@ -180,6 +180,12 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 				return nil
 			},
 		},
+		// Upstream onramp's 5gc core role uses kubernetes.core.helm,
+		// which reads ~/.kube/config for the ansible user. When onramp
+		// also provisions k8s its rke2 role copies rke2.yaml into that
+		// path — but bootstrap short-circuits the k8s role by staging
+		// RKE2 itself, so the copy never happens and helm falls back
+		// to http://localhost:8080. Replicate the copy here.
 		{
 			Description: "install kubeconfig for onramp user",
 			Fn: func(ctx context.Context) error {

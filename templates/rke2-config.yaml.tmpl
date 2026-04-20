@@ -6,3 +6,13 @@
 # allowing the service account to read it without world-readable permissions.
 write-kubeconfig-mode: "0640"
 write-kubeconfig-group: "aether-ops"
+
+# CNI stack. canal is the default pod network; multus sits on top so
+# sd-core pods can attach additional interfaces via
+# NetworkAttachmentDefinition (k8s.cni.cncf.io/v1). Without multus the
+# 5gc umbrella chart fails helm install with "no matches for kind
+# NetworkAttachmentDefinition". This matches the CNI list aether-onramp's
+# k8s role uses (deps/k8s/roles/rke2/templates/master-config.yaml).
+cni:
+  - multus
+  - canal
