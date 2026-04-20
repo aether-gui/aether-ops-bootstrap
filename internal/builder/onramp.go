@@ -8,8 +8,49 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/aether-gui/aether-ops-bootstrap/internal/builder/patch"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 )
+
+// localSDCoreChartDir is the on-target path of the sd-core umbrella
+// chart after the launcher extracts the bundled helm-charts repo.
+// The onramp 5gc core role derives its source root as the dirname of
+// chart_ref and its install dir as the basename, so pointing at the
+// umbrella sub-directory makes `synchronize` copy every sibling
+// component chart too (file:// deps resolve inside /tmp/sdcore-helm-charts).
+const localSDCoreChartDir = "/var/lib/aether-ops/helm-charts/sdcore-helm-charts/sdcore-helm-charts"
+
+// onrampPatches returns the mutations applied to every vendored
+// aether-onramp checkout after clone, adapting upstream's online-first
+// defaults to this bootstrap's offline deployment model.
+func onrampPatches() []patch.Action {
+	return []patch.Action{
+		// Upstream defaults `airgapped.enabled: false` to keep stock
+		// online installs unchanged. Bundles built here always target
+		// offline hosts, so the flag must be on before playbooks run —
+		// otherwise `apt: update_cache=yes` tasks hit unreachable
+		// archives. See opennetworkinglab/aether-onramp#180.
+		patch.SetYAMLField{
+			RelPath: "vars/main.yml",
+			KeyPath: []string{"airgapped", "enabled"},
+			Value:   true,
+		},
+		// Upstream defaults sd-core's chart_ref to an OCI registry
+		// (`oci://ghcr.io/omec-project/sd-core`) with local_charts off.
+		// In airgap ghcr.io is unreachable; flip to local_charts and
+		// point at the umbrella chart dir shipped in the bundle.
+		patch.SetYAMLField{
+			RelPath: "vars/main.yml",
+			KeyPath: []string{"core", "helm", "local_charts"},
+			Value:   true,
+		},
+		patch.SetYAMLField{
+			RelPath: "vars/main.yml",
+			KeyPath: []string{"core", "helm", "chart_ref"},
+			Value:   localSDCoreChartDir,
+		},
+	}
+}
 
 // BuildOnramp clones the aether-onramp repository into the bundle staging
 // area so it can be shipped for airgapped installs. The cloned tree is
@@ -22,6 +63,15 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir string) 
 	resolvedSHA, err := cloneRepo(ctx, spec.Repo, spec.Ref, destDir, spec.RecurseSubmodules)
 	if err != nil {
 		return nil, fmt.Errorf("cloning onramp: %w", err)
+	}
+
+	// Apply onramp-specific patches to the cloned tree before
+	// hashing so the manifest reflects the on-disk state shipped.
+	for _, action := range onrampPatches() {
+		if err := action.Apply(destDir); err != nil {
+			return nil, fmt.Errorf("patching onramp: %s: %w", action.Name(), err)
+		}
+		log.Printf("  onramp patch: %s", action.Name())
 	}
 
 	files, err := hashTree(destDir, relPath)
@@ -42,7 +92,13 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir string) 
 // area and returns manifest entries describing them. Each repo is placed
 // under "helm-charts/<name>". Submodules are not recursed by default —
 // chart repos rarely need them, and enabling them risks bloating the bundle.
-func BuildHelmCharts(ctx context.Context, specs []bundle.HelmChartsSpec, stageDir string) ([]bundle.HelmChartsEntry, error) {
+//
+// helmBinary, if non-empty, is used to resolve chart dependencies with
+// `helm dep up` after clone so the resulting charts/*.tgz ship in the
+// bundle; airgapped installs cannot reach the upstream chart repos to
+// do this themselves. Callers that don't need dep resolution (most
+// tests) may pass "".
+func BuildHelmCharts(ctx context.Context, specs []bundle.HelmChartsSpec, stageDir, helmBinary string) ([]bundle.HelmChartsEntry, error) {
 	var out []bundle.HelmChartsEntry
 	for _, hc := range specs {
 		relPath := filepath.Join("helm-charts", hc.Name)
@@ -51,6 +107,10 @@ func BuildHelmCharts(ctx context.Context, specs []bundle.HelmChartsSpec, stageDi
 		resolvedSHA, err := cloneRepo(ctx, hc.Repo, hc.Ref, destDir, false)
 		if err != nil {
 			return nil, fmt.Errorf("cloning helm chart %q: %w", hc.Name, err)
+		}
+
+		if err := resolveChartDependencies(ctx, helmBinary, destDir); err != nil {
+			return nil, fmt.Errorf("resolving helm deps for %q: %w", hc.Name, err)
 		}
 
 		files, err := hashTree(destDir, relPath)

@@ -180,7 +180,11 @@ func buildOne(specPath, outputPath, lockPath string) error {
 	var helmChartsEntries []bundle.HelmChartsEntry
 	if len(spec.HelmCharts) > 0 {
 		log.Printf("cloning %d helm chart repositories...", len(spec.HelmCharts))
-		helmChartsEntries, err = builder.BuildHelmCharts(ctx, spec.HelmCharts, stageDir)
+		helmBinary := ""
+		if helmEntry != nil {
+			helmBinary = filepath.Join(stageDir, "helm", "helm")
+		}
+		helmChartsEntries, err = builder.BuildHelmCharts(ctx, spec.HelmCharts, stageDir, helmBinary)
 		if err != nil {
 			return err
 		}

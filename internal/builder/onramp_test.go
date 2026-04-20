@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -55,11 +56,29 @@ func runGit(t *testing.T, dir string, args ...string) {
 	}
 }
 
+// upstreamVarsMainYAML is a minimal stand-in for aether-onramp's
+// real vars/main.yml. It must include every key onrampPatches()
+// targets; patches on missing keys are a hard error.
+const upstreamVarsMainYAML = `proxy:
+  enabled: false
+
+airgapped:
+  enabled: false                 # set true to skip apt update_cache
+
+core:
+  standalone: true
+  helm:
+    local_charts: false
+    chart_ref: oci://ghcr.io/omec-project/sd-core
+    chart_version: 3.4.0
+`
+
 func TestBuildOnramp(t *testing.T) {
 	url, sha := setupGitFixture(t, map[string]string{
-		"Makefile":     "all:\n\techo onramp\n",
-		"README.md":    "# onramp\n",
-		"deps/k8s.yml": "role: k8s\n",
+		"Makefile":      "all:\n\techo onramp\n",
+		"README.md":     "# onramp\n",
+		"deps/k8s.yml":  "role: k8s\n",
+		"vars/main.yml": upstreamVarsMainYAML,
 	})
 
 	stageDir := t.TempDir()
@@ -77,8 +96,8 @@ func TestBuildOnramp(t *testing.T) {
 	if entry.Path != filepath.Join("onramp", "aether-onramp") {
 		t.Errorf("Path = %q", entry.Path)
 	}
-	if len(entry.Files) != 3 {
-		t.Errorf("len(Files) = %d, want 3 (skipping .git)", len(entry.Files))
+	if len(entry.Files) != 4 {
+		t.Errorf("len(Files) = %d, want 4 (skipping .git)", len(entry.Files))
 	}
 
 	// Verify content was actually cloned to the staging dir.
@@ -92,10 +111,34 @@ func TestBuildOnramp(t *testing.T) {
 			t.Errorf("file entry %q is inside .git", f.Path)
 		}
 	}
+
+	// Assert the post-clone patches landed on disk (manifest only
+	// records hashes).
+	varsMain, err := os.ReadFile(filepath.Join(stageDir, "onramp", "aether-onramp", "vars", "main.yml"))
+	if err != nil {
+		t.Fatalf("reading patched vars/main.yml: %v", err)
+	}
+	got := string(varsMain)
+
+	if !strings.Contains(got, "airgapped:\n  enabled: true") {
+		t.Errorf("expected airgapped.enabled=true after BuildOnramp, got:\n%s", got)
+	}
+	if strings.Contains(got, "airgapped:\n  enabled: false") {
+		t.Errorf("airgapped.enabled still false after BuildOnramp:\n%s", got)
+	}
+	if !strings.Contains(got, "local_charts: true") {
+		t.Errorf("expected core.helm.local_charts=true after BuildOnramp, got:\n%s", got)
+	}
+	if !strings.Contains(got, "chart_ref: "+localSDCoreChartDir) {
+		t.Errorf("expected core.helm.chart_ref=%s after BuildOnramp, got:\n%s", localSDCoreChartDir, got)
+	}
 }
 
 func TestBuildOnrampCleansExistingDest(t *testing.T) {
-	url, _ := setupGitFixture(t, map[string]string{"README.md": "hi\n"})
+	url, _ := setupGitFixture(t, map[string]string{
+		"README.md":     "hi\n",
+		"vars/main.yml": upstreamVarsMainYAML,
+	})
 	stageDir := t.TempDir()
 
 	// Seed a bogus file in the destination to prove clone replaces it.
@@ -127,10 +170,13 @@ func TestBuildHelmCharts(t *testing.T) {
 	})
 
 	stageDir := t.TempDir()
+	// Empty helm binary — test fixtures have no remote dependencies,
+	// so dep resolution is a no-op and we avoid dragging helm into the
+	// unit test.
 	entries, err := BuildHelmCharts(context.Background(), []bundle.HelmChartsSpec{
 		{Name: "amf", Repo: url1},
 		{Name: "smf", Repo: url2},
-	}, stageDir)
+	}, stageDir, "")
 	if err != nil {
 		t.Fatalf("BuildHelmCharts: %v", err)
 	}
