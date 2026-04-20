@@ -135,7 +135,7 @@ type AetherOpsSpec struct {
 	Ref            string `yaml:"ref,omitempty"`             // git ref (tag/branch/SHA) → build from source
 	FrontendRef    string `yaml:"frontend_ref,omitempty"`    // override frontend submodule ref (source build only)
 	Repo           string `yaml:"repo,omitempty"`            // GitHub owner/name, default: aether-gui/aether-ops
-	OnrampUser     string `yaml:"onramp_user,omitempty"`     // OS user for Ansible SSH deployments, default: "aether"
+	OnrampUser     string `yaml:"onramp_user,omitempty"`     // OS user for Ansible SSH deployments, default: "aether-ops" (shared with the daemon's service account)
 	OnrampPassword string `yaml:"onramp_password,omitempty"` // default: "aether"; change immediately after initial setup
 }
 
@@ -174,7 +174,7 @@ func applySpecDefaults(s *Spec) {
 			s.AetherOps.Repo = DefaultAetherOpsRepo
 		}
 		if s.AetherOps.OnrampUser == "" {
-			s.AetherOps.OnrampUser = "aether"
+			s.AetherOps.OnrampUser = "aether-ops"
 		}
 		if s.AetherOps.OnrampPassword == "" {
 			s.AetherOps.OnrampPassword = "aether"

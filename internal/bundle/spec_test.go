@@ -53,14 +53,21 @@ func TestParseSpec(t *testing.T) {
 	if s.RKE2.Version != "v1.33.1+rke2r1" {
 		t.Errorf("RKE2.Version = %q, want %q", s.RKE2.Version, "v1.33.1+rke2r1")
 	}
-	if s.RKE2.ImageMode != ImageModeAllInOne {
-		t.Errorf("RKE2.ImageMode = %q, want %q", s.RKE2.ImageMode, ImageModeAllInOne)
+	if s.RKE2.ImageMode != ImageModeCoreVariant {
+		t.Errorf("RKE2.ImageMode = %q, want %q", s.RKE2.ImageMode, ImageModeCoreVariant)
 	}
 	if s.RKE2.Source != DefaultRKE2Source {
 		t.Errorf("RKE2.Source = %q, want default %q", s.RKE2.Source, DefaultRKE2Source)
 	}
-	if len(s.RKE2.Variants) != 1 || s.RKE2.Variants[0] != "canal" {
-		t.Errorf("RKE2.Variants = %v, want [canal]", s.RKE2.Variants)
+	wantVariants := []string{"canal", "multus"}
+	if len(s.RKE2.Variants) != len(wantVariants) {
+		t.Errorf("RKE2.Variants = %v, want %v", s.RKE2.Variants, wantVariants)
+	} else {
+		for i, v := range wantVariants {
+			if s.RKE2.Variants[i] != v {
+				t.Errorf("RKE2.Variants[%d] = %q, want %q", i, s.RKE2.Variants[i], v)
+			}
+		}
 	}
 
 	// AetherOps.
@@ -76,8 +83,8 @@ func TestParseSpec(t *testing.T) {
 	if s.AetherOps.Repo != DefaultAetherOpsRepo {
 		t.Errorf("AetherOps.Repo = %q, want default %q", s.AetherOps.Repo, DefaultAetherOpsRepo)
 	}
-	if s.AetherOps.OnrampUser != "aether" {
-		t.Errorf("AetherOps.OnrampUser = %q, want default %q", s.AetherOps.OnrampUser, "aether")
+	if s.AetherOps.OnrampUser != "aether-ops" {
+		t.Errorf("AetherOps.OnrampUser = %q, want default %q", s.AetherOps.OnrampUser, "aether-ops")
 	}
 	if s.AetherOps.OnrampPassword != "aether" {
 		t.Error("AetherOps.OnrampPassword does not match expected default")

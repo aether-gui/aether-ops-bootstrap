@@ -10,7 +10,7 @@
           -d '{
             "name": "core",
             "ansible_host": "10.200.4.11",
-            "ansible_user": "aether",
+            "ansible_user": "aether-ops",
             "password": "aether",
             "sudo_password": "aether",
             "roles": ["master", "worker"]
@@ -28,7 +28,7 @@
           -d '{
             "name": "gnb",
             "ansible_host": "10.200.4.12",
-            "ansible_user": "aether",
+            "ansible_user": "aether-ops",
             "password": "aether",
             "sudo_password": "aether",
             "roles": ["srsran"]

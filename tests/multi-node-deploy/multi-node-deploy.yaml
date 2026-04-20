@@ -23,10 +23,11 @@ lxd:
         limits.memory: "4GB"
         user.user-data: &cloud-init |
           #cloud-config
-          # The aether service account is created by aether-ops-bootstrap with
-          # the password it registers ("aether"). Declaring the user here
-          # with a different passwd hash would win and break ansible SSH
-          # auth because createOnrampUser skips chpasswd when the user
+          # The aether-ops account (service + ansible target, same user)
+          # is created by aether-ops-bootstrap with the password it
+          # registers ("aether"). Declaring the user here with a
+          # different passwd hash would win and break ansible SSH auth
+          # because createServiceAccount skips chpasswd when the user
           # already exists. Only enable password auth globally.
           ssh_pwauth: true
           runcmd:
