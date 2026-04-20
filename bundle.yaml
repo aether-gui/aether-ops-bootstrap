@@ -19,17 +19,20 @@ debs:
   # Required by aether-onramp's 5gc router role; installed up-front so the
   # role's `apt: name=iptables-persistent` task is a no-op in airgap mode.
   - name: iptables-persistent
-  # Required by aether-onramp's core role, which uses ansible's
-  # kubernetes.core.k8s module (via `Get Pods Status` etc.) backed by the
-  # python kubernetes client.
+  # Required by the kubernetes.core ansible collection (helm, k8s,
+  # k8s_info). Not a transitive dependency of ansible on Ubuntu, so
+  # fresh hosts fail the first kubernetes.core call without this.
+  # Upstream onramp's 5gc core role does not install this itself yet
+  # (pending opennetworkinglab/aether-onramp#183).
   - name: python3-kubernetes
 
 rke2:
   version: "v1.33.1+rke2r1"
-  variants: [canal]
-  # "all-in-one": single rke2-images tarball per arch (includes default canal CNI)
-  # "core+variant": rke2-images-core + per-variant image tarball
-  image_mode: all-in-one
+  # sd-core needs multus (NetworkAttachmentDefinition CRD) alongside
+  # canal (default pod network). all-in-one ships only canal, so use
+  # core+variant with both variants to pull in multus images.
+  variants: [canal, multus]
+  image_mode: core+variant
   # source: https://github.com/rancher/rke2/releases/download
   #   ↑ optional override; defaults to GitHub releases
 
@@ -37,22 +40,27 @@ helm:
   version: "v3.17.3"
 
 aether_ops:
-  version: "v0.1.43"
-  source: ./artifacts/aether-ops_0.1.43_linux_amd64.tar.gz  # local pre-built binary
+  version: "v0.1.48"
+  source: ./artifacts/aether-ops_0.1.48_linux_amd64.tar.gz  # local pre-built binary
   # ref: "main"           # build from source at this git ref (mutually exclusive with source)
   # repo: aether-gui/aether-ops
   # frontend_ref: ""     # override frontend submodule (source build only)
-  # onramp_user: aether  # OS user for Ansible SSH deployments (default: aether)
+  # onramp_user: aether-ops  # OS user for Ansible SSH deployments (default: aether-ops, shared with the daemon service account)
   # onramp_password not shown here — provide at runtime, not in checked-in specs
 
 # aether-onramp is the Ansible toolchain the aether-ops service invokes
 # to deploy 5G workloads. The builder clones it at build time (pinning
 # the resolved commit SHA in the manifest) and the launcher extracts it
-# to /var/lib/aether-ops/aether-onramp on install.
+# to /var/lib/aether-ops/aether-onramp on install. Post-clone patches
+# applied by the builder (see internal/builder/onramp.go) adapt upstream
+# defaults to the bundled-deployment model — notably flipping
+# `airgapped.enabled: true` so `apt: update_cache` calls are gated off.
 onramp:
   repo: https://github.com/opennetworkinglab/aether-onramp.git
-  ref: main
-  recurse_submodules: true
+  # Pinned to a specific upstream commit for reproducibility; bump
+  # after reviewing upstream changes. HEAD of main at time of pin.
+  ref: befeb8771706cd8c7e241acddf95a4a16486b4e5
+  recurse_submodules: false
 
 # Helm chart repositories to bundle. Each entry is cloned to
 # /var/lib/aether-ops/helm-charts/<name> on the target host.
