@@ -48,21 +48,21 @@ templates_dir: ./templates
 | `schema_version` | yes | Spec schema version. Must be `1` for 0.1.x. |
 | `bundle_version` | yes | Calver string (e.g. `2026.04.1`). Written into the manifest. |
 | `ubuntu` | yes | Ubuntu suite/arch targets for `.deb` resolution. |
-| `debs` | yes | Top-level `.deb` packages to vendor. Transitive deps resolved automatically. |
-| `rke2` | yes | RKE2 version and image variants to fetch. |
-| `helm` | yes | Helm version to fetch. |
-| `aether_ops` | yes | aether-ops source (local file, URL, or git ref). |
+| `debs` | no | Top-level `.deb` packages to vendor. Transitive deps resolved automatically. |
+| `rke2` | no | RKE2 version and image variants to fetch. Required for full single-node bundles. |
+| `helm` | no | Helm version to fetch. Required when the target role needs Helm. |
+| `aether_ops` | no | aether-ops source (local file, URL, or git ref). Required for management bundles. |
 | `onramp` | no | aether-onramp git repo to bundle. Cloned at build time. |
 | `helm_charts` | no | Helm chart repositories to bundle. |
 | `images` | no | Container image pre-pull behavior. |
-| `templates_dir` | no | Path to templates. Defaults to `./templates`. |
+| `templates_dir` | yes | Path to templates. |
 
 ### `ubuntu`
 
 ```yaml
 ubuntu:
   suites: [noble]              # Ubuntu codenames: jammy, noble, etc.
-  architectures: [amd64]       # Only amd64 supported in 0.1.x
+  architectures: [amd64]       # x86-64 only
   # mirror: https://archive.ubuntu.com/ubuntu   # override for internal mirror
 ```
 
@@ -144,6 +144,7 @@ aether_ops:
 
 ```yaml
 aether_ops:
+  version: "v0.1.43-dev"
   ref: "main"
   repo: aether-gui/aether-ops
   # frontend_ref: ""   # optional frontend submodule override
@@ -155,12 +156,12 @@ Optional onramp user settings (applied by the launcher, not the builder):
 aether_ops:
   version: "v0.1.43"
   onramp_user: aether        # default: aether
-  # onramp_password: ...     # do NOT commit; set via launcher env at runtime
+  # onramp_password: ...     # do NOT commit; defaults to "aether"
 ```
 
 The onramp password is never written to `bundle.yaml` in checked-in specs.
-Override it at install time (future enhancement; see
-[roadmap](/bootstrap-guide/roadmap)).
+A runtime override is planned as a future enhancement; see
+[roadmap](/bootstrap-guide/roadmap).
 
 ### `onramp`
 
@@ -214,8 +215,7 @@ templates_dir: ./templates
 ```
 
 Path to the directory containing systemd units, `sshd_config.d/` drop-ins,
-`sudoers.d/` drop-ins, and RKE2 config templates. Defaults to `./templates`
-relative to the spec file.
+`sudoers.d/` drop-ins, and RKE2 config templates. This field is required.
 
 ## The spec in `main`
 

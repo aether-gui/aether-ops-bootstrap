@@ -23,7 +23,7 @@ If you're producing bundles rather than installing them, the
 ## How to navigate this section
 
 - **[CLI reference](./cli-reference.md)** — every subcommand and flag.
-- **[Components](./components.md)** — the seven components, in install order.
+- **[Components](./components.md)** — the eight components, in install order.
 - **[State file](./state-file.md)** — schema, idempotency, drift.
 - **[On-disk layout](./on-disk-layout.md)** — where things land on the target.
 - **[Upgrades and repair](./upgrades-and-repair.md)** — `upgrade` vs `repair`
@@ -34,8 +34,8 @@ If you're producing bundles rather than installing them, the
 ## The launcher at a glance
 
 - **One binary.** Statically linked Go, `CGO_ENABLED=0`, ~20 MB.
-- **Seven components.** `debs`, `ssh`, `sudoers`, `service_account`,
-  `onramp`, `rke2`, `helm`, `aether_ops`.
+- **Eight components.** `debs`, `ssh`, `sudoers`, `service_account`,
+  `rke2`, `helm`, `onramp`, `aether_ops`.
 - **One state file.** `/var/lib/aether-ops-bootstrap/state.json`.
 - **One log file.** `/var/lib/aether-ops-bootstrap/bootstrap.log`.
 - **One loop.** Every command runs the same component loop with different
@@ -53,7 +53,7 @@ flowchart TD
         plan["Plan(current, desired)"]
         noop{{"No-op?"}}
         apply["Apply(ctx, plan)"]
-        update_state["Update state file"]
+        update_state["Update in-memory state"]
         skip["Skip"]
     end
 
@@ -69,7 +69,8 @@ flowchart TD
     style noop fill:#f9e2af,stroke:#df8e1d,color:#000
 ```
 
-`check` runs the same loop but stops after `Plan` — nothing is applied.
+`check` runs the same loop but stops after `Plan` — component actions are not
+applied.
 
 ## The rules the launcher follows
 
@@ -80,7 +81,8 @@ flowchart TD
 3. **Idempotency by default.** Running the same bundle twice is a no-op.
 4. **State is authoritative, not observation.** The launcher believes the
    state file over what it sees on disk. Use `repair` to reconcile.
-5. **Pure Go, one documented exception.** `dpkg`, `useradd`, and `groupadd`
-   are shelled out. Everything else is in-process.
+5. **Use host-native tools for host-native semantics.** `dpkg`, `systemctl`,
+   `useradd`, `groupadd`, and `visudo` are invoked where they own the platform
+   behavior.
 6. **Diagnostics on failure.** Any non-zero exit writes a diagnostic tarball
    to `/tmp`.

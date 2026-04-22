@@ -21,7 +21,7 @@ block-beta
     end
     block:platform["Platform Layer — RKE2 + aether-ops (installed by bootstrap)"]
     end
-    block:os["OS Layer — Ubuntu Server 22.04 – 26.04"]
+    block:os["OS Layer — Ubuntu Server 22.04, 24.04, 26.04"]
     end
 
     cellular --> platform
@@ -32,10 +32,10 @@ block-beta
     style os fill:#a6e3a1,stroke:#40a02b,color:#000
 ```
 
-- **OS layer** — Ubuntu Server, versions 22.04 through 26.04. Kernel, base
-  packages, networking stack. The operator installs this manually. The
-  bootstrap assumes *nothing* about this layer beyond a supported Ubuntu
-  version being present.
+- **OS layer** — Ubuntu Server, versions 22.04, 24.04, and 26.04 (soon to be
+  released). Kernel, base packages, networking stack. The operator installs
+  this manually. The bootstrap assumes *nothing* about this layer beyond a
+  supported Ubuntu version being present.
 - **Platform layer** — RKE2 plus aether-ops, together with the OS-level
   prerequisites aether-ops needs (`git`, `make`, `ansible`) and the SSH / sudo
   configuration it relies on. **This is what `aether-ops-bootstrap` installs.**
@@ -92,10 +92,10 @@ one specific thing:
 1. `debs` — installs the OS-level prerequisite `.deb` files.
 2. `ssh` — writes sshd drop-ins.
 3. `sudoers` — writes sudoers drop-ins.
-4. `service_account` — creates the aether-ops service account.
-5. `onramp` — creates the onramp user (for Ansible deployments).
-6. `rke2` — installs and starts RKE2.
-7. `helm` — installs the Helm binary.
+4. `service_account` — creates the aether-ops service account and onramp user.
+5. `rke2` — installs and starts RKE2.
+6. `helm` — installs the Helm binary.
+7. `onramp` — stages the aether-onramp and Helm chart repositories.
 8. `aether_ops` — installs and starts the aether-ops daemon.
 
 Each component implements the same interface: "what do you want? what's
@@ -110,7 +110,7 @@ After a successful install, the launcher writes a JSON state file to
 
 - the launcher version that ran,
 - the bundle version and hash that was applied,
-- per-component installed version and config hash,
+- per-component installed version,
 - a history log of every action taken.
 
 State is what makes `upgrade` and `repair` possible: the launcher reads state,

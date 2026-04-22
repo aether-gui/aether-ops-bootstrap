@@ -18,6 +18,8 @@ Useful when:
 ```
 /usr/local/bin/
 ├── helm                                   # Helm binary
+├── kubectl                                # symlink to RKE2's kubectl
+└── aether-ops                             # aether-ops daemon binary
 
 /var/lib/rancher/rke2/                     # RKE2 data directory
 ├── bin/kubectl, containerd, …             # RKE2 ships its own toolchain
@@ -32,7 +34,7 @@ Useful when:
 └── aether-ops.service                     # from bundle
 
 /etc/aether-ops/
-└── config.yaml                            # aether-ops daemon config
+└── (created by launcher; runtime config may be added later)
 
 /var/lib/aether-ops/
 ├── aether-onramp/                         # cloned at build, staged here
@@ -42,7 +44,6 @@ Useful when:
 └── 01-aether-password-auth.conf           # Match User <onramp>
 
 /etc/sudoers.d/
-├── aether-ops                             # service account rules
 └── <onramp_user>                          # NOPASSWD: ALL
 
 /etc/profile.d/
@@ -66,11 +67,10 @@ The onramp user's name is configurable via `aether_ops.onramp_user` in
 ## Network listeners the launcher *doesn't* own but expects
 
 - `:22` — sshd. Must be running and accept connections for the onramp
-  user. The launcher doesn't start or configure sshd beyond dropping into
-  `sshd_config.d/`.
+  user. The launcher writes an `sshd_config.d/` drop-in and restarts `ssh`
+  or `sshd`.
 - `:6443` — RKE2 Kubernetes API, after the `rke2` component finishes.
-- The aether-ops HTTP port (default in 0.1.x is `:8080` but see your
-  bundle's `config.yaml.tmpl`).
+- `:8186` — aether-ops HTTP API and health endpoint in 0.1.x.
 
 ## Files the launcher reads but does not write
 
@@ -95,14 +95,15 @@ sudo rm -rf \
   /etc/aether-ops \
   /var/lib/aether-ops \
   /var/lib/aether-ops-bootstrap \
+  /usr/local/bin/aether-ops \
+  /usr/local/bin/kubectl \
   /etc/ssh/sshd_config.d/01-aether-password-auth.conf \
-  /etc/sudoers.d/aether-ops \
   /etc/sudoers.d/aether \
   /etc/profile.d/rke2.sh
 
 # Reload services
 sudo systemctl daemon-reload
-sudo systemctl reload ssh
+sudo systemctl restart ssh
 
 # Optionally remove users
 sudo userdel aether-ops
@@ -118,7 +119,5 @@ A proper `uninstall` command is planned — see
 ## Extraction temp directory
 
 At install time the launcher extracts the bundle under a temp directory
-(typically beneath `/tmp` or `/var/tmp` depending on available space). The
-temp directory is removed on clean exit; on failure it is left behind and
-referenced in the diagnostic tarball so support engineers can inspect the
-unpacked content.
+(typically beneath `/tmp`). The temp directory is removed when the launcher
+returns, including failed runs.

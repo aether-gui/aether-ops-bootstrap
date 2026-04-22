@@ -33,7 +33,7 @@ Flags:
 |---|---|---|
 | `--bundle <path>` | yes | Path to the bundle `.tar.zst` file. |
 | `--force` | no | Allow re-running on a host with existing state. Existing state is updated in place, not wiped. |
-| `--roles <csv>` | no | Comma-separated roles; restricts which components run. Default: all components. See [Roles](#roles). |
+| `--roles <csv>` | no | Comma-separated roles; restricts which components run. Default: all components. See [Roles](#--roles-csv). |
 
 Exit codes:
 
@@ -42,10 +42,9 @@ Exit codes:
 
 ### `upgrade`
 
-Compare the bundle's manifest to the state file and apply only the deltas.
-Behaves like `install --force` in that it does not refuse on existing state;
-differs in that it reports "no changes" instead of re-running every
-component when nothing moved.
+Compare the bundle's manifest to the state file and apply components whose
+desired version differs from the recorded version. Behaves like
+`install --force` in that it does not refuse on existing state.
 
 ```bash
 sudo aether-ops-bootstrap upgrade --bundle bundle-new.tar.zst
@@ -67,7 +66,7 @@ Flags: same as `install`. `--force` is implied.
 
 ### `check`
 
-Preflight and plan, then exit without applying anything. Dry-run.
+Preflight and plan, then exit without applying component actions. Dry-run.
 
 ```bash
 sudo aether-ops-bootstrap check --bundle bundle.tar.zst
@@ -78,18 +77,22 @@ Flags: same as `install`.
 Output:
 
 ```
-preflight: ubuntu 24.04 OK
-preflight: architecture amd64 OK
-preflight: systemd present OK
-components: plan
-  debs             install 42 packages
-  rke2             install v1.33.1+rke2r1
-  ... etc
-check complete: no changes applied
+running preflight checks...
+extracting bundle bundle.tar.zst...
+bundle version 2026.04.1 (schema 1)
+detected host suite: noble
+[debs] would apply ( -> 2026.04.1, 1 actions)
+  - install 42 .deb packages
+[ssh] would apply ( -> 2026.04.1, 1 actions)
+  - drop sshd password auth config
+[sudoers] would apply ( -> 2026.04.1, 1 actions)
+  - install sudoers drop-in aether.tmpl
+...
 ```
 
 Exit code `0` means the plan succeeded; `check` never reports failure from
-a component applying — it stops before `Apply`.
+a component applying because it stops before `Apply`. In 0.1.x, `check`
+still writes state metadata and a `history` entry for the run.
 
 ### `diagnose`
 
@@ -105,7 +108,7 @@ Flags:
 |---|---|---|
 | `--output <dir>` | `/tmp` | Where to write the diagnostic tarball. |
 
-Writes `aether-ops-bootstrap-diagnostics-<timestamp>.tar.gz` containing:
+Writes `aether-bootstrap-diag-<timestamp>.tar.gz` containing:
 
 - `/var/lib/aether-ops-bootstrap/state.json`
 - `/var/lib/aether-ops-bootstrap/bootstrap.log`
@@ -153,8 +156,7 @@ Print usage summary.
 ### `--bundle <path>`
 
 Required for `install`, `upgrade`, `repair`, `check`. Path to the bundle
-tarball. Can be relative or absolute; the launcher resolves it before
-extraction.
+tarball. Can be relative or absolute.
 
 ### `--force`
 

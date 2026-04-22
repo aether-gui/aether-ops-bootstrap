@@ -27,7 +27,7 @@ flowchart LR
 
     subgraph target["On the target host (airgapped)"]
         preflight["Preflight checks"]
-        comps["Components run in order:<br/>debs → ssh → sudoers → service_account<br/>→ onramp → rke2 → helm → aether_ops"]
+        comps["Components run in order:<br/>debs → ssh → sudoers → service_account<br/>→ rke2 → helm → onramp → aether_ops"]
         state["state.json written"]
         handoff(["aether-ops reachable"])
     end
@@ -54,10 +54,11 @@ flowchart LR
      fetching Ubuntu's `Packages.gz` indexes (main + universe).
    - Downloads each artifact and verifies its SHA256 against the canonical
      source (Ubuntu Packages index, GitHub release checksums, `get.helm.sh`).
-   - Checks a `bundle.lock.json` — or writes one on first build — the same
-     way `go.sum` pins a Go module tree. If upstream drifted, the build fails.
-   - Generates `manifest.json` describing every artifact with version, source
-     URL, and hash.
+   - Checks a `bundle.lock.json` for `.deb` drift — or writes one on first
+     build. In 0.1.x, drift is logged as a warning and the lockfile is
+     rewritten.
+   - Generates `manifest.json` describing the bundle contents with component
+     versions, file paths, and hashes.
    - Stages everything into a tree and packs it with `tar + zstd`.
    - Emits `dist/bundle.tar.zst` and a `.sha256` sidecar.
 3. **CI tags a release.** On a `v*` git tag, GoReleaser builds the static
@@ -81,18 +82,17 @@ decisions were all made on the build machine.
 
 When the operator runs `./aether-ops-bootstrap install --bundle bundle.tar.zst`:
 
-1. **Preflight.** The launcher checks Ubuntu version (22.04 – 26.04), root
-   privileges, systemd presence, architecture, disk and RAM, and whether a
-   prior install is already present.
+1. **Preflight.** The launcher checks Ubuntu version (22.04, 24.04, or 26.04
+   soon to be released), root privileges, systemd presence, architecture, disk
+   space, and whether a prior install is already present.
 2. **Bundle opened.** The tarball's `manifest.json` is read and its
    `schema_version` compared to the launcher's. A mismatch aborts the run.
 3. **State loaded.** `/var/lib/aether-ops-bootstrap/state.json` is read if it
    exists. Empty state means "fresh install"; non-empty state means an
    upgrade, repair, or no-op.
 4. **Components run in order.** For each component, the launcher computes a
-   `Plan(current, desired)`. If current equals desired and configs match, the
-   component is skipped. Otherwise the plan is applied and the state file is
-   updated in place.
+   `Plan(current, desired)`. If current equals desired, the component is
+   usually skipped. Otherwise the plan is applied.
 5. **Final state written.** On success, the state file records the launcher
    version, bundle version, bundle hash, per-component versions, and an
    append-only history entry for the run.
@@ -113,9 +113,8 @@ A few load-bearing design decisions that show up later in the docs:
 - **`manifest.json` as the contract.** Both the builder and the launcher
   import the same Go types from `internal/bundle`. Schema changes are a single
   PR that touches both sides.
-- **Pure Go, one documented exception.** Everything is done via Go libraries
-  — archive parsing, systemd D-Bus, SSH keygen — except `dpkg`, `useradd`,
-  and `groupadd`, which are part of Ubuntu's required package set and not
-  worth reimplementing.
+- **Small set of shell-outs.** Archive handling and orchestration are in Go,
+  while host-native tools such as `dpkg`, `systemctl`, `useradd`, `groupadd`,
+  and `visudo` are invoked for the OS semantics they already own.
 - **State as the source of truth for reconciliation.** `upgrade` and `repair`
   are the same loop as `install`, just starting from a non-empty state.

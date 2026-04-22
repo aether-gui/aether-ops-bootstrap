@@ -18,9 +18,10 @@ finished artifacts.
 
 ### On the target host
 
-- **Ubuntu Server**, version 22.04, 24.04, or 26.04. Desktop editions should
-  work but are not tested.
-- **amd64 architecture.** arm64 support is tracked but not in 0.1.x.
+- **Ubuntu Server**, version 22.04, 24.04, or 26.04 (soon to be released).
+  Desktop editions should work but are not tested.
+- **amd64 architecture.** The bootstrap, aether-ops, and bundled services are
+  x86-64 only.
 - **Root or sudo.** The launcher must run as root or via `sudo`.
 - **systemd.** Present on every supported Ubuntu release by default.
 - **At least 8 GB RAM and 40 GB free disk.** RKE2 plus the image store is

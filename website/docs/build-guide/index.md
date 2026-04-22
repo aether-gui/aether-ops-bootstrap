@@ -36,8 +36,9 @@ flowchart LR
 
 - **[`bundle.yaml`](./bundle-yaml-reference.md)** — the spec. Every build starts
   here.
-- **[`bundle.lock.json`](./lockfile.md)** — pinned hashes, committed with the
-  spec. Fails the build if upstream drifted without an intentional spec change.
+- **[`bundle.lock.json`](./lockfile.md)** — pinned `.deb` versions and hashes,
+  committed with the spec. The builder warns when the current resolution
+  differs from the existing lockfile.
 - **[`cmd/build-bundle`](./building-locally.md)** — the builder. Reads the spec,
   fetches + verifies artifacts, writes the lockfile, assembles the tarball,
   emits `manifest.json`.
@@ -58,9 +59,8 @@ Produces `dist/bundle.tar.zst` and `dist/bundle.tar.zst.sha256`. See
 ### I'm bumping RKE2 (or any upstream pin)
 
 1. Edit `bundle.yaml` — change the version.
-2. Delete `bundle.lock.json` (or let `build-bundle` overwrite it).
-3. Run `make bundle`. The builder re-fetches, re-pins, re-writes the lockfile.
-4. Commit **both** `bundle.yaml` and `bundle.lock.json` in the same PR.
+2. Run `make bundle`. The builder re-fetches, re-pins, and rewrites the lockfile.
+3. Commit **both** `bundle.yaml` and `bundle.lock.json` in the same PR.
 
 See [versioning](./versioning.md) for which version numbers move when.
 
@@ -80,9 +80,8 @@ scans are generated, and every artifact is attached to the GitHub release.
 ### I'm adding a new `.deb` to the bundle
 
 1. Add an entry under `debs:` in `bundle.yaml`.
-2. Delete `bundle.lock.json` to force a re-resolve.
-3. `make bundle` — the builder pulls the package and its transitive deps.
-4. Commit both files.
+2. `make bundle` — the builder pulls the package and its transitive deps.
+3. Commit both files.
 
 ### I'm using an internally mirrored aether-ops build
 
@@ -106,9 +105,8 @@ aether_ops:
 
 - **Download anything at launcher runtime.** All fetching happens on the
   build machine; the launcher has no HTTP client for artifacts.
-- **Modify the lockfile silently.** If the lockfile exists and upstream has
-  drifted, the builder fails rather than re-pinning on your behalf. Delete
-  the lockfile to opt into re-resolution.
+- **Hide lockfile drift.** If the lockfile exists and upstream `.deb`
+  resolution has drifted, the builder logs a warning before rewriting it.
 - **Publish unverified artifacts.** Every downloaded file is hashed and
   checked against its authoritative source (Ubuntu Packages index, GitHub
   release checksums, `get.helm.sh`).
