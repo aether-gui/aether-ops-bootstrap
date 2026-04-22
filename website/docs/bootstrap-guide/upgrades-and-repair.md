@@ -40,20 +40,18 @@ sudo aether-ops-bootstrap upgrade --bundle bundle-2026.05.1.tar.zst
 Steps:
 
 1. **Preflight.** Same checks as `install`.
-2. **Load state.** Required for `upgrade` — if there's no state file, the
-   launcher refuses. (Use `install` for a fresh host.)
+2. **Load state.** If no state file exists, the launcher starts from an empty
+   state, just like a fresh install.
 3. **Load the new manifest.** Parse the bundle; verify `schema_version`.
 4. **Component loop.** For each component:
    - Compare current version (from state) to desired (from new manifest).
-   - Compare current config hash to the new rendered-template hash.
-   - If both match, skip.
+   - If they match, skip.
    - Otherwise, `Apply`.
 5. **Write final state.** New bundle version, new bundle hash, updated
-   per-component version and config hash. Append one `HistoryEntry` with
-   `action: "upgrade"`.
+   per-component version. Append one `HistoryEntry` with `action: "upgrade"`.
 
 `upgrade` is the **safe** command for applying a new bundle to a
-healthy host. It touches only components whose versions or configs changed.
+healthy host. It touches only components whose desired versions changed.
 
 ### What upgrade doesn't do
 
@@ -62,8 +60,7 @@ healthy host. It touches only components whose versions or configs changed.
   with older versions.
 - **Doesn't restart a service whose version didn't change.** If
   `rke2.version` is the same in the old and new manifests, RKE2 is not
-  restarted — even if its config template changed, the config-hash path
-  handles the reload correctly.
+  restarted by `upgrade`.
 - **Doesn't upgrade aether-ops' deployed workloads.** Those are aether-ops'
   responsibility, not the bootstrap's.
 
@@ -76,11 +73,11 @@ sudo aether-ops-bootstrap repair --bundle bundle.tar.zst
 Steps:
 
 1. **Preflight.** Same checks.
-2. **Load state.** Required.
+2. **Load state.** If no state file exists, the launcher starts from an empty
+   state.
 3. **Load manifest.** Same as upgrade.
 4. **Component loop.** For each component, `Apply` unconditionally using
-   the manifest's desired values. No short-circuit on version match. No
-   short-circuit on config-hash match.
+   the manifest's desired values. No short-circuit on version match.
 5. **Write final state.** History entry recorded with `action: "repair"`.
 
 **Use repair when:**
@@ -102,32 +99,29 @@ Steps:
 sudo aether-ops-bootstrap check --bundle bundle.tar.zst
 ```
 
-Same component loop as `install` / `upgrade` / `repair`, but `Apply` is
-never called. Instead the per-component plans are printed.
+Same component loop as `install` / `upgrade` / `repair`, but component
+`Apply` methods are never called. Instead the per-component plans are
+printed. In 0.1.x, `check` still writes state metadata and a history entry.
 
 Output shape:
 
 ```
-components: plan
-  debs             no change (42 packages already installed)
-  ssh              no change
-  sudoers          update 1 drop-in (config hash differs)
-  service_account  no change
-  onramp           no change
-  rke2             upgrade v1.33.1+rke2r1 → v1.33.2+rke2r1
-  helm             no change
-  aether_ops       upgrade v0.1.43 → v0.1.44
-check complete: no changes applied
+[debs] up to date (2026.04.1)
+[ssh] up to date (2026.04.1)
+[sudoers] up to date (2026.04.1)
+[rke2] would apply (v1.33.1+rke2r1 -> v1.33.2+rke2r1, 9 actions)
+  - write RKE2 config
+  - extract RKE2 v1.33.2+rke2r1
+...
 ```
 
 Non-trivial uses for `check`:
 
 - **Change management** — attach `check` output to a change ticket as
   evidence of exactly what a deploy would touch.
-- **Drift detection** — periodically, from a cron job, run
-  `check --bundle <current-bundle>` on every node. Any component that
-  reports "update" without a corresponding `upgrade` means drift is
-  happening.
+- **Change review** — run `check --bundle <new-bundle>` before an upgrade to
+  see which components would apply. In 0.1.x, `check` does not detect
+  template-only drift when the component version is unchanged.
 
 ## Pairing rules
 

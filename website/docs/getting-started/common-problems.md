@@ -11,9 +11,9 @@ commands for each.
 
 ## "Preflight failed: unsupported Ubuntu version"
 
-The launcher supports Ubuntu Server **22.04, 24.04, and 26.04** only. If you
-see this, you're running on 20.04, a derivative, or a newer release that
-hasn't been tested.
+The launcher supports Ubuntu Server **22.04, 24.04, and 26.04 (soon to be
+released)** only. If you see this, you're running on 20.04, a derivative, or a
+newer release that hasn't been tested.
 
 **Fix:** reinstall Ubuntu at a supported version. The bootstrap intentionally
 does not try to support arbitrary distros — the matrix of `.deb` transitive
@@ -98,7 +98,7 @@ rendering issue or a port conflict.
 
 ```bash
 sudo journalctl -u aether-ops --no-pager -n 200
-sudo ss -tlnp | grep -E '8080|aether'
+sudo ss -tlnp | grep -E '8186|aether'
 ```
 
 **Fix:** `repair` after resolving the underlying issue.

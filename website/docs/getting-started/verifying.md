@@ -22,15 +22,15 @@ A successful install produces something like:
   "schema_version": 1,
   "launcher_version": "v0.1.43",
   "bundle_version": "2026.04.1",
-  "bundle_hash": "sha256:abcd…",
+  "bundle_hash": "",
   "components": {
-    "debs":            { "version": "42",             "installed_at": "2026-04-18T14:27:11Z" },
-    "ssh":             { "version": "1",              "installed_at": "2026-04-18T14:27:13Z" },
-    "sudoers":         { "version": "1",              "installed_at": "2026-04-18T14:27:13Z" },
-    "service_account": { "version": "aether-ops",     "installed_at": "2026-04-18T14:27:14Z" },
-    "onramp":          { "version": "aether",         "installed_at": "2026-04-18T14:27:14Z" },
+    "debs":            { "version": "2026.04.1",      "installed_at": "2026-04-18T14:27:11Z" },
+    "ssh":             { "version": "2026.04.1",      "installed_at": "2026-04-18T14:27:13Z" },
+    "sudoers":         { "version": "2026.04.1",      "installed_at": "2026-04-18T14:27:13Z" },
+    "service_account": { "version": "2026.04.1",      "installed_at": "2026-04-18T14:27:14Z" },
     "rke2":            { "version": "v1.33.1+rke2r1", "installed_at": "2026-04-18T14:31:02Z" },
     "helm":            { "version": "v3.17.3",        "installed_at": "2026-04-18T14:31:03Z" },
+    "onramp":          { "version": "onramp:...",     "installed_at": "2026-04-18T14:31:04Z" },
     "aether_ops":      { "version": "v0.1.43",        "installed_at": "2026-04-18T14:32:44Z" }
   },
   "history": [
@@ -88,8 +88,8 @@ systemctl status aether-ops
 journalctl -u aether-ops --no-pager -n 40
 ```
 
-Look for its `started` / `ready` log line. The final lines of the bootstrap's
-own log printed the URL and any initial credential; find them in:
+Look for its startup log lines. The final lines of the bootstrap's own log
+printed the URL and default onramp credential summary; find them in:
 
 ```bash
 sudo tail -n 30 /var/lib/aether-ops-bootstrap/bootstrap.log
@@ -101,7 +101,7 @@ Log out and back in (or `source /etc/profile`) to pick up the launcher's
 `/etc/profile.d/rke2.sh` drop-in. After that:
 
 ```bash
-which kubectl        # /var/lib/rancher/rke2/bin/kubectl
+which kubectl        # /usr/local/bin/kubectl
 echo $KUBECONFIG     # /etc/rancher/rke2/rke2.yaml
 ```
 
@@ -136,14 +136,17 @@ A cleaner way to test idempotency without `--force`:
 sudo ./aether-ops-bootstrap check --bundle bundle.tar.zst
 ```
 
-Expected: "no changes" across every component.
+Expected: each installed component logs `up to date`. In 0.1.x, `check`
+does not apply component actions, but it does write state metadata and a
+history entry.
 
 ## What "done" looks like
 
 - `state.json` has every expected component with a recent `installed_at`.
 - `rke2-server.service` is active; `kubectl get nodes` shows the node `Ready`.
 - `aether-ops.service` is active; its health endpoint returns successfully.
-- `./aether-ops-bootstrap check --bundle bundle.tar.zst` plans zero changes.
+- `./aether-ops-bootstrap check --bundle bundle.tar.zst` reports components
+  as up to date.
 
 Anything else is worth investigating — see
 [troubleshooting](/bootstrap-guide/troubleshooting).

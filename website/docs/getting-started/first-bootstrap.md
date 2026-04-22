@@ -88,20 +88,17 @@ sudo ./aether-ops-bootstrap check --bundle bundle.tar.zst
 Expected (trimmed):
 
 ```
-preflight: ubuntu 24.04 (noble) OK
-preflight: architecture amd64 OK
-preflight: systemd present OK
-preflight: state: fresh install
-components: plan
-  debs             install 42 packages
-  ssh              write 2 drop-ins
-  sudoers          write 2 drop-ins
-  service_account  create user aether-ops
-  onramp           create user aether, set password
-  rke2             install v1.33.1+rke2r1
-  helm             install v3.17.3
-  aether_ops       install v0.1.43
-check complete: no changes applied
+running preflight checks...
+extracting bundle bundle.tar.zst...
+bundle version 2026.04.1 (schema 1)
+detected host suite: noble
+[debs] would apply ( -> 2026.04.1, 1 actions)
+  - install 42 .deb packages
+[ssh] would apply ( -> 2026.04.1, 1 actions)
+  - drop sshd password auth config
+[sudoers] would apply ( -> 2026.04.1, 1 actions)
+  - install sudoers drop-in aether.tmpl
+...
 ```
 
 Anything red at this stage means preflight will fail in the real install too.
@@ -117,21 +114,25 @@ This will take **5 – 15 minutes** depending on disk speed and whether images
 have to be unpacked. Expected stages in the log:
 
 ```
-preflight: … OK
-component debs:            installing 42 packages via dpkg
-component ssh:             writing /etc/ssh/sshd_config.d/…
-component sudoers:         writing /etc/sudoers.d/…
-component service_account: creating user aether-ops
-component onramp:          creating user aether
-component rke2:            extracting airgap tarballs
-component rke2:            waiting for rke2-server (up to 5m)
-component rke2:            rke2-server ready
-component helm:            installing /usr/local/bin/helm
-component aether_ops:      starting aether-ops.service
-component aether_ops:      waiting for health endpoint
-component aether_ops:      ready
-install complete: bundle 2026.04.1 applied
-state: /var/lib/aether-ops-bootstrap/state.json
+running preflight checks...
+extracting bundle bundle.tar.zst...
+bundle version 2026.04.1 (schema 1)
+detected host suite: noble
+[debs] applying ( -> 2026.04.1)...
+  installing 42 packages via dpkg
+[ssh] applying ( -> 2026.04.1)...
+  wrote /etc/ssh/sshd_config.d/01-aether-password-auth.conf
+[rke2] applying ( -> v1.33.1+rke2r1)...
+  waiting for kubectl get nodes to succeed
+[aether_ops] applying ( -> v0.1.43)...
+  waiting for aether-ops at http://127.0.0.1:8186/healthz
+  aether-ops healthy
+
+========================================
+  Bootstrap complete!
+========================================
+
+  aether-ops is running at http://127.0.0.1:8186
 ```
 
 If it fails partway through, the launcher will write a diagnostic tarball
@@ -145,12 +146,10 @@ the state file, and relevant journals. See
 sudo systemctl status aether-ops
 ```
 
-You should see `active (running)`. Then check the HTTP endpoint — the exact
-port depends on the aether-ops config bundled in your release; the launcher
-prints a summary on exit.
+You should see `active (running)`. Then check the HTTP endpoint:
 
 ```bash
-curl -fsS http://localhost:8080/healthz   # or whatever the summary said
+curl -fsS http://localhost:8186/healthz
 ```
 
 And check RKE2:

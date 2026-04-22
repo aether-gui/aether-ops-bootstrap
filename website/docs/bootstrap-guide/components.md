@@ -27,8 +27,8 @@ type Component interface {
 - `Name()` — a stable identifier recorded in the state file.
 - `DesiredVersion` — what the bundle wants. Read from `manifest.json`.
 - `CurrentVersion` — what's on disk now. Read from `state.json`.
-- `Plan(current, desired)` — returns a plan value. If `current == desired`
-  and the component's config hash hasn't changed, the plan is a no-op.
+- `Plan(current, desired)` — returns a plan value. In 0.1.x, most components
+  no-op when `current == desired`.
 - `Apply(ctx, plan)` — actually do it.
 
 Top-level commands walk the components in order, call `Plan`, and call
@@ -44,16 +44,16 @@ reflects hard dependencies between components.
 | 1 | `debs` | Installs OS-level `.deb` prerequisites. |
 | 2 | `ssh` | Writes `/etc/ssh/sshd_config.d/` drop-ins. |
 | 3 | `sudoers` | Writes `/etc/sudoers.d/` drop-ins. |
-| 4 | `service_account` | Creates the `aether-ops` OS user and group. |
-| 5 | `onramp` | Creates the `aether` onramp user for Ansible deployments. |
-| 6 | `rke2` | Installs and starts RKE2. |
-| 7 | `helm` | Installs the Helm binary. |
+| 4 | `service_account` | Creates the `aether-ops` service account and the `aether` onramp user. |
+| 5 | `rke2` | Installs and starts RKE2. |
+| 6 | `helm` | Installs the Helm binary. |
+| 7 | `onramp` | Stages aether-onramp and Helm chart repositories for aether-ops. |
 | 8 | `aether_ops` | Installs and starts the aether-ops daemon. |
 
 ```mermaid
 flowchart LR
     debs --> ssh --> sudoers --> sa["service_account"]
-    sa --> onramp --> rke2 --> helm --> aops["aether_ops"]
+    sa --> rke2 --> helm --> onramp --> aops["aether_ops"]
 
     style debs fill:#89b4fa,stroke:#1d7af3,color:#000
     style ssh fill:#89b4fa,stroke:#1d7af3,color:#000
@@ -93,12 +93,12 @@ Writes sshd drop-in files into `/etc/ssh/sshd_config.d/`.
   authentication *only for the onramp user* via a `Match User` block.
 - Other drop-ins as the templates dictate.
 
-**Why before service accounts:** sshd needs to be configured before the
-onramp user (step 5) exists, so the first time the onramp user logs in,
-sshd already accepts password auth for them.
+**Why before service accounts:** sshd is configured before the onramp user is
+created, so the first time that user logs in, sshd already accepts password
+auth for them.
 
-sshd is reloaded (not restarted) at the end of the component so existing
-connections aren't dropped.
+The component restarts `ssh` or `sshd` after writing the drop-in so the new
+configuration is active.
 
 ## `sudoers`
 
@@ -106,7 +106,6 @@ Writes drop-in files into `/etc/sudoers.d/`.
 
 **Touches:**
 
-- `/etc/sudoers.d/aether-ops` — sudo rules for the service account.
 - `/etc/sudoers.d/<onramp_user>` — `NOPASSWD: ALL` for the Ansible
   deployment user.
 
@@ -116,13 +115,15 @@ to install one that doesn't parse.
 
 ## `service_account`
 
-Creates the `aether-ops` OS user and group.
+Creates the `aether-ops` OS user and group, and creates the onramp deployment
+user (default name `aether`).
 
 **Touches:**
 
 - Invokes `groupadd aether-ops` if the group doesn't exist.
 - Invokes `useradd aether-ops` with system-account flags.
-- `/home/aether-ops` if the user template expects it.
+- Invokes `useradd <onramp_user>` with a login shell and home directory.
+- Sets the onramp user's password on initial creation only.
 
 The group membership is what lets `aether-ops` read RKE2's kubeconfig at
 mode `0640` in the `rke2` step.
@@ -133,17 +134,18 @@ shadow, and group semantics correctly.
 
 ## `onramp`
 
-Creates the onramp user (default name `aether`) used by aether-ops as the
-Ansible SSH identity for reaching other nodes.
+Stages the aether-onramp Ansible toolchain and any bundled Helm chart
+repositories so aether-ops can deploy workloads fully offline.
 
 **Touches:**
 
-- Creates the user with `useradd`.
-- Sets the password (default `aether`; a future release will allow override
-  via `AETHER_ONRAMP_PASSWORD`).
-- Relies on the `sudoers` step to have dropped `NOPASSWD: ALL` for this
-  user.
-- Relies on the `ssh` step to have enabled password auth for this user.
+- `/var/lib/aether-ops/aether-onramp/`.
+- `/var/lib/aether-ops/helm-charts/<name>/`.
+- Ownership on those trees, set to `aether-ops:aether-ops`.
+
+The onramp user (created by `service_account`) is the identity Ansible uses
+over SSH. The onramp component itself installs the content that aether-ops
+runs.
 
 The onramp user is **distinct from the service account**:
 
@@ -168,15 +170,18 @@ Installs Rancher's Kubernetes distribution from the airgap tarballs in
   if `/usr/local` is read-only).
 - Stages the airgap image tarball to
   `/var/lib/rancher/rke2/agent/images/`.
+- Stages any bundled application image tarballs to the same airgap image
+  directory.
 - Writes `/etc/rancher/rke2/config.yaml` from a template. Notable entries:
   - `write-kubeconfig-mode: "0640"` — group-readable kubeconfig.
   - `write-kubeconfig-group: "aether-ops"` — service account can read it.
-- Writes `/etc/systemd/system/rke2-server.service` (or uses the stock one
-  shipped with RKE2).
 - Writes `/etc/profile.d/rke2.sh` — adds RKE2's bin dir to `PATH` and sets
   `KUBECONFIG` for interactive users.
-- Enables and starts `rke2-server.service` via systemd's D-Bus API.
-- Waits (with timeout) for `https://localhost:6443/readyz` to return `ok`.
+- Enables and starts `rke2-server.service` via `systemctl`.
+- Waits for `kubectl get nodes --no-headers` against
+  `/etc/rancher/rke2/rke2.yaml` to return at least one node.
+- Symlinks `/usr/local/bin/kubectl` to RKE2's bundled kubectl.
+- Copies the kubeconfig to the onramp user's `~/.kube/config`.
 
 **Why after service_account and before helm:** RKE2 needs the `aether-ops`
 group to exist so the kubeconfig mode `0640` / `group = aether-ops`
@@ -185,8 +190,6 @@ before they're useful.
 
 **Checksum verification:** every tarball fetched at build time has its
 SHA256 verified against the `sha256sum-<arch>.txt` from the RKE2 release.
-The builder re-verifies at bundle assembly; the launcher re-verifies at
-extraction via the manifest.
 
 ## `helm`
 
@@ -207,12 +210,9 @@ Installs and starts the aether-ops daemon.
 
 - Writes the daemon binary (typically `/usr/local/bin/aether-ops`).
 - Writes `/etc/systemd/system/aether-ops.service`.
-- Writes `/etc/aether-ops/config.yaml` from the template.
-- Stages the aether-onramp Ansible repo to
-  `/var/lib/aether-ops/aether-onramp/`.
-- Stages any bundled Helm charts to `/var/lib/aether-ops/helm-charts/`.
+- Creates `/etc/aether-ops/` and `/var/lib/aether-ops/`.
 - Reloads systemd, enables and starts `aether-ops.service`.
-- Waits for the daemon's health endpoint to respond.
+- Waits for `http://127.0.0.1:8186/healthz` to return HTTP 200.
 
 **Why last:** every other component is a prerequisite. When this one
 reports ready, the bootstrap's job is done and the launcher exits.
@@ -226,17 +226,12 @@ components not required by the union of requested roles. See the
 
 ## Drift detection
 
-Each component records a **config hash** in the state file, not just a
-version. The hash covers the rendered template contents the component
-wrote. On a later `upgrade`, the component compares:
+In 0.1.x, components decide whether to apply primarily by comparing the
+component version recorded in state with the desired version from the bundle.
+Template-only drift is not detected by `check` or `upgrade` unless the
+component's desired version also changes.
 
-- current version vs. desired version — if different, `Plan` is non-empty.
-- current config hash vs. rendered-template hash — if different, `Plan` is
-  non-empty *even if versions match*.
-
-This is how a template change between bundle versions triggers re-apply of
-the affected components, independent of whether the underlying binary moved.
-
-`repair` ignores the state and re-applies everything regardless.
+Use `repair` when you need to re-apply component actions regardless of what
+the state file says.
 
 See [state file](./state-file.md) for the schema.

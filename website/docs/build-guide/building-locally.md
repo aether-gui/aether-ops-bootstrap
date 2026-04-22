@@ -107,7 +107,8 @@ The builder also accepts a directory of specs instead of a single file:
 ```
 
 Every `.yaml` file in `specs/` is built into its own bundle named from the
-spec's `bundle_version`. This is the foundation for per-role bundles (see
+spec filename, for example `specs/core.yaml` becomes `dist/core.tar.zst`.
+This is the foundation for per-role bundles (see
 [roadmap](/bootstrap-guide/roadmap)) but is usable today for any case where
 you want parallel bundle variants.
 

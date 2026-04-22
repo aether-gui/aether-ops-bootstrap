@@ -61,12 +61,10 @@ Key properties:
 
 - **Versioned with calver.** `2026.04.1` means "the first bundle of April
   2026" — a *snapshot of the world at a point in time*.
-- **Bit-reproducible.** Normalized tar metadata (zeroed mtimes, sorted
-  entries, uid/gid 0). Two builds of the same spec + lockfile produce
-  byte-identical tarballs.
-- **Content-hashed.** The manifest records a bundle-level hash; `build_info`
-  (Go version, builder hostname, git SHA) is recorded *but excluded* from
-  that hash so it stays stable.
+- **Described by a manifest.** `manifest.json` records the component versions,
+  file paths, and hashes the launcher needs after extraction.
+- **Checksummed as an archive.** The builder emits a `.sha256` sidecar for the
+  final `bundle.tar.zst`.
 
 ## `manifest.json` — the contract
 
@@ -78,16 +76,19 @@ it built. A minimal shape:
 {
   "schema_version": 1,
   "bundle_version": "2026.04.1",
-  "created_at": "2026-04-18T14:22:03Z",
-  "components": {
-    "rke2":    { "version": "v1.33.1+rke2r1", "sha256": "…" },
-    "helm":    { "version": "v3.17.3",        "sha256": "…" },
-    "aether_ops": { "version": "v0.1.43",     "sha256": "…" }
+  "bundle_sha256": "",
+  "build_info": {
+    "go_version": "go1.22.x",
+    "git_sha": "abc1234",
+    "builder": "build-bundle",
+    "timestamp": "2026-04-18T14:22:03Z"
   },
-  "debs": [
-    { "name": "ansible", "version": "…", "sha256": "…", "source": "…" }
-  ],
-  "build_info": { "go_version": "…", "git_sha": "…" }
+  "components": {
+    "debs": [{ "name": "ansible", "version": "...", "sha256": "..." }],
+    "rke2": { "version": "v1.33.1+rke2r1", "artifacts": [] },
+    "helm": { "version": "v3.17.3", "files": [] },
+    "aether_ops": { "version": "v0.1.43", "files": [] }
+  }
 }
 ```
 

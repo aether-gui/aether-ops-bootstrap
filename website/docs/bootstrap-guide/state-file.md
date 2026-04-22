@@ -20,12 +20,12 @@ host. It lives at:
   "schema_version": 1,
   "launcher_version": "v0.1.43",
   "bundle_version": "2026.04.1",
-  "bundle_hash": "sha256:abcd…",
+  "bundle_hash": "",
   "roles": ["mgmt", "core"],
   "components": {
-    "debs":            { "version": "42",             "config_hash": "sha256:…", "installed_at": "2026-04-18T14:27:11Z" },
-    "rke2":            { "version": "v1.33.1+rke2r1", "config_hash": "sha256:…", "installed_at": "2026-04-18T14:31:02Z" },
-    "aether_ops":      { "version": "v0.1.43",        "config_hash": "sha256:…", "installed_at": "2026-04-18T14:32:44Z" }
+    "debs":            { "version": "2026.04.1",      "installed_at": "2026-04-18T14:27:11Z" },
+    "rke2":            { "version": "v1.33.1+rke2r1", "installed_at": "2026-04-18T14:31:02Z" },
+    "aether_ops":      { "version": "v0.1.43",        "installed_at": "2026-04-18T14:32:44Z" }
   },
   "history": [
     { "action": "install", "timestamp": "2026-04-18T14:32:44Z", "launcher_version": "v0.1.43", "bundle_version": "2026.04.1" },
@@ -44,7 +44,7 @@ run and refuses to proceed on an unrecognized `schema_version`.
 | `schema_version` | `1` for 0.1.x. Mismatch aborts preflight. |
 | `launcher_version` | Version string of the launcher that last wrote this file. |
 | `bundle_version` | Bundle calver last applied. |
-| `bundle_hash` | Content hash of the last applied bundle. |
+| `bundle_hash` | Bundle hash recorded from the manifest. In 0.1.x this is usually empty because the builder writes the archive checksum only as `bundle.tar.zst.sha256`. |
 | `roles` | Roles selected on the last run (omitted when no `--roles` flag was passed). |
 | `components` | Map from component name to its `ComponentState`. |
 | `history` | Append-only list of actions taken. |
@@ -54,15 +54,13 @@ run and refuses to proceed on an unrecognized `schema_version`.
 ```json
 {
   "version": "v1.33.1+rke2r1",
-  "config_hash": "sha256:…",
   "installed_at": "2026-04-18T14:31:02Z"
 }
 ```
 
 | Field | Description |
 |---|---|
-| `version` | What this component last installed. For `debs`, typically the count. For `rke2`, the RKE2 release tag. |
-| `config_hash` | Hash of the rendered templates this component wrote. Used to detect drift when a template changes between bundles. |
+| `version` | What this component last installed. For `rke2`, the RKE2 release tag. For several config-style components, the bundle version. |
 | `installed_at` | Timestamp of the last successful `Apply` for this component. |
 
 ### `HistoryEntry`
@@ -79,7 +77,7 @@ run and refuses to proceed on an unrecognized `schema_version`.
 
 | Field | Description |
 |---|---|
-| `action` | One of `install`, `upgrade`, `repair`. |
+| `action` | One of `install`, `upgrade`, `repair`, `check`. |
 | `timestamp` | When the action completed. |
 | `launcher_version` | Launcher that performed the action. |
 | `bundle_version` | Bundle applied (may differ across entries if bundles were swapped). |
@@ -90,33 +88,27 @@ truncates it.
 
 ## How state drives idempotency
 
-Every `Plan` call compares three things:
+Every `Plan` call compares the component's current version from state with
+the desired version from the bundle manifest.
 
 1. The component's **current version** from `state.components[name].version`.
 2. The component's **desired version** from the bundle's manifest.
-3. The component's **current config hash** vs. the hash of what the template
-   renders from the *new* bundle.
 
 ```mermaid
 flowchart TD
     start([Plan called])
     ver{"current<br/>== desired?"}
-    hash{"config hash<br/>matches?"}
     noop(["No-op (Skip)"])
     apply(["Apply"])
 
     start --> ver
     ver -->|no| apply
-    ver -->|yes| hash
-    hash -->|yes| noop
-    hash -->|no| apply
+    ver -->|yes| noop
 ```
 
-The **version mismatch** path is the normal "upgrade" case. The
-**config-hash mismatch, same version** path is the important subtle case:
-a template changed in the bundle between releases without the underlying
-binary moving (e.g. sshd drop-in tightened, sudoers rule added). The
-component re-applies and the new hash is recorded.
+The **version mismatch** path is the normal "upgrade" case. Template-only
+drift is not detected by `check` or `upgrade` in 0.1.x unless the component's
+desired version also changes.
 
 `repair` bypasses both checks and runs `Apply` regardless.
 
@@ -126,17 +118,16 @@ The launcher writes state **atomically**:
 
 1. Marshal the state struct to JSON (pretty-printed, 2-space indent).
 2. Create `.state-*.tmp` in the same directory with the new content.
-3. `fsync` and close the temp file.
+3. Close the temp file.
 4. `rename()` it over the existing file.
 
 This guarantees the state file is never partially written — either the old
 full content is there, or the new full content is. A launcher that dies
 mid-write leaves the previous state intact.
 
-After every successful component `Apply`, the state is re-written. So a
-failure halfway through install leaves a state file that reflects the
-components that did complete — `repair` or a retry of `install` will pick
-up from there.
+On success, the launcher writes final state after the component loop
+completes. If a component fails, the launcher makes a best-effort write of
+the state accumulated so far before returning the error.
 
 ## What the history tells you
 

@@ -30,7 +30,8 @@ was touched on the host.
 
 ### `unsupported Ubuntu version`
 
-**Cause.** `/etc/os-release` reports a version outside 22.04–26.04.
+**Cause.** `/etc/os-release` reports a version outside 22.04, 24.04, or 26.04
+(soon to be released).
 
 **Fix.** Use a supported Ubuntu release. The bundle's `.deb` dependency
 closure is resolved per suite at build time; running on an unsupported
@@ -94,7 +95,8 @@ Then `repair`.
 
 ### `ssh`
 
-**Symptoms.** sshd fails to reload, or the launcher logs `sshd -t` failure.
+**Symptoms.** sshd fails to restart after the drop-in is written, or SSH
+password authentication still does not work for the onramp user.
 
 **Usual causes.**
 - A pre-existing sshd drop-in conflicts with the one being written.
@@ -105,7 +107,7 @@ Then `repair`.
 ```bash
 sudo sshd -t                         # validates current config
 ls /etc/ssh/sshd_config.d/           # see all drop-ins
-sudo systemctl reload ssh            # reload after fixing
+sudo systemctl restart ssh           # restart after fixing
 ```
 
 Then `repair`.
@@ -183,11 +185,8 @@ sudo aether-ops-bootstrap repair --bundle bundle.tar.zst
 responds; or the service crashes on start.
 
 **Usual causes.**
-- **Misconfigured daemon.** `/etc/aether-ops/config.yaml` was hand-edited
-  in a previous session and is invalid. `repair` re-renders it from the
-  template.
 - **Port already in use.** Something else is listening on the port
-  aether-ops wants. `sudo ss -tlnp | grep <port>`.
+  aether-ops wants. In 0.1.x, check `sudo ss -tlnp | grep 8186`.
 - **Missing dependency on RKE2.** If the `rke2` component didn't complete,
   aether-ops will start but fail its health check because it can't reach
   the Kubernetes API. Fix `rke2` first.
@@ -214,11 +213,12 @@ aether-ops misbehaving. Sequence:
    ```bash
    systemctl is-active rke2-server aether-ops ssh
    ```
-3. **`check` reports no changes.**
+3. **`check` reports components as up to date.**
    ```bash
    sudo aether-ops-bootstrap check --bundle bundle.tar.zst
    ```
-   If `check` reports changes, drift has happened. `repair` fixes it.
+   If `check` reports planned actions, the state and desired bundle differ.
+   `repair` re-applies the selected components.
 4. **aether-ops' own logs don't show errors.**
    ```bash
    sudo journalctl -u aether-ops --since '5 minutes ago'
@@ -235,7 +235,7 @@ Always, for any failure you can't resolve in a minute or two. Running:
 sudo aether-ops-bootstrap diagnose --output /tmp
 ```
 
-produces `/tmp/aether-ops-bootstrap-diagnostics-<timestamp>.tar.gz`. Ship
+produces `/tmp/aether-bootstrap-diag-<timestamp>.tar.gz`. Ship
 that one file. It contains the state, the bootstrap log, recent service
 journals, and the configs the launcher installed — everything a support
 engineer needs to reproduce and diagnose without a second trip to the
@@ -245,6 +245,6 @@ The launcher also emits a diagnostic tarball **automatically** on any
 failed run. The path is printed in the log:
 
 ```
-diagnostic bundle saved to /tmp/aether-ops-bootstrap-diagnostics-20260418T143211.tar.gz
+diagnostic bundle saved to /tmp/aether-bootstrap-diag-20260418T143211.tar.gz
 please send this file for troubleshooting support
 ```
