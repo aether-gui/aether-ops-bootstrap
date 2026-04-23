@@ -79,10 +79,12 @@ func LogGeneratedPassword(username, password string) {
 	log.Println("")
 }
 
-// generateRandomPassword returns a URL-safe base64-encoded random string.
-// The length argument is the number of output characters before any
-// base64 padding is trimmed, so callers get approximately that many
-// characters of entropy.
+// generateRandomPassword returns a raw (unpadded) URL-safe base64
+// random string of exactly n characters. The function draws enough
+// random bytes to yield at least n encoded characters and then
+// truncates. Every output character is drawn from [A-Za-z0-9_-], which
+// is safe to splice into chpasswd stdin and ansible hosts.ini without
+// quoting.
 func generateRandomPassword(n int) (string, error) {
 	// 3 raw bytes encode to 4 base64 characters; request enough raw
 	// bytes to yield at least n characters.

@@ -87,6 +87,12 @@ func Install(ctx context.Context, opts InstallOpts) error {
 	// that planning never writes a generated password to the logs or
 	// fails because no explicit source was provided.
 	onrampUser, manifestPassword := onrampCredentialsFromManifest(manifest)
+	// Fail fast if the onramp user name is something useradd, visudo, or
+	// the ansible inventory would choke on. This catches a corrupt
+	// bundle before any side effect hits the host.
+	if err := installctx.ValidateOnrampUser(onrampUser); err != nil {
+		return fmt.Errorf("onramp user from bundle manifest: %w", err)
+	}
 	var onrampPassword, onrampPasswordSource string
 	if !opts.DryRun {
 		onrampPassword, onrampPasswordSource, err = ResolveOnrampPassword(opts.OnrampPassword, manifestPassword)

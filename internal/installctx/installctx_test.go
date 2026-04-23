@@ -38,6 +38,39 @@ func TestValidateOnrampPassword_AcceptsPrintable(t *testing.T) {
 	}
 }
 
+func TestValidateOnrampUser_AcceptsPortableNames(t *testing.T) {
+	ok := []string{"aether", "aether-ops", "user_1", "A", "a", "svc-01"}
+	for _, name := range ok {
+		if err := ValidateOnrampUser(name); err != nil {
+			t.Errorf("ValidateOnrampUser(%q) = %v, want nil", name, err)
+		}
+	}
+}
+
+func TestValidateOnrampUser_RejectsBadNames(t *testing.T) {
+	tests := []struct {
+		name string
+		val  string
+	}{
+		{"empty", ""},
+		{"digit first", "1aether"},
+		{"dash first", "-aether"},
+		{"underscore first", "_aether"},
+		{"shell metachar semicolon", "aether;rm"},
+		{"whitespace", "aether "},
+		{"dollar sign", "aether$"},
+		{"embedded newline", "aether\nroot"},
+		{"too long", strings.Repeat("a", 33)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := ValidateOnrampUser(tc.val); err == nil {
+				t.Errorf("ValidateOnrampUser(%q) returned nil, want error", tc.val)
+			}
+		})
+	}
+}
+
 func TestValidateOnrampPassword_RejectsControlChars(t *testing.T) {
 	tests := []struct {
 		name string

@@ -1,7 +1,6 @@
 package serviceaccount
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -103,30 +102,6 @@ func TestIsLockedShell(t *testing.T) {
 	for _, s := range loginCapable {
 		if isLockedShell(s) {
 			t.Errorf("isLockedShell(%q) = true, want false", s)
-		}
-	}
-}
-
-func TestValidateUsername(t *testing.T) {
-	ok := []string{"aether", "aether-ops", "user_1", "a"}
-	for _, name := range ok {
-		if err := validateUsername(name); err != nil {
-			t.Errorf("validateUsername(%q) = %v, want nil", name, err)
-		}
-	}
-	bad := []string{
-		"",                      // empty
-		"1aether",               // digit first
-		"-aether",               // dash first
-		"_aether",               // underscore first
-		"aether;rm",             // shell metachar
-		"aether ",               // whitespace
-		"aether$",               // shell metachar
-		strings.Repeat("a", 33), // too long
-	}
-	for _, name := range bad {
-		if err := validateUsername(name); err == nil {
-			t.Errorf("validateUsername(%q) returned nil, want error", name)
 		}
 	}
 }

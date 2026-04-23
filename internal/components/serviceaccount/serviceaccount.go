@@ -146,7 +146,7 @@ func createDaemonAccount(ctx context.Context) error {
 // password alone so operators who rotated it post-install don't get
 // silently overwritten.
 func createOnrampUser(ctx context.Context, username, password string) error {
-	if err := validateUsername(username); err != nil {
+	if err := installctx.ValidateOnrampUser(username); err != nil {
 		return err
 	}
 	// Defense-in-depth: the launcher validates the password when it
@@ -222,32 +222,4 @@ func isLockedShell(shell string) bool {
 		return true
 	}
 	return false
-}
-
-// validateUsername enforces the conservative POSIX-portable subset of
-// characters allowed in a Unix username. Reused by callers that interpolate
-// the onramp user into shell commands, sudoers drop-ins, or inventory files.
-//
-// Rationale: the username flows from a bundle spec into exec argv, sudoers
-// file contents, and hosts.ini; any validation lapse is a straight path to
-// command injection or sudoers corruption. Keeping the rule strict and
-// centralized means every interpolation site inherits the same check.
-func validateUsername(name string) error {
-	if name == "" {
-		return fmt.Errorf("onramp user name is empty")
-	}
-	if len(name) > 32 {
-		return fmt.Errorf("onramp user name %q is too long (max 32)", name)
-	}
-	for i, r := range name {
-		switch {
-		case r >= 'a' && r <= 'z':
-		case r >= 'A' && r <= 'Z':
-		case r >= '0' && r <= '9' && i > 0:
-		case (r == '_' || r == '-') && i > 0:
-		default:
-			return fmt.Errorf("onramp user name %q contains invalid character %q", name, r)
-		}
-	}
-	return nil
 }

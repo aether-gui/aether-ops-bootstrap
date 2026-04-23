@@ -148,16 +148,28 @@ var inventoryNodeLine = regexp.MustCompile(`^[ \t]*[A-Za-z0-9_.-]+[ \t]+[^\n#]*\
 // identical file. Callers invoke this every install/upgrade/repair so
 // password rotations at the launcher layer propagate into the inventory.
 func setInventoryCredentials(path, onrampUser, password string) error {
-	// Defense-in-depth: the launcher validates the password on resolve,
+	// Defense-in-depth: the launcher validates both values on resolve,
 	// but a rogue callpath (tests, future direct API) could stuff a
-	// newline-bearing value onto the context. Rewriting hosts.ini with
-	// such a value would split the node record across lines.
+	// newline-bearing value through. A newline in the username or
+	// password would split the node record and potentially inject
+	// extra inventory lines.
+	if err := installctx.ValidateOnrampUser(onrampUser); err != nil {
+		return fmt.Errorf("onramp user: %w", err)
+	}
 	if err := installctx.ValidateOnrampPassword(password); err != nil {
 		return fmt.Errorf("onramp password: %w", err)
 	}
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	// Mode 0640 is intentional: the daemon runs as aether-ops and must
+	// read this file; nothing else on the host should. Apply this
+	// unconditionally — if the rewrite is a no-op we still tighten
+	// permissions in case the file was staged with a looser mode.
+	if err := os.Chmod(path, 0640); err != nil {
+		return fmt.Errorf("chmod %s: %w", path, err)
 	}
 
 	lines := strings.Split(string(content), "\n")
@@ -178,8 +190,6 @@ func setInventoryCredentials(path, onrampUser, password string) error {
 		return nil
 	}
 
-	// Mode 0640 is intentional: the daemon runs as aether-ops and must
-	// read this file; nothing else on the host should.
 	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0640); err != nil {
 		return fmt.Errorf("writing %s: %w", path, err)
 	}

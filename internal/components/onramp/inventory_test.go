@@ -110,6 +110,42 @@ func TestSetInventoryCredentials_ReplacesExistingValues(t *testing.T) {
 	}
 }
 
+func TestSetInventoryCredentials_TightensModeEvenOnNoop(t *testing.T) {
+	// Seed a file that already has the desired credentials but is
+	// world-readable. The credentials stamp is a no-op, but
+	// permissions must still come down to 0640 so the password-bearing
+	// line is not exposed to every local user.
+	seed := "[all]\nnode1 ansible_host=127.0.0.1 ansible_user=aether ansible_password=s3cret\n"
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hosts.ini")
+	if err := os.WriteFile(path, []byte(seed), 0644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := os.Chmod(path, 0644); err != nil {
+		t.Fatalf("chmod seed: %v", err)
+	}
+
+	if err := setInventoryCredentials(path, "aether", "s3cret"); err != nil {
+		t.Fatalf("setInventoryCredentials: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode := info.Mode().Perm(); mode != 0640 {
+		t.Errorf("mode = %o, want 0640 even on credential-unchanged path", mode)
+	}
+}
+
+func TestSetInventoryCredentials_RejectsBadOnrampUser(t *testing.T) {
+	path := writeHostsIni(t, upstreamHostsIni)
+	err := setInventoryCredentials(path, "bad\nuser", "s3cret")
+	if err == nil {
+		t.Fatal("setInventoryCredentials should reject an onramp user containing a newline")
+	}
+}
+
 func TestSetInventoryCredentials_QuotesPasswordWithSpecials(t *testing.T) {
 	path := writeHostsIni(t, upstreamHostsIni)
 	if err := setInventoryCredentials(path, "aether", "sp ace#hash"); err != nil {

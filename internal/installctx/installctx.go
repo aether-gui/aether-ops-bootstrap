@@ -29,6 +29,39 @@ func OnrampPasswordFromContext(ctx context.Context) string {
 	return v
 }
 
+// ValidateOnrampUser enforces the conservative POSIX-portable subset of
+// characters allowed in a Unix username, applied wherever the onramp
+// user name crosses a trust boundary:
+//
+//   - spec/manifest → launcher (fail the install before anything runs)
+//   - manifest → serviceaccount (useradd / chpasswd arguments)
+//   - manifest → onramp (hosts.ini content)
+//
+// Rationale: the username flows from a bundle spec into exec argv, the
+// sudoers drop-in, and the ansible inventory. Any validation lapse is a
+// straight path to command injection or file corruption. Keeping the
+// rule strict and centralized means every interpolation site inherits
+// the same check.
+func ValidateOnrampUser(name string) error {
+	if name == "" {
+		return fmt.Errorf("onramp user name is empty")
+	}
+	if len(name) > 32 {
+		return fmt.Errorf("onramp user name %q is too long (max 32)", name)
+	}
+	for i, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r >= '0' && r <= '9' && i > 0:
+		case (r == '_' || r == '-') && i > 0:
+		default:
+			return fmt.Errorf("onramp user name %q contains invalid character %q", name, r)
+		}
+	}
+	return nil
+}
+
 // ValidateOnrampPassword rejects any password that would be unsafe to
 // feed into chpasswd stdin or write into an ansible hosts.ini line.
 //
