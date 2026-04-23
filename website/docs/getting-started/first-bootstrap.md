@@ -110,6 +110,29 @@ Fix it first — see [common problems](./common-problems.md).
 sudo ./aether-ops-bootstrap install --bundle bundle.tar.zst
 ```
 
+The installer creates an onramp user (default name: `aether`) and sets
+its password. If you do not supply a password, the installer generates a
+random one and prints it to stderr inside an `IMPORTANT: record this
+password` banner as soon as the password is resolved (early in the
+install, before the long component work). This way the credential is
+recoverable even if a later stage fails. To pin a known value up front:
+
+```bash
+sudo ./aether-ops-bootstrap install --bundle bundle.tar.zst \
+    --onramp-password 'your-password-here'
+```
+
+Or via environment variable (handy in CI or when the value should not
+show up in shell history):
+
+```bash
+sudo AETHER_ONRAMP_PASSWORD='your-password-here' \
+    ./aether-ops-bootstrap install --bundle bundle.tar.zst
+```
+
+See the [CLI reference](/bootstrap-guide/cli-reference#--onramp-password-value)
+for the full precedence (flag → env → spec → generated).
+
 This will take **5 – 15 minutes** depending on disk speed and whether images
 have to be unpacked. Expected stages in the log:
 

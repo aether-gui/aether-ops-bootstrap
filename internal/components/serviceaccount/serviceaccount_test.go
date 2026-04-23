@@ -47,3 +47,61 @@ func TestPlanReturnsActions(t *testing.T) {
 		t.Error("Plan should return actions for new install")
 	}
 }
+
+func TestPlanCreatesTwoAccounts_DefaultUser(t *testing.T) {
+	c := New()
+	// Manifest without an explicit OnrampUser; the component should
+	// default to "aether" (distinct from the "aether-ops" daemon).
+	c.SetManifest(&bundle.Manifest{
+		Components: bundle.ComponentList{
+			AetherOps: &bundle.AetherOpsEntry{},
+		},
+	})
+	plan, err := c.Plan("", "2026.04.1")
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if len(plan.Actions) != 2 {
+		t.Fatalf("len(Actions) = %d, want 2 (daemon + onramp)", len(plan.Actions))
+	}
+	// Order matters: the daemon account is created first so the
+	// service account's group exists before anything else that tries
+	// to chown into /var/lib/aether-ops.
+	if got := plan.Actions[0].Description; got != "create daemon account aether-ops" {
+		t.Errorf("Actions[0] = %q, want %q", got, "create daemon account aether-ops")
+	}
+	if got := plan.Actions[1].Description; got != "create onramp user aether" {
+		t.Errorf("Actions[1] = %q, want %q", got, "create onramp user aether")
+	}
+}
+
+func TestPlanUsesExplicitOnrampUser(t *testing.T) {
+	c := New()
+	c.SetManifest(&bundle.Manifest{
+		Components: bundle.ComponentList{
+			AetherOps: &bundle.AetherOpsEntry{OnrampUser: "ops-engineer"},
+		},
+	})
+	plan, err := c.Plan("", "2026.04.1")
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if plan.Actions[1].Description != "create onramp user ops-engineer" {
+		t.Errorf("Actions[1] = %q, want the configured onramp user", plan.Actions[1].Description)
+	}
+}
+
+func TestIsLockedShell(t *testing.T) {
+	locked := []string{"/usr/sbin/nologin", "/sbin/nologin", "/bin/false", "/usr/bin/false"}
+	for _, s := range locked {
+		if !isLockedShell(s) {
+			t.Errorf("isLockedShell(%q) = false, want true", s)
+		}
+	}
+	loginCapable := []string{"/bin/bash", "/bin/sh", "/usr/bin/zsh", "", "/opt/homebrew/bin/fish"}
+	for _, s := range loginCapable {
+		if isLockedShell(s) {
+			t.Errorf("isLockedShell(%q) = true, want false", s)
+		}
+	}
+}

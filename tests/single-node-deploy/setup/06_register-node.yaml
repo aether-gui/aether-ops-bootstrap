@@ -10,9 +10,9 @@
           -d '{
             "name": "localhost",
             "ansible_host": "127.0.0.1",
-            "ansible_user": "aether-ops",
-            "password": "aether",
-            "sudo_password": "aether",
+            "ansible_user": "aether",
+            "password": "e2e-test",
+            "sudo_password": "e2e-test",
             "roles": ["master", "worker"]
           }' | jq -e '.id != ""'
 

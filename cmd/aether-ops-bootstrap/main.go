@@ -63,6 +63,7 @@ func cmdRun(action string, dryRun, repair bool) {
 	force := false
 	rolesCSV := ""
 	verbose := false
+	onrampPassword := ""
 
 	for i := 2; i < len(os.Args); i++ {
 		switch os.Args[i] {
@@ -84,6 +85,13 @@ func cmdRun(action string, dryRun, repair bool) {
 			}
 		case "--verbose", "-v":
 			verbose = true
+		case "--onramp-password":
+			if i+1 < len(os.Args) {
+				onrampPassword = os.Args[i+1]
+				i++
+			} else {
+				log.Fatal("--onramp-password requires a value argument")
+			}
 		default:
 			log.Fatalf("unknown flag: %s", os.Args[i])
 		}
@@ -114,14 +122,15 @@ func cmdRun(action string, dryRun, repair bool) {
 	}
 
 	opts := launcher.InstallOpts{
-		BundlePath: bundlePath,
-		Force:      force,
-		DryRun:     dryRun,
-		Repair:     repair,
-		Action:     action,
-		Version:    version,
-		Roles:      roles,
-		Verbose:    verbose,
+		BundlePath:     bundlePath,
+		Force:          force,
+		DryRun:         dryRun,
+		Repair:         repair,
+		Action:         action,
+		Version:        version,
+		Roles:          roles,
+		Verbose:        verbose,
+		OnrampPassword: onrampPassword,
 	}
 
 	if err := launcher.Install(context.Background(), opts); err != nil {
@@ -179,11 +188,25 @@ func cmdDiagnose() {
 }
 
 func setupLogTee(path string) (*os.File, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	// The directory holds the bootstrap log and state file; tighten it
+	// to 0750 so non-root users cannot enumerate install artefacts.
+	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
 		return nil, err
 	}
-	f, err := os.Create(path)
+	// 0600 is load-bearing: the generated onramp password is written
+	// into this file verbatim by the IMPORTANT banner, so anything more
+	// permissive would leak the credential to every local user. Use
+	// O_CREATE|O_TRUNC|O_WRONLY rather than os.Create so the explicit
+	// mode is applied even when the file already exists — os.Chmod
+	// afterwards would race a parallel read.
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
+		return nil, err
+	}
+	// Defensive re-chmod: if the file pre-existed with looser perms,
+	// OpenFile honours the existing mode. Chmod brings it back to 0600.
+	if err := os.Chmod(path, 0600); err != nil {
+		f.Close()
 		return nil, err
 	}
 	log.SetOutput(io.MultiWriter(os.Stderr, f))
@@ -221,10 +244,16 @@ func usage() {
 	}
 	fmt.Println()
 	fmt.Println("Flags:")
-	fmt.Println("  --bundle <path>    Path to the bundle tar.zst file (required)")
-	fmt.Println("  --force            Override a prior successful install")
-	fmt.Println("  --roles <roles>    Comma-separated node roles (default: all)")
-	fmt.Println("  --verbose, -v      Stream subprocess output (dpkg, etc.) live to stderr")
+	fmt.Println("  --bundle <path>          Path to the bundle tar.zst file (required)")
+	fmt.Println("  --force                  Override a prior successful install")
+	fmt.Println("  --roles <roles>          Comma-separated node roles (default: all)")
+	fmt.Println("  --verbose, -v            Stream subprocess output (dpkg, etc.) live to stderr")
+	fmt.Println("  --onramp-password <pw>   Password for the onramp Ansible user.")
+	fmt.Println("                           Sources in order of precedence:")
+	fmt.Println("                             1. --onramp-password flag")
+	fmt.Println("                             2. AETHER_ONRAMP_PASSWORD env var")
+	fmt.Println("                             3. aether_ops.onramp_password in the bundle spec")
+	fmt.Println("                             4. a random password, logged to stderr")
 	fmt.Println()
 	fmt.Println("Roles:")
 	fmt.Println("  mgmt       Management plane (aether-ops, Ansible)")

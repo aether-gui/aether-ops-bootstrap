@@ -1,3 +1,19 @@
+// Package serviceaccount provisions two distinct OS accounts the rest of
+// the bootstrap relies on:
+//
+//   - aether-ops — the daemon's service account. System account, no home,
+//     nologin shell, no password. Only systemd starts processes as this
+//     user; it never accepts interactive logins or Ansible SSH.
+//
+//   - onramp user (default "aether", configurable via aether_ops.onramp_user
+//     in the spec) — the identity Ansible SSHes into to run aether-onramp
+//     playbooks. Login shell, home directory, password set from the
+//     launcher-resolved onramp password.
+//
+// The two accounts were briefly unified in commit 64653cf; the split was
+// restored because password-based SSH into the daemon account blurred the
+// daemon/deploy-identity boundary and made the sshd and sudoers drop-ins
+// harder to reason about.
 package serviceaccount
 
 import (
@@ -11,12 +27,16 @@ import (
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/cmdutil"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/installctx"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
 )
 
-// Component creates the aether-ops account that serves as both the
-// daemon's service user and the ansible SSH target for onramp
-// playbook execution.
+// daemonAccount is the service user/group under which the aether-ops
+// daemon runs. Kept as a constant because nothing should ever reconfigure
+// it — rke2, helm, onramp, and the systemd unit all assume this name.
+const daemonAccount = "aether-ops"
+
+// Component provisions the daemon service account and the onramp user.
 type Component struct {
 	manifest *bundle.Manifest
 }
@@ -49,23 +69,26 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 		return components.Plan{NoOp: true}, nil
 	}
 
-	// aether-ops is both the service account and the ansible target
-	// user — a single login-capable account that runs the daemon AND
-	// receives the ansible ssh sessions it generates. The password
-	// defaults to "aether" for first-boot ansible access; operators
-	// should change it after setup.
-	password := "aether"
+	onrampUser := "aether"
 	if c.manifest != nil && c.manifest.Components.AetherOps != nil {
-		if c.manifest.Components.AetherOps.OnrampPassword != "" {
-			password = c.manifest.Components.AetherOps.OnrampPassword
+		if c.manifest.Components.AetherOps.OnrampUser != "" {
+			onrampUser = c.manifest.Components.AetherOps.OnrampUser
 		}
 	}
 
 	actions := []components.Action{
 		{
-			Description: "create aether-ops service + onramp account",
+			Description: fmt.Sprintf("create daemon account %s", daemonAccount),
+			Fn:          createDaemonAccount,
+		},
+		{
+			Description: fmt.Sprintf("create onramp user %s", onrampUser),
 			Fn: func(ctx context.Context) error {
-				return createServiceAccount(ctx, password)
+				password := installctx.OnrampPasswordFromContext(ctx)
+				if password == "" {
+					return fmt.Errorf("onramp password missing on context; launcher should resolve it before Apply")
+				}
+				return createOnrampUser(ctx, onrampUser, password)
 			},
 		},
 	}
@@ -77,45 +100,126 @@ func (c *Component) Apply(ctx context.Context, plan components.Plan) error {
 	return components.ApplyPlan(ctx, c.Name(), plan)
 }
 
-func createServiceAccount(ctx context.Context, password string) error {
-	if _, err := user.LookupGroup("aether-ops"); err != nil {
-		cmd := exec.CommandContext(ctx, "groupadd", "aether-ops")
+// createDaemonAccount creates the aether-ops system user and group. The
+// account never accepts interactive logins: no home directory, nologin
+// shell, no password. Idempotent — pre-existing group/user are left alone.
+func createDaemonAccount(ctx context.Context) error {
+	if _, err := user.LookupGroup(daemonAccount); err != nil {
+		cmd := exec.CommandContext(ctx, "groupadd", "--system", daemonAccount)
 		if output, err := cmdutil.Run(ctx, cmd); err != nil {
-			return fmt.Errorf("groupadd aether-ops: %w\n%s", err, output)
+			return fmt.Errorf("groupadd %s: %w\n%s", daemonAccount, err, output)
 		}
-		log.Printf("  created group aether-ops")
+		log.Printf("  created group %s", daemonAccount)
 	}
 
-	_, err := user.Lookup("aether-ops")
-	userExists := err == nil
-
-	if !userExists {
-		// aether-ops needs a home directory and a real shell because
-		// ansible ssh's into it to run onramp playbook tasks. The
-		// password lets the daemon-generated hosts.ini (ansible_user=
-		// aether-ops ansible_password=...) authenticate without key
-		// provisioning on the localhost loop-back.
-		cmd := exec.CommandContext(ctx, "useradd",
-			"--create-home",
-			"--shell", "/bin/bash",
-			"--gid", "aether-ops",
-			"aether-ops",
-		)
-		if output, err := cmdutil.Run(ctx, cmd); err != nil {
-			return fmt.Errorf("useradd aether-ops: %w\n%s", err, output)
+	if _, err := user.Lookup(daemonAccount); err == nil {
+		// Detect the stale unified-account configuration from commit
+		// 64653cf (never released): a pre-existing aether-ops that has
+		// a login shell suggests an upgrade across the split. Warn and
+		// leave the account alone — auto-changing a live account's
+		// shell could surprise operators who adjusted it deliberately.
+		if shell, err := readLoginShell(ctx, daemonAccount); err == nil && !isLockedShell(shell) {
+			log.Printf("  warning: existing %s account has login shell %q (expected /usr/sbin/nologin).", daemonAccount, shell)
+			log.Printf("  warning: run `sudo usermod -s /usr/sbin/nologin %s && sudo passwd -l %s` to lock it.", daemonAccount, daemonAccount)
 		}
-		log.Printf("  created user aether-ops")
-
-		// Only set password on initial creation — don't reset on upgrades.
-		cmd = exec.CommandContext(ctx, "chpasswd")
-		cmd.Stdin = strings.NewReader("aether-ops:" + password + "\n")
-		if output, err := cmdutil.Run(ctx, cmd); err != nil {
-			return fmt.Errorf("chpasswd for aether-ops: %w\n%s", err, output)
-		}
-		log.Printf("  set password for aether-ops")
-	} else {
-		log.Printf("  user aether-ops already exists (password unchanged)")
+		log.Printf("  user %s already exists", daemonAccount)
+		return nil
 	}
 
+	cmd := exec.CommandContext(ctx, "useradd",
+		"--system",
+		"--no-create-home",
+		"--shell", "/usr/sbin/nologin",
+		"--gid", daemonAccount,
+		daemonAccount,
+	)
+	if output, err := cmdutil.Run(ctx, cmd); err != nil {
+		return fmt.Errorf("useradd %s: %w\n%s", daemonAccount, err, output)
+	}
+	log.Printf("  created user %s (system, nologin)", daemonAccount)
 	return nil
+}
+
+// createOnrampUser creates the interactive onramp account used as the
+// Ansible SSH target. The password is set on initial creation only — an
+// upgrade or repair that re-runs this action leaves an existing user's
+// password alone so operators who rotated it post-install don't get
+// silently overwritten.
+func createOnrampUser(ctx context.Context, username, password string) error {
+	if err := installctx.ValidateOnrampUser(username); err != nil {
+		return err
+	}
+	// Defense-in-depth: the launcher validates the password when it
+	// resolves it, but anyone pushing a value directly onto the context
+	// (e.g. a test harness) has not been through that path. A password
+	// containing \n here would let chpasswd inject additional
+	// user:pass records into /etc/shadow.
+	if err := installctx.ValidateOnrampPassword(password); err != nil {
+		return fmt.Errorf("onramp password: %w", err)
+	}
+
+	// Ensure a group matching the username exists before useradd so the
+	// primary-group assignment is deterministic.
+	if _, err := user.LookupGroup(username); err != nil {
+		cmd := exec.CommandContext(ctx, "groupadd", username)
+		if output, err := cmdutil.Run(ctx, cmd); err != nil {
+			return fmt.Errorf("groupadd %s: %w\n%s", username, err, output)
+		}
+		log.Printf("  created group %s", username)
+	}
+
+	if _, err := user.Lookup(username); err == nil {
+		log.Printf("  user %s already exists (password unchanged)", username)
+		return nil
+	}
+
+	cmd := exec.CommandContext(ctx, "useradd",
+		"--create-home",
+		"--shell", "/bin/bash",
+		"--gid", username,
+		username,
+	)
+	if output, err := cmdutil.Run(ctx, cmd); err != nil {
+		return fmt.Errorf("useradd %s: %w\n%s", username, err, output)
+	}
+	log.Printf("  created user %s", username)
+
+	pw := exec.CommandContext(ctx, "chpasswd")
+	pw.Stdin = strings.NewReader(username + ":" + password + "\n")
+	if output, err := cmdutil.Run(ctx, pw); err != nil {
+		return fmt.Errorf("chpasswd for %s: %w\n%s", username, err, output)
+	}
+	log.Printf("  set password for %s", username)
+	return nil
+}
+
+// readLoginShell returns the login shell recorded in the nsswitch-aware
+// passwd database for username. It uses `getent passwd` so the lookup
+// honours LDAP, SSSD, and any other NSS backend the host has configured
+// — direct /etc/passwd reads would miss those. The return is a pure
+// read and makes no changes to the system.
+func readLoginShell(ctx context.Context, username string) (string, error) {
+	cmd := exec.CommandContext(ctx, "getent", "passwd", username)
+	out, err := cmdutil.Run(ctx, cmd)
+	if err != nil {
+		return "", fmt.Errorf("getent passwd %s: %w", username, err)
+	}
+	// passwd format: login:x:uid:gid:gecos:home:shell
+	fields := strings.Split(strings.TrimSpace(string(out)), ":")
+	if len(fields) < 7 {
+		return "", fmt.Errorf("unexpected getent output for %s: %q", username, out)
+	}
+	return fields[6], nil
+}
+
+// isLockedShell reports whether shell is one of the conventional
+// "account cannot interactively log in" values. Accepting both
+// /usr/sbin/nologin and /bin/false covers every distro-specific path
+// the system might report.
+func isLockedShell(shell string) bool {
+	switch shell {
+	case "/usr/sbin/nologin", "/sbin/nologin", "/bin/false", "/usr/bin/false":
+		return true
+	}
+	return false
 }

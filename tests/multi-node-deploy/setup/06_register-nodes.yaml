@@ -10,9 +10,9 @@
           -d '{
             "name": "core",
             "ansible_host": "10.200.4.11",
-            "ansible_user": "aether-ops",
-            "password": "aether",
-            "sudo_password": "aether",
+            "ansible_user": "aether",
+            "password": "e2e-test",
+            "sudo_password": "e2e-test",
             "roles": ["master", "worker"]
           }' | jq -e '.id != ""'
 
@@ -28,9 +28,9 @@
           -d '{
             "name": "gnb",
             "ansible_host": "10.200.4.12",
-            "ansible_user": "aether-ops",
-            "password": "aether",
-            "sudo_password": "aether",
+            "ansible_user": "aether",
+            "password": "e2e-test",
+            "sudo_password": "e2e-test",
             "roles": ["srsran"]
           }' | jq -e '.id != ""'
 

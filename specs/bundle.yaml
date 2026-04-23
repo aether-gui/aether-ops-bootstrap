@@ -44,9 +44,30 @@ aether_ops:
   source: ./artifacts/aether-ops_0.1.48_linux_amd64.tar.gz  # local pre-built binary
   # ref: "main"           # build from source at this git ref (mutually exclusive with source)
   # repo: aether-gui/aether-ops
-  # frontend_ref: ""     # override frontend submodule (source build only)
-  # onramp_user: aether-ops  # OS user for Ansible SSH deployments (default: aether-ops, shared with the daemon service account)
-  # onramp_password not shown here — provide at runtime, not in checked-in specs
+  # frontend_ref: ""      # override frontend submodule (source build only)
+
+  # --- onramp user (Ansible SSH target) -----------------------------------
+  # The onramp user is the OS identity aether-onramp's Ansible playbooks
+  # SSH into. It is distinct from the daemon service account "aether-ops"
+  # (which runs aether-ops itself and has no login shell). Default: aether.
+  # onramp_user: aether
+
+  # --- onramp password ---------------------------------------------------
+  # DO NOT COMMIT onramp_password in a tracked spec. Prefer a runtime
+  # source. The installer resolves the password in this order:
+  #
+  #   1. --onramp-password <value>         (CLI flag on `install`)
+  #   2. AETHER_ONRAMP_PASSWORD            (environment variable)
+  #   3. aether_ops.onramp_password        (this spec field)
+  #   4. random 24-char string, logged to stderr immediately after
+  #      password resolution (before component work) so the value
+  #      survives a later-stage install failure
+  #
+  # A spec-level password is still honoured so gitignored local test
+  # specs (e.g. specs/.scratch-*.yaml, which are covered by specs/.* in
+  # .gitignore) can pin a known value. Checked-in specs should leave it
+  # unset and rely on the CLI flag or env var.
+  # onramp_password: "set-via-runtime"
 
 # aether-onramp is the Ansible toolchain the aether-ops service invokes
 # to deploy 5G workloads. The builder clones it at build time (pinning

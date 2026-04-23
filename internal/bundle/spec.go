@@ -130,13 +130,21 @@ type ImagesSpec struct {
 //   - Source build: ref set → clone repo at ref, build from source
 //   - Local: source set → use a local pre-built binary or release archive
 type AetherOpsSpec struct {
-	Version        string `yaml:"version"`                   // required: version string (used for ldflags and release URL)
-	Source         string `yaml:"source,omitempty"`          // local path to pre-built binary or release tar.gz
-	Ref            string `yaml:"ref,omitempty"`             // git ref (tag/branch/SHA) → build from source
-	FrontendRef    string `yaml:"frontend_ref,omitempty"`    // override frontend submodule ref (source build only)
-	Repo           string `yaml:"repo,omitempty"`            // GitHub owner/name, default: aether-gui/aether-ops
-	OnrampUser     string `yaml:"onramp_user,omitempty"`     // OS user for Ansible SSH deployments, default: "aether-ops" (shared with the daemon's service account)
-	OnrampPassword string `yaml:"onramp_password,omitempty"` // default: "aether"; change immediately after initial setup
+	Version     string `yaml:"version"`                // required: version string (used for ldflags and release URL)
+	Source      string `yaml:"source,omitempty"`       // local path to pre-built binary or release tar.gz
+	Ref         string `yaml:"ref,omitempty"`          // git ref (tag/branch/SHA) → build from source
+	FrontendRef string `yaml:"frontend_ref,omitempty"` // override frontend submodule ref (source build only)
+	Repo        string `yaml:"repo,omitempty"`         // GitHub owner/name, default: aether-gui/aether-ops
+	// OnrampUser is the OS user that Ansible SSHes into to run onramp
+	// playbooks. Default: "aether". It is distinct from the daemon's
+	// service account ("aether-ops"), which has no login shell.
+	OnrampUser string `yaml:"onramp_user,omitempty"`
+	// OnrampPassword is the optional, strongly-discouraged spec-level
+	// password for the onramp user. Prefer --onramp-password on the
+	// installer CLI or the AETHER_ONRAMP_PASSWORD env var. If no source
+	// is provided the installer generates and logs a random password.
+	// Do NOT commit this field to checked-in specs.
+	OnrampPassword string `yaml:"onramp_password,omitempty"`
 }
 
 // ParseSpec reads and parses a bundle.yaml file.
@@ -174,11 +182,12 @@ func applySpecDefaults(s *Spec) {
 			s.AetherOps.Repo = DefaultAetherOpsRepo
 		}
 		if s.AetherOps.OnrampUser == "" {
-			s.AetherOps.OnrampUser = "aether-ops"
+			s.AetherOps.OnrampUser = "aether"
 		}
-		if s.AetherOps.OnrampPassword == "" {
-			s.AetherOps.OnrampPassword = "aether"
-		}
+		// OnrampPassword is intentionally NOT defaulted here: if the
+		// spec does not set it, the installer resolves it at runtime
+		// from --onramp-password, AETHER_ONRAMP_PASSWORD, or a freshly
+		// generated random string.
 	}
 }
 

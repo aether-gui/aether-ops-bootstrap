@@ -114,9 +114,9 @@ func TestPlan_ActionsForOnrampAndCharts(t *testing.T) {
 	if p.NoOp {
 		t.Fatal("plan should not be NoOp")
 	}
-	// onramp install + one chart install + chown step
-	if len(p.Actions) != 3 {
-		t.Fatalf("len(Actions) = %d, want 3 (onramp, chart, chown)", len(p.Actions))
+	// onramp install + one chart install + credential injection + chown step
+	if len(p.Actions) != 4 {
+		t.Fatalf("len(Actions) = %d, want 4 (onramp, chart, set creds, chown)", len(p.Actions))
 	}
 }
 
