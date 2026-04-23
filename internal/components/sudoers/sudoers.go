@@ -11,6 +11,7 @@ import (
 	"text/template"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/cmdutil"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
 )
@@ -103,7 +104,7 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 				tmpFile.Close()
 
 				cmd := exec.CommandContext(ctx, "visudo", "-c", "-f", tmpPath)
-				if output, err := cmd.CombinedOutput(); err != nil {
+				if output, err := cmdutil.Run(ctx, cmd); err != nil {
 					return fmt.Errorf("sudoers validation failed for %s: %w\n%s", entryName, err, output)
 				}
 
@@ -132,12 +133,7 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 }
 
 func (c *Component) Apply(ctx context.Context, plan components.Plan) error {
-	for _, action := range plan.Actions {
-		if err := action.Fn(ctx); err != nil {
-			return err
-		}
-	}
-	return nil
+	return components.ApplyPlan(ctx, c.Name(), plan)
 }
 
 func (c *Component) onrampUser() string {
