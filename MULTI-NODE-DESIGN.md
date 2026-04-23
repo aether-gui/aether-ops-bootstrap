@@ -147,7 +147,7 @@ For multi-node deployments, the management spec drops RKE2 and Helm. This might 
 ## Phased Roadmap
 
 ### Phase 1: Multi-role specs + new components
-- Extract current `bundle.yaml` into `specs/management.yaml` (slim: no RKE2/Helm)
+- Extract current `specs/bundle.yaml` into `specs/management.yaml` (slim: no RKE2/Helm)
 - Write `specs/sdcore.yaml` (RKE2 server, Helm, SD-Core charts, images)
 - Write `specs/gnb.yaml` (Docker, gNB images, OS tuning)
 - Add components: `docker`, `os_tuning`, `images`; add agent mode to `rke2`

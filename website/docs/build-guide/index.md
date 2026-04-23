@@ -58,9 +58,9 @@ Produces `dist/bundle.tar.zst` and `dist/bundle.tar.zst.sha256`. See
 
 ### I'm bumping RKE2 (or any upstream pin)
 
-1. Edit `bundle.yaml` — change the version.
+1. Edit `specs/bundle.yaml` — change the version.
 2. Run `make bundle`. The builder re-fetches, re-pins, and rewrites the lockfile.
-3. Commit **both** `bundle.yaml` and `bundle.lock.json` in the same PR.
+3. Commit **both** `specs/bundle.yaml` and `specs/bundle.lock.json` in the same PR.
 
 See [versioning](./versioning.md) for which version numbers move when.
 
@@ -79,13 +79,13 @@ scans are generated, and every artifact is attached to the GitHub release.
 
 ### I'm adding a new `.deb` to the bundle
 
-1. Add an entry under `debs:` in `bundle.yaml`.
+1. Add an entry under `debs:` in `specs/bundle.yaml`.
 2. `make bundle` — the builder pulls the package and its transitive deps.
 3. Commit both files.
 
 ### I'm using an internally mirrored aether-ops build
 
-Edit `aether_ops:` in `bundle.yaml` to point at a local file:
+Edit `aether_ops:` in `specs/bundle.yaml` to point at a local file:
 
 ```yaml
 aether_ops:

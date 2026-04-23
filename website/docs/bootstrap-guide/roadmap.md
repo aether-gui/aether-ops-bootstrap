@@ -44,7 +44,7 @@ or Helm in multi-node mode.** Those move to SD-Core. A single-node
 
 ### Phase 1 — Multi-role specs + new components
 
-- Extract today's `bundle.yaml` into `specs/management.yaml` (slim: no
+- Extract today's `specs/bundle.yaml` into `specs/management.yaml` (slim: no
   RKE2 / Helm).
 - Write `specs/sdcore.yaml` (RKE2 server, Helm, SD-Core charts + images).
 - Write `specs/gnb.yaml` (Docker, gNB images, OS tuning).
