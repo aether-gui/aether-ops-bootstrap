@@ -44,9 +44,9 @@ self-hosted runner labeled `bundle-dist`. Steps:
    binary via `.goreleaser.yaml`, creates the GitHub release, uploads the
    launcher archive.
 4. **Prepare bundle spec for CI** — strips any local `source:` entries from
-   `bundle.yaml` so the builder fetches aether-ops from its GitHub release
+   `specs/bundle.yaml` so the builder fetches aether-ops from its GitHub release
    instead of from a local artifacts directory that doesn't exist in CI.
-5. **Build bundle** — `go run ./cmd/build-bundle --spec bundle.yaml
+5. **Build bundle** — `go run ./cmd/build-bundle --spec specs/bundle.yaml
    --output dist/bundle.tar.zst`. Produces the offline payload.
 6. **Install Syft** — SBOM generator from Anchore.
 7. **Install Grype** — vulnerability scanner from Anchore.

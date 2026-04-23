@@ -67,7 +67,7 @@ make bundle
 Internally:
 
 ```bash
-./dist/build-bundle --spec bundle.yaml --output dist/bundle.tar.zst
+./dist/build-bundle --spec specs/bundle.yaml --output dist/bundle.tar.zst
 ```
 
 This reads `bundle.yaml` and:

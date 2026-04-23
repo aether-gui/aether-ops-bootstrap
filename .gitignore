@@ -11,6 +11,10 @@ docs/generated/
 *.deb
 !artifacts/**
 
+# Local / experimental bundle specs — dotfile-prefixed files in specs/
+# (e.g. specs/.onramp-branchxyz-test.yaml and its generated .lock.json).
+specs/.*
+
 # Go
 *.exe
 *.test
