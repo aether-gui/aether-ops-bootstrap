@@ -1,12 +1,44 @@
 package debs
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
 )
+
+func TestNonInteractiveDpkgEnv(t *testing.T) {
+	env := nonInteractiveDpkgEnv()
+
+	// Required variables that keep debconf silent. If any are dropped
+	// or renamed, the install hangs on maintainer-script prompts (see
+	// function comment for the full story).
+	required := []string{
+		"DEBIAN_FRONTEND=noninteractive",
+		"DEBCONF_NONINTERACTIVE_SEEN=true",
+		"DEBIAN_PRIORITY=critical",
+	}
+	for _, want := range required {
+		if !slices.Contains(env, want) {
+			t.Errorf("env missing %q; full env:\n%s", want, strings.Join(env, "\n"))
+		}
+	}
+
+	// Regression guard: os.Environ() is appended, not replaced. If a
+	// future refactor drops the parent env, operator-supplied proxies
+	// and locale settings would silently disappear. PATH is set in
+	// practice on every host the installer runs on, so its presence is
+	// a reasonable proxy for "we inherited something".
+	inheritedPath := slices.ContainsFunc(env, func(e string) bool {
+		return strings.HasPrefix(e, "PATH=")
+	})
+	if !inheritedPath {
+		t.Error("env did not inherit PATH from os.Environ(); operator-supplied environment was dropped")
+	}
+}
 
 var _ components.Component = (*Component)(nil)
 
