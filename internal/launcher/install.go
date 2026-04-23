@@ -14,19 +14,21 @@ import (
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/cmdutil"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/installctx"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
 )
 
 // InstallOpts configures the install command.
 type InstallOpts struct {
-	BundlePath string
-	Force      bool   // override prior successful install
-	DryRun     bool   // plan only, don't apply
-	Repair     bool   // re-apply all components regardless of state
-	Action     string // "install", "upgrade", "repair", "check" — recorded in history
-	Version    string
-	Roles      []Role // nil = all components (single-node backward compat)
-	Verbose    bool   // stream subprocess output (dpkg, etc.) live
+	BundlePath     string
+	Force          bool   // override prior successful install
+	DryRun         bool   // plan only, don't apply
+	Repair         bool   // re-apply all components regardless of state
+	Action         string // "install", "upgrade", "repair", "check" — recorded in history
+	Version        string
+	Roles          []Role // nil = all components (single-node backward compat)
+	Verbose        bool   // stream subprocess output (dpkg, etc.) live
+	OnrampPassword string // optional --onramp-password value; wins over env and spec
 }
 
 // Install runs the full bootstrap sequence.
@@ -74,6 +76,24 @@ func Install(ctx context.Context, opts InstallOpts) error {
 		return fmt.Errorf("detecting suite: %w", err)
 	}
 	log.Printf("detected host suite: %s", suite)
+
+	// Resolve the onramp user's password before component walk. Downstream
+	// components (service_account creates the user, onramp writes it into
+	// hosts.ini) both read the resolved value off the context.
+	onrampUser, manifestPassword := onrampCredentialsFromManifest(manifest)
+	onrampPassword, onrampPasswordSource, err := ResolveOnrampPassword(opts.OnrampPassword, manifestPassword)
+	if err != nil {
+		return err
+	}
+	log.Printf("onramp password source: %s", onrampPasswordSource)
+	// Print the generated password immediately so a later-stage failure
+	// does not strand the operator without a recoverable credential.
+	// The bootstrap log tees to /var/lib/aether-ops-bootstrap/bootstrap.log
+	// as well, so this value survives a crashed install.
+	if onrampPasswordSource == "generated" {
+		LogGeneratedPassword(onrampUser, onrampPassword)
+	}
+	ctx = installctx.WithOnrampPassword(ctx, onrampPassword)
 
 	// Inherit roles from state when not explicitly specified. Prevents
 	// operators from accidentally applying a different component set on
@@ -180,16 +200,35 @@ func Install(ctx context.Context, opts InstallOpts) error {
 			log.Println("")
 			log.Println("  aether-ops is running at http://127.0.0.1:8186")
 			log.Println("")
-			log.Println("  The default onramp user credentials are:")
-			log.Println("    user: aether")
-			log.Println("    pass: <as configured>")
-			log.Println("")
-			log.Println("  Change the default password immediately.")
+			log.Printf("  Onramp user: %s", onrampUser)
+			switch onrampPasswordSource {
+			case "generated":
+				log.Println("  Onramp password: see the IMPORTANT banner printed earlier in this run")
+			case "flag", "env":
+				log.Printf("  Onramp password: <set via %s>", onrampPasswordSource)
+			case "spec":
+				log.Println("  Onramp password: <set from bundle spec; rotate after setup>")
+			}
 		}
 		log.Println("")
 	}
 
 	return nil
+}
+
+// onrampCredentialsFromManifest returns the configured onramp username and
+// the spec-level password (if any) from the manifest. Missing sections
+// fall back to the same defaults the spec parser would apply, so callers
+// never have to nil-check their way down the manifest tree.
+func onrampCredentialsFromManifest(m *bundle.Manifest) (user, password string) {
+	user = "aether"
+	if m != nil && m.Components.AetherOps != nil {
+		if m.Components.AetherOps.OnrampUser != "" {
+			user = m.Components.AetherOps.OnrampUser
+		}
+		password = m.Components.AetherOps.OnrampPassword
+	}
+	return user, password
 }
 
 func loadOrInitState(allowExisting bool) (*state.State, error) {

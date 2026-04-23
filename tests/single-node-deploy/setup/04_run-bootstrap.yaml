@@ -1,6 +1,10 @@
+# --onramp-password pins the aether user's password to a known value so
+# the /api/v1/nodes register step below can supply the same value and the
+# daemon's generated hosts.ini authenticates against the OS account the
+# launcher just created.
 - name: run aether-ops-bootstrap install
   node: sn-vm
   step:
     type: execute
     options:
-      command: /root/aether-ops-bootstrap install --bundle /root/bundle.tar.zst
+      command: /root/aether-ops-bootstrap install --bundle /root/bundle.tar.zst --onramp-password e2e-test

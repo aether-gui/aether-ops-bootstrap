@@ -11,10 +11,13 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/installctx"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
 )
 
@@ -95,6 +98,26 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 		return components.Plan{NoOp: true}, nil
 	}
 
+	// The aether-ops daemon drives ansible-playbook against onramp's
+	// bundled hosts.ini; Ansible needs a working credential on node1
+	// before the daemon's first inventory sync. Stamp the resolved
+	// onramp user and password into the inventory so the daemon does
+	// not have to guess.
+	onrampUser := "aether"
+	if c.manifest != nil && c.manifest.Components.AetherOps != nil && c.manifest.Components.AetherOps.OnrampUser != "" {
+		onrampUser = c.manifest.Components.AetherOps.OnrampUser
+	}
+	actions = append(actions, components.Action{
+		Description: "set onramp ansible credentials in hosts.ini",
+		Fn: func(ctx context.Context) error {
+			password := installctx.OnrampPasswordFromContext(ctx)
+			if password == "" {
+				return fmt.Errorf("onramp password missing on context; launcher should resolve it before Apply")
+			}
+			return setInventoryCredentials(filepath.Join(onrampRoot, "hosts.ini"), onrampUser, password)
+		},
+	})
+
 	// Ownership is applied after all content is in place so partial
 	// failures don't leave a half-chowned tree.
 	actions = append(actions, components.Action{
@@ -108,6 +131,82 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 	})
 
 	return components.Plan{Actions: actions}, nil
+}
+
+// inventoryNodeLine matches an uncommented ansible hosts.ini node line,
+// e.g. "node1 ansible_host=127.0.0.1 ansible_user=aether". The capture
+// anchors on the presence of "ansible_host=" so we do not mistakenly
+// rewrite group headers or unrelated variables.
+var inventoryNodeLine = regexp.MustCompile(`^[ \t]*[A-Za-z0-9_.-]+[ \t]+[^\n#]*\bansible_host=`)
+
+// setInventoryCredentials rewrites every uncommented node line in the
+// onramp hosts.ini so it carries `ansible_user=<user> ansible_password=<pw>`.
+// Existing values for those two keys are replaced; any other tokens on the
+// line (ansible_host, ansible_port, custom vars) are preserved verbatim.
+//
+// Idempotent — running twice with the same user/password yields an
+// identical file. Callers invoke this every install/upgrade/repair so
+// password rotations at the launcher layer propagate into the inventory.
+func setInventoryCredentials(path, onrampUser, password string) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+	changed := false
+	for i, line := range lines {
+		if !inventoryNodeLine.MatchString(line) {
+			continue
+		}
+		rewritten := setInventoryToken(line, "ansible_user", onrampUser)
+		rewritten = setInventoryToken(rewritten, "ansible_password", password)
+		if rewritten != line {
+			lines[i] = rewritten
+			changed = true
+		}
+	}
+	if !changed {
+		log.Printf("  %s already has ansible credentials set", path)
+		return nil
+	}
+
+	// Mode 0640 is intentional: the daemon runs as aether-ops and must
+	// read this file; nothing else on the host should.
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0640); err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+	log.Printf("  stamped ansible credentials into %s", path)
+	return nil
+}
+
+// setInventoryToken returns line with key=value either replacing the
+// existing key=... occurrence or appended to the end. The value is
+// shell-quoted defensively so an onramp password containing whitespace
+// or '#' does not truncate the line or create a comment.
+func setInventoryToken(line, key, value string) string {
+	quoted := inventoryQuote(value)
+	re := regexp.MustCompile(`\b` + regexp.QuoteMeta(key) + `=(?:'[^']*'|"[^"]*"|\S+)`)
+	replacement := key + "=" + quoted
+	if re.MatchString(line) {
+		return re.ReplaceAllString(line, replacement)
+	}
+	return strings.TrimRight(line, " \t") + " " + replacement
+}
+
+// inventoryQuote returns value wrapped in single quotes when it contains
+// whitespace, '#', or other characters ansible's ini parser treats as
+// separators. Inner single quotes are escaped using the standard sh
+// '\” concatenation trick.
+func inventoryQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	if !strings.ContainsAny(value, " \t#\"'\\") {
+		return value
+	}
+	escaped := strings.ReplaceAll(value, "'", `'\''`)
+	return "'" + escaped + "'"
 }
 
 func (c *Component) Apply(ctx context.Context, plan components.Plan) error {

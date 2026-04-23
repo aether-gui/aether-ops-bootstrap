@@ -151,13 +151,18 @@ The onramp user is **distinct from the service account**:
 
 | | Service account (`aether-ops`) | Onramp user (`aether`) |
 |---|---|---|
-| Runs | The aether-ops daemon | Nothing (it's an identity, not a service) |
-| Auth | N/A | SSH password |
-| Sudo | Limited rules | `NOPASSWD: ALL` |
+| Shell | `/usr/sbin/nologin` | `/bin/bash` |
+| Home | None (system account) | `/home/aether` |
+| Password | None | Set from the resolved onramp password |
+| Sudo | None | `NOPASSWD: ALL` (via `/etc/sudoers.d/` drop-in) |
+| Runs | The aether-ops daemon via systemd | Nothing — it's an identity, not a service |
 | Used by | The daemon | Ansible connecting *into* the node |
 
-The default onramp password must be changed immediately after setup — this
-is called out in [Getting Started](/getting-started/next-steps).
+The onramp password is resolved from `--onramp-password`,
+`AETHER_ONRAMP_PASSWORD`, the bundle spec, or — if none of those is set —
+a random string the installer generates and logs at the end of the run.
+See the [CLI reference](./cli-reference.md#--onramp-password-value) for
+the exact precedence.
 
 ## `rke2`
 

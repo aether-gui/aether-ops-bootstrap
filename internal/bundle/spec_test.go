@@ -83,11 +83,14 @@ func TestParseSpec(t *testing.T) {
 	if s.AetherOps.Repo != DefaultAetherOpsRepo {
 		t.Errorf("AetherOps.Repo = %q, want default %q", s.AetherOps.Repo, DefaultAetherOpsRepo)
 	}
-	if s.AetherOps.OnrampUser != "aether-ops" {
-		t.Errorf("AetherOps.OnrampUser = %q, want default %q", s.AetherOps.OnrampUser, "aether-ops")
+	if s.AetherOps.OnrampUser != "aether" {
+		t.Errorf("AetherOps.OnrampUser = %q, want default %q", s.AetherOps.OnrampUser, "aether")
 	}
-	if s.AetherOps.OnrampPassword != "aether" {
-		t.Error("AetherOps.OnrampPassword does not match expected default")
+	// OnrampPassword has no spec-level default — it is resolved at
+	// install time from --onramp-password, AETHER_ONRAMP_PASSWORD, the
+	// spec, or a generated random value.
+	if s.AetherOps.OnrampPassword != "" {
+		t.Errorf("AetherOps.OnrampPassword = %q, want empty (no spec default)", s.AetherOps.OnrampPassword)
 	}
 	// Templates.
 	if s.TemplatesDir != "./templates" {

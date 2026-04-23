@@ -1,20 +1,24 @@
+# --onramp-password pins the aether user's password to a known value so
+# the /api/v1/nodes register step below can supply the same value and the
+# daemon's generated hosts.ini authenticates against the OS account the
+# launcher just created.
 - name: bootstrap mgmt-vm with mgmt role
   node: mgmt-vm
   step:
     type: execute
     options:
-      command: /root/aether-ops-bootstrap install --bundle /root/bundle.tar.zst --roles mgmt
+      command: /root/aether-ops-bootstrap install --bundle /root/bundle.tar.zst --roles mgmt --onramp-password e2e-test
 
 - name: bootstrap core-vm with core role
   node: core-vm
   step:
     type: execute
     options:
-      command: /root/aether-ops-bootstrap install --bundle /root/bundle.tar.zst --roles core
+      command: /root/aether-ops-bootstrap install --bundle /root/bundle.tar.zst --roles core --onramp-password e2e-test
 
 - name: bootstrap gnb-vm with ran role
   node: gnb-vm
   step:
     type: execute
     options:
-      command: /root/aether-ops-bootstrap install --bundle /root/bundle.tar.zst --roles ran
+      command: /root/aether-ops-bootstrap install --bundle /root/bundle.tar.zst --roles ran --onramp-password e2e-test
