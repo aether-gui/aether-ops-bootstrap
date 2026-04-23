@@ -6,7 +6,11 @@
 // every component package to build the registry).
 package installctx
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"strings"
+)
 
 type onrampPasswordKey struct{}
 
@@ -23,4 +27,33 @@ func WithOnrampPassword(ctx context.Context, password string) context.Context {
 func OnrampPasswordFromContext(ctx context.Context) string {
 	v, _ := ctx.Value(onrampPasswordKey{}).(string)
 	return v
+}
+
+// ValidateOnrampPassword rejects any password that would be unsafe to
+// feed into chpasswd stdin or write into an ansible hosts.ini line.
+//
+// The forbidden characters are:
+//
+//   - '\x00' (NUL) — truncates C-string APIs and most file-I/O paths,
+//     so its presence is almost certainly an accidental paste.
+//   - '\r' and '\n' — chpasswd reads "user:pass" records one per line,
+//     and hosts.ini is line-oriented. A newline here would inject an
+//     additional chpasswd record (potentially altering another user's
+//     password) or break out of the inventory node line.
+//
+// Empty passwords are also rejected. Every other printable character
+// (including spaces, tabs, '#', quotes) is allowed; downstream writers
+// quote appropriately for their target format.
+//
+// The launcher validates once in ResolveOnrampPassword. Individual write
+// sites call this again as defense-in-depth — a test harness that stuffs
+// a value onto the context directly should still fail closed.
+func ValidateOnrampPassword(password string) error {
+	if password == "" {
+		return fmt.Errorf("password is empty")
+	}
+	if i := strings.IndexAny(password, "\x00\r\n"); i >= 0 {
+		return fmt.Errorf("password contains an unsupported control character (offset %d); NUL, CR, and LF are rejected", i)
+	}
+	return nil
 }

@@ -59,7 +59,9 @@ aether_ops:
   #   1. --onramp-password <value>         (CLI flag on `install`)
   #   2. AETHER_ONRAMP_PASSWORD            (environment variable)
   #   3. aether_ops.onramp_password        (this spec field)
-  #   4. random 24-char string, logged to stderr at end of install
+  #   4. random 24-char string, logged to stderr immediately after
+  #      password resolution (before component work) so the value
+  #      survives a later-stage install failure
   #
   # A spec-level password is still honoured so gitignored local test
   # specs (e.g. specs/.scratch-*.yaml, which are covered by specs/.* in

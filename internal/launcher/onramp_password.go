@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+
+	"github.com/aether-gui/aether-ops-bootstrap/internal/installctx"
 )
 
 // OnrampPasswordEnvVar is the environment variable consulted for the
@@ -22,15 +24,27 @@ const OnrampPasswordEnvVar = "AETHER_ONRAMP_PASSWORD"
 //     with a visible banner so unattended runs do not silently lose it
 //
 // The returned source is one of "flag", "env", "spec", or "generated" and
-// is intended for logging only.
+// is intended for logging only. The returned password is always
+// validated via installctx.ValidateOnrampPassword so downstream consumers (chpasswd,
+// hosts.ini) never see NUL or line-delimiter characters that could
+// corrupt their on-disk format.
 func ResolveOnrampPassword(cliFlag, manifestPassword string) (string, string, error) {
 	if cliFlag != "" {
+		if err := installctx.ValidateOnrampPassword(cliFlag); err != nil {
+			return "", "", fmt.Errorf("--onramp-password: %w", err)
+		}
 		return cliFlag, "flag", nil
 	}
 	if v := os.Getenv(OnrampPasswordEnvVar); v != "" {
+		if err := installctx.ValidateOnrampPassword(v); err != nil {
+			return "", "", fmt.Errorf("%s: %w", OnrampPasswordEnvVar, err)
+		}
 		return v, "env", nil
 	}
 	if manifestPassword != "" {
+		if err := installctx.ValidateOnrampPassword(manifestPassword); err != nil {
+			return "", "", fmt.Errorf("aether_ops.onramp_password in spec: %w", err)
+		}
 		return manifestPassword, "spec", nil
 	}
 	generated, err := generateRandomPassword(24)

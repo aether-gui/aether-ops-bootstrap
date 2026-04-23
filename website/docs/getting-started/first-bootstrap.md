@@ -112,8 +112,10 @@ sudo ./aether-ops-bootstrap install --bundle bundle.tar.zst
 
 The installer creates an onramp user (default name: `aether`) and sets
 its password. If you do not supply a password, the installer generates a
-random one and prints it to stderr at the end of the run inside an
-`IMPORTANT: record this password` banner. To pin a known value up front:
+random one and prints it to stderr inside an `IMPORTANT: record this
+password` banner as soon as the password is resolved (early in the
+install, before the long component work). This way the credential is
+recoverable even if a later stage fails. To pin a known value up front:
 
 ```bash
 sudo ./aether-ops-bootstrap install --bundle bundle.tar.zst \

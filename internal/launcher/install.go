@@ -10,6 +10,8 @@ import (
 
 	"errors"
 
+	"os/user"
+
 	"github.com/aether-gui/aether-ops-bootstrap/internal/builder"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/cmdutil"
@@ -80,20 +82,46 @@ func Install(ctx context.Context, opts InstallOpts) error {
 	// Resolve the onramp user's password before component walk. Downstream
 	// components (service_account creates the user, onramp writes it into
 	// hosts.ini) both read the resolved value off the context.
+	//
+	// In DryRun/check mode we intentionally skip resolution entirely so
+	// that planning never writes a generated password to the logs or
+	// fails because no explicit source was provided.
 	onrampUser, manifestPassword := onrampCredentialsFromManifest(manifest)
-	onrampPassword, onrampPasswordSource, err := ResolveOnrampPassword(opts.OnrampPassword, manifestPassword)
-	if err != nil {
-		return err
+	var onrampPassword, onrampPasswordSource string
+	if !opts.DryRun {
+		onrampPassword, onrampPasswordSource, err = ResolveOnrampPassword(opts.OnrampPassword, manifestPassword)
+		if err != nil {
+			return err
+		}
+
+		// Refuse to silently break authentication on upgrade/repair.
+		// service_account keeps an existing OS user's password intact
+		// (operators may have rotated it), and a freshly generated
+		// random value would therefore land only in hosts.ini — the
+		// daemon's Ansible runs would fail against /etc/shadow. Require
+		// the operator to confirm intent by supplying a password source
+		// that can be made to match the existing account.
+		if onrampPasswordSource == "generated" {
+			if _, err := user.Lookup(onrampUser); err == nil {
+				return fmt.Errorf(
+					"onramp user %q already exists; pass --onramp-password or set %s so the "+
+						"launcher does not stamp a mismatched random password into hosts.ini "+
+						"(use the value the user currently authenticates with, or rotate the "+
+						"OS password after this run)",
+					onrampUser, OnrampPasswordEnvVar)
+			}
+		}
+
+		log.Printf("onramp password source: %s", onrampPasswordSource)
+		// Print the generated password immediately so a later-stage failure
+		// does not strand the operator without a recoverable credential.
+		// The bootstrap log tees to /var/lib/aether-ops-bootstrap/bootstrap.log
+		// as well, so this value survives a crashed install.
+		if onrampPasswordSource == "generated" {
+			LogGeneratedPassword(onrampUser, onrampPassword)
+		}
+		ctx = installctx.WithOnrampPassword(ctx, onrampPassword)
 	}
-	log.Printf("onramp password source: %s", onrampPasswordSource)
-	// Print the generated password immediately so a later-stage failure
-	// does not strand the operator without a recoverable credential.
-	// The bootstrap log tees to /var/lib/aether-ops-bootstrap/bootstrap.log
-	// as well, so this value survives a crashed install.
-	if onrampPasswordSource == "generated" {
-		LogGeneratedPassword(onrampUser, onrampPassword)
-	}
-	ctx = installctx.WithOnrampPassword(ctx, onrampPassword)
 
 	// Inherit roles from state when not explicitly specified. Prevents
 	// operators from accidentally applying a different component set on

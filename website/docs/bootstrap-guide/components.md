@@ -160,9 +160,11 @@ The onramp user is **distinct from the service account**:
 
 The onramp password is resolved from `--onramp-password`,
 `AETHER_ONRAMP_PASSWORD`, the bundle spec, or — if none of those is set —
-a random string the installer generates and logs at the end of the run.
-See the [CLI reference](./cli-reference.md#--onramp-password-value) for
-the exact precedence.
+a random string the installer generates and logs immediately after
+resolution (early in the install) so the credential is available even
+when a later component step fails. See the
+[CLI reference](./cli-reference.md#--onramp-password-value) for the
+exact precedence.
 
 ## `rke2`
 

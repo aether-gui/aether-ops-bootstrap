@@ -109,6 +109,39 @@ func TestResolveOnrampPassword_EnvEmptyFallsThrough(t *testing.T) {
 	}
 }
 
+func TestResolveOnrampPassword_RejectsNewlineInFlag(t *testing.T) {
+	t.Setenv(OnrampPasswordEnvVar, "")
+	_, _, err := ResolveOnrampPassword("pass\nworld", "")
+	if err == nil {
+		t.Fatal("ResolveOnrampPassword should reject a CLI flag containing a newline")
+	}
+	if !strings.Contains(err.Error(), "--onramp-password") {
+		t.Errorf("error %q should mention the CLI flag", err)
+	}
+}
+
+func TestResolveOnrampPassword_RejectsNewlineInEnv(t *testing.T) {
+	t.Setenv(OnrampPasswordEnvVar, "pass\nworld")
+	_, _, err := ResolveOnrampPassword("", "")
+	if err == nil {
+		t.Fatal("ResolveOnrampPassword should reject env var containing a newline")
+	}
+	if !strings.Contains(err.Error(), OnrampPasswordEnvVar) {
+		t.Errorf("error %q should mention the env var", err)
+	}
+}
+
+func TestResolveOnrampPassword_RejectsNulInSpec(t *testing.T) {
+	t.Setenv(OnrampPasswordEnvVar, "")
+	_, _, err := ResolveOnrampPassword("", "pass\x00world")
+	if err == nil {
+		t.Fatal("ResolveOnrampPassword should reject spec field containing NUL")
+	}
+	if !strings.Contains(err.Error(), "spec") {
+		t.Errorf("error %q should mention the spec source", err)
+	}
+}
+
 func TestGenerateRandomPassword_Length(t *testing.T) {
 	for _, n := range []int{8, 16, 24, 48} {
 		got, err := generateRandomPassword(n)

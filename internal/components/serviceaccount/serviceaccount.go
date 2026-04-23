@@ -113,6 +113,15 @@ func createDaemonAccount(ctx context.Context) error {
 	}
 
 	if _, err := user.Lookup(daemonAccount); err == nil {
+		// Detect the stale unified-account configuration from commit
+		// 64653cf (never released): a pre-existing aether-ops that has
+		// a login shell suggests an upgrade across the split. Warn and
+		// leave the account alone — auto-changing a live account's
+		// shell could surprise operators who adjusted it deliberately.
+		if shell, err := readLoginShell(ctx, daemonAccount); err == nil && !isLockedShell(shell) {
+			log.Printf("  warning: existing %s account has login shell %q (expected /usr/sbin/nologin).", daemonAccount, shell)
+			log.Printf("  warning: run `sudo usermod -s /usr/sbin/nologin %s && sudo passwd -l %s` to lock it.", daemonAccount, daemonAccount)
+		}
 		log.Printf("  user %s already exists", daemonAccount)
 		return nil
 	}
@@ -139,6 +148,14 @@ func createDaemonAccount(ctx context.Context) error {
 func createOnrampUser(ctx context.Context, username, password string) error {
 	if err := validateUsername(username); err != nil {
 		return err
+	}
+	// Defense-in-depth: the launcher validates the password when it
+	// resolves it, but anyone pushing a value directly onto the context
+	// (e.g. a test harness) has not been through that path. A password
+	// containing \n here would let chpasswd inject additional
+	// user:pass records into /etc/shadow.
+	if err := installctx.ValidateOnrampPassword(password); err != nil {
+		return fmt.Errorf("onramp password: %w", err)
 	}
 
 	// Ensure a group matching the username exists before useradd so the
@@ -174,6 +191,37 @@ func createOnrampUser(ctx context.Context, username, password string) error {
 	}
 	log.Printf("  set password for %s", username)
 	return nil
+}
+
+// readLoginShell returns the login shell recorded in the nsswitch-aware
+// passwd database for username. It uses `getent passwd` so the lookup
+// honours LDAP, SSSD, and any other NSS backend the host has configured
+// — direct /etc/passwd reads would miss those. The return is a pure
+// read and makes no changes to the system.
+func readLoginShell(ctx context.Context, username string) (string, error) {
+	cmd := exec.CommandContext(ctx, "getent", "passwd", username)
+	out, err := cmdutil.Run(ctx, cmd)
+	if err != nil {
+		return "", fmt.Errorf("getent passwd %s: %w", username, err)
+	}
+	// passwd format: login:x:uid:gid:gecos:home:shell
+	fields := strings.Split(strings.TrimSpace(string(out)), ":")
+	if len(fields) < 7 {
+		return "", fmt.Errorf("unexpected getent output for %s: %q", username, out)
+	}
+	return fields[6], nil
+}
+
+// isLockedShell reports whether shell is one of the conventional
+// "account cannot interactively log in" values. Accepting both
+// /usr/sbin/nologin and /bin/false covers every distro-specific path
+// the system might report.
+func isLockedShell(shell string) bool {
+	switch shell {
+	case "/usr/sbin/nologin", "/sbin/nologin", "/bin/false", "/usr/bin/false":
+		return true
+	}
+	return false
 }
 
 // validateUsername enforces the conservative POSIX-portable subset of

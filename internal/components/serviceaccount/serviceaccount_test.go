@@ -92,6 +92,21 @@ func TestPlanUsesExplicitOnrampUser(t *testing.T) {
 	}
 }
 
+func TestIsLockedShell(t *testing.T) {
+	locked := []string{"/usr/sbin/nologin", "/sbin/nologin", "/bin/false", "/usr/bin/false"}
+	for _, s := range locked {
+		if !isLockedShell(s) {
+			t.Errorf("isLockedShell(%q) = false, want true", s)
+		}
+	}
+	loginCapable := []string{"/bin/bash", "/bin/sh", "/usr/bin/zsh", "", "/opt/homebrew/bin/fish"}
+	for _, s := range loginCapable {
+		if isLockedShell(s) {
+			t.Errorf("isLockedShell(%q) = true, want false", s)
+		}
+	}
+}
+
 func TestValidateUsername(t *testing.T) {
 	ok := []string{"aether", "aether-ops", "user_1", "a"}
 	for _, name := range ok {

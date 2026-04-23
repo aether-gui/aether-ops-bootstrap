@@ -148,6 +148,13 @@ var inventoryNodeLine = regexp.MustCompile(`^[ \t]*[A-Za-z0-9_.-]+[ \t]+[^\n#]*\
 // identical file. Callers invoke this every install/upgrade/repair so
 // password rotations at the launcher layer propagate into the inventory.
 func setInventoryCredentials(path, onrampUser, password string) error {
+	// Defense-in-depth: the launcher validates the password on resolve,
+	// but a rogue callpath (tests, future direct API) could stuff a
+	// newline-bearing value onto the context. Rewriting hosts.ini with
+	// such a value would split the node record across lines.
+	if err := installctx.ValidateOnrampPassword(password); err != nil {
+		return fmt.Errorf("onramp password: %w", err)
+	}
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", path, err)
@@ -197,7 +204,8 @@ func setInventoryToken(line, key, value string) string {
 // inventoryQuote returns value wrapped in single quotes when it contains
 // whitespace, '#', or other characters ansible's ini parser treats as
 // separators. Inner single quotes are escaped using the standard sh
-// '\” concatenation trick.
+// close-quote + literal-quote + open-quote sequence: foo'bar becomes
+// 'foo'\”bar'.
 func inventoryQuote(value string) string {
 	if value == "" {
 		return "''"
