@@ -219,5 +219,5 @@ Path to the directory containing systemd units, `sshd_config.d/` drop-ins,
 
 ## The spec in `main`
 
-The canonical `bundle.yaml` in the repo is the reference. Read it to see
+The canonical spec at [`specs/bundle.yaml`](https://github.com/aether-gui/aether-ops-bootstrap/blob/main/specs/bundle.yaml) is the reference. Read it to see
 current conventions and inline comments explaining each choice.

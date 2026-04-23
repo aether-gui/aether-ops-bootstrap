@@ -17,7 +17,7 @@ import (
 var gitSHA string // set via ldflags: -X main.gitSHA=...
 
 func main() {
-	specPath := flag.String("spec", "bundle.yaml", "path to spec file or directory of spec files")
+	specPath := flag.String("spec", "specs/bundle.yaml", "path to spec file or directory of spec files")
 	output := flag.String("output", "dist/bundle.tar.zst", "output path (file for single spec, directory for multi-spec)")
 	flag.Parse()
 

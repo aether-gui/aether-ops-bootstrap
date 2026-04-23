@@ -7,8 +7,8 @@ import (
 )
 
 func TestParseSpec(t *testing.T) {
-	// Parse the real bundle.yaml from the repo root.
-	s, err := ParseSpec("../../bundle.yaml")
+	// Parse the canonical bundle.yaml from specs/.
+	s, err := ParseSpec("../../specs/bundle.yaml")
 	if err != nil {
 		t.Fatalf("ParseSpec: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestParseSpecInvalidYAML(t *testing.T) {
 }
 
 func TestValidateSpecValid(t *testing.T) {
-	s, err := ParseSpec("../../bundle.yaml")
+	s, err := ParseSpec("../../specs/bundle.yaml")
 	if err != nil {
 		t.Fatalf("ParseSpec: %v", err)
 	}

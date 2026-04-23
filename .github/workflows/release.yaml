@@ -37,10 +37,10 @@ jobs:
         run: |
           # Remove the local source path so the builder downloads the
           # aether-ops release from GitHub instead.
-          sed -i '/^\s*source:.*artifacts\//d' bundle.yaml
+          sed -i '/^\s*source:.*artifacts\//d' specs/bundle.yaml
 
       - name: Build bundle
-        run: go run ./cmd/build-bundle --spec bundle.yaml --output dist/bundle.tar.zst
+        run: go run ./cmd/build-bundle --spec specs/bundle.yaml --output dist/bundle.tar.zst
 
       - name: Install Syft
         run: |

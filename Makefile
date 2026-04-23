@@ -18,9 +18,9 @@ build-bundle: dist
 
 build-all: build build-bundle
 
-# Build the offline bundle from bundle.yaml using the build-bundle tool.
+# Build the offline bundle from specs/bundle.yaml using the build-bundle tool.
 bundle: build-bundle
-	./dist/build-bundle --spec bundle.yaml --output dist/bundle.tar.zst
+	./dist/build-bundle --spec specs/bundle.yaml --output dist/bundle.tar.zst
 
 # Package the bootstrap binary, bundle, and hash into a single distributable archive.
 package: build bundle

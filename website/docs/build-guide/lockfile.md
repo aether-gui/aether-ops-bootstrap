@@ -68,11 +68,11 @@ Two options:
 
 ```bash
 # Option A: delete and let the next build re-resolve.
-rm bundle.lock.json
+rm specs/bundle.lock.json
 make bundle
 
 # Option B (future): an explicit flag.
-./dist/build-bundle --spec bundle.yaml --output dist/bundle.tar.zst --regenerate-lock
+./dist/build-bundle --spec specs/bundle.yaml --output dist/bundle.tar.zst --regenerate-lock
 ```
 
 0.1.x ships option A. `--regenerate-lock` is a planned convenience flag.

@@ -360,7 +360,7 @@ Every .deb is pinned in a generated `bundle.lock.json`, committed to the repo, w
 Three jobs, triggered on every PR and tag push.
 
 1. **`launcher`** — `go build` / `go test` / `go vet` / `golangci-lint`. Build for linux/amd64. Artifacts: signed launcher binary.
-2. **`bundle`** — run `go run ./cmd/build-bundle --spec bundle.yaml`, verify against `bundle.lock.json`, sign and publish the tarball plus the manifest and generated docs delta.
+2. **`bundle`** — run `go run ./cmd/build-bundle --spec specs/bundle.yaml`, verify against `specs/bundle.lock.json`, sign and publish the tarball plus the manifest and generated docs delta.
 3. **`integration`** — spin up Ubuntu 22.04 / 24.04 / 26.04 VMs with network blackholed to prove the airgap claim. Copy launcher + bundle in, run `install`, assert RKE2 and aether-ops are healthy. Run again, assert no-op. Bump bundle version, run `upgrade`, assert deltas applied.
 
 Integration tests a matrix: current launcher × current bundle, current launcher × previous bundle, previous launcher × current bundle. This catches compatibility breaks before release.
@@ -411,8 +411,9 @@ aether-ops-bootstrap/
 │   ├── state/                   # state file schema and operations
 │   └── systemd/                 # D-Bus client wrapper
 ├── templates/                   # systemd units, config templates, sshd snippets
-├── bundle.yaml                  # the spec
-├── bundle.lock.json             # generated, committed
+├── specs/
+│   ├── bundle.yaml              # the spec
+│   └── bundle.lock.json         # generated, committed
 ├── docs/
 │   ├── conceptual/              # hand-written
 │   └── generated/               # gitignored, built by CI
