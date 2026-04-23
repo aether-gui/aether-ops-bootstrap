@@ -62,6 +62,7 @@ func cmdRun(action string, dryRun, repair bool) {
 	bundlePath := ""
 	force := false
 	rolesCSV := ""
+	verbose := false
 
 	for i := 2; i < len(os.Args); i++ {
 		switch os.Args[i] {
@@ -81,6 +82,8 @@ func cmdRun(action string, dryRun, repair bool) {
 			} else {
 				log.Fatal("--roles requires a comma-separated list (e.g., mgmt,core)")
 			}
+		case "--verbose", "-v":
+			verbose = true
 		default:
 			log.Fatalf("unknown flag: %s", os.Args[i])
 		}
@@ -118,6 +121,7 @@ func cmdRun(action string, dryRun, repair bool) {
 		Action:     action,
 		Version:    version,
 		Roles:      roles,
+		Verbose:    verbose,
 	}
 
 	if err := launcher.Install(context.Background(), opts); err != nil {
@@ -220,6 +224,7 @@ func usage() {
 	fmt.Println("  --bundle <path>    Path to the bundle tar.zst file (required)")
 	fmt.Println("  --force            Override a prior successful install")
 	fmt.Println("  --roles <roles>    Comma-separated node roles (default: all)")
+	fmt.Println("  --verbose, -v      Stream subprocess output (dpkg, etc.) live to stderr")
 	fmt.Println()
 	fmt.Println("Roles:")
 	fmt.Println("  mgmt       Management plane (aether-ops, Ansible)")

@@ -12,6 +12,7 @@ import (
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/builder"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/cmdutil"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
 )
@@ -25,10 +26,15 @@ type InstallOpts struct {
 	Action     string // "install", "upgrade", "repair", "check" — recorded in history
 	Version    string
 	Roles      []Role // nil = all components (single-node backward compat)
+	Verbose    bool   // stream subprocess output (dpkg, etc.) live
 }
 
 // Install runs the full bootstrap sequence.
 func Install(ctx context.Context, opts InstallOpts) error {
+	// Components read the verbose flag from ctx via cmdutil.IsVerbose so
+	// each call site does not need its own plumbing.
+	ctx = cmdutil.WithVerbose(ctx, opts.Verbose)
+
 	// Preflight checks.
 	log.Println("running preflight checks...")
 	if err := Preflight(); err != nil {

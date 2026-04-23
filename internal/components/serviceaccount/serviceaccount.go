@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/cmdutil"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
 )
@@ -73,18 +74,13 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 }
 
 func (c *Component) Apply(ctx context.Context, plan components.Plan) error {
-	for _, action := range plan.Actions {
-		if err := action.Fn(ctx); err != nil {
-			return err
-		}
-	}
-	return nil
+	return components.ApplyPlan(ctx, c.Name(), plan)
 }
 
 func createServiceAccount(ctx context.Context, password string) error {
 	if _, err := user.LookupGroup("aether-ops"); err != nil {
 		cmd := exec.CommandContext(ctx, "groupadd", "aether-ops")
-		if output, err := cmd.CombinedOutput(); err != nil {
+		if output, err := cmdutil.Run(ctx, cmd); err != nil {
 			return fmt.Errorf("groupadd aether-ops: %w\n%s", err, output)
 		}
 		log.Printf("  created group aether-ops")
@@ -105,7 +101,7 @@ func createServiceAccount(ctx context.Context, password string) error {
 			"--gid", "aether-ops",
 			"aether-ops",
 		)
-		if output, err := cmd.CombinedOutput(); err != nil {
+		if output, err := cmdutil.Run(ctx, cmd); err != nil {
 			return fmt.Errorf("useradd aether-ops: %w\n%s", err, output)
 		}
 		log.Printf("  created user aether-ops")
@@ -113,7 +109,7 @@ func createServiceAccount(ctx context.Context, password string) error {
 		// Only set password on initial creation — don't reset on upgrades.
 		cmd = exec.CommandContext(ctx, "chpasswd")
 		cmd.Stdin = strings.NewReader("aether-ops:" + password + "\n")
-		if output, err := cmd.CombinedOutput(); err != nil {
+		if output, err := cmdutil.Run(ctx, cmd); err != nil {
 			return fmt.Errorf("chpasswd for aether-ops: %w\n%s", err, output)
 		}
 		log.Printf("  set password for aether-ops")

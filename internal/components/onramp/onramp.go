@@ -111,12 +111,7 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 }
 
 func (c *Component) Apply(ctx context.Context, plan components.Plan) error {
-	for _, action := range plan.Actions {
-		if err := action.Fn(ctx); err != nil {
-			return err
-		}
-	}
-	return nil
+	return components.ApplyPlan(ctx, c.Name(), plan)
 }
 
 // extractRepo copies a bundled repo directory from the extracted bundle

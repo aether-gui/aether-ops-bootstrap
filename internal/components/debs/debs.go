@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/cmdutil"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
 )
@@ -84,7 +85,7 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 				// may be slightly older than what the host has via security updates.
 				args := append([]string{"-i", "--force-depends", "--force-downgrade", "--force-breaks", "--force-overwrite"}, debPaths...)
 				cmd := exec.CommandContext(ctx, "dpkg", args...)
-				output, err := cmd.CombinedOutput()
+				output, err := cmdutil.Run(ctx, cmd)
 				if err != nil {
 					return fmt.Errorf("dpkg -i: %w\n%s", err, output)
 				}
@@ -97,10 +98,5 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 }
 
 func (c *Component) Apply(ctx context.Context, plan components.Plan) error {
-	for _, action := range plan.Actions {
-		if err := action.Fn(ctx); err != nil {
-			return err
-		}
-	}
-	return nil
+	return components.ApplyPlan(ctx, c.Name(), plan)
 }
