@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -85,6 +86,7 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 				// may be slightly older than what the host has via security updates.
 				args := append([]string{"-i", "--force-depends", "--force-downgrade", "--force-breaks", "--force-overwrite"}, debPaths...)
 				cmd := exec.CommandContext(ctx, "dpkg", args...)
+				cmd.Env = nonInteractiveDpkgEnv()
 				output, err := cmdutil.Run(ctx, cmd)
 				if err != nil {
 					return fmt.Errorf("dpkg -i: %w\n%s", err, output)
@@ -99,4 +101,31 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 
 func (c *Component) Apply(ctx context.Context, plan components.Plan) error {
 	return components.ApplyPlan(ctx, c.Name(), plan)
+}
+
+// nonInteractiveDpkgEnv returns the environment dpkg should run under so
+// maintainer-script prompts do not hang the install. Several bundled
+// packages call debconf from their postinst scripts — iptables-persistent
+// is the one that bit us in testing ("save existing IPv4/IPv6 rules?"),
+// but grub-pc, ufw, kbd-config, and libc6 share the pattern. Without a
+// noninteractive frontend debconf opens /dev/tty directly, bypassing the
+// io.Writer redirection cmdutil.Run sets up; the install then blocks on
+// an invisible prompt forever.
+//
+// The three variables work together:
+//   - DEBIAN_FRONTEND=noninteractive selects debconf's silent frontend.
+//   - DEBCONF_NONINTERACTIVE_SEEN=true marks preseed answers as final so
+//     the frontend does not escalate back to an interactive fallback.
+//   - DEBIAN_PRIORITY=critical tells debconf to skip every question at
+//     or below the "critical" priority — i.e. anything that has a
+//     defined default answer, which is everything we ship.
+//
+// os.Environ() is prepended so operator-supplied env (proxies,
+// locale settings, custom dpkg options) flows through unchanged.
+func nonInteractiveDpkgEnv() []string {
+	return append(os.Environ(),
+		"DEBIAN_FRONTEND=noninteractive",
+		"DEBCONF_NONINTERACTIVE_SEEN=true",
+		"DEBIAN_PRIORITY=critical",
+	)
 }
