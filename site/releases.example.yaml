@@ -1,0 +1,32 @@
+schema_version: 1
+
+site:
+  title: Aether Ops Bootstrap Downloads
+  base_url_path: /aether-ops-bootstrap
+  description: Public download page for the bootstrap launcher and offline bundle artifacts.
+
+releases:
+  - id: "2026-04-21-example"
+    published_at: "2026-04-21"
+    current: true
+
+    bootstrap:
+      label: Bootstrap Launcher
+      version: "0.1.43"
+      path: "0.1.43"
+      filename: aether-ops-bootstrap
+      source: ../dist/aether-ops-bootstrap
+      commit: "341787b"
+      release_notes: |
+        Replace this with launcher-specific notes for the release.
+
+    bundle:
+      label: Offline Bundle
+      version: "2026.04.1"
+      path: "2026.04.1"
+      filename: bundle.tar.zst
+      source: ../dist/bundle.tar.zst
+      sha256_source: ../dist/bundle.tar.zst.sha256
+      build_commit: "341787b"
+      release_notes: |
+        Replace this with bundle-specific notes for the release.
