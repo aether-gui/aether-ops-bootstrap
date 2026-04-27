@@ -77,6 +77,16 @@ The [release workflow](./release-process.md) takes it from there: GoReleaser
 builds the launcher, the bundle builder is run in CI, SBOMs and vulnerability
 scans are generated, and every artifact is attached to the GitHub release.
 
+### I'm publishing the download page
+
+```bash
+make release-site
+```
+
+Renders a static site (`dist/release-site/`) with the current launcher,
+bundle, SHA256s, and a versioned releases index. See the
+[download site generator](./release-site.md).
+
 ### I'm adding a new `.deb` to the bundle
 
 1. Add an entry under `debs:` in `specs/bundle.yaml`.

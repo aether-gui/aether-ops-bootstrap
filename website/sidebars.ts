@@ -35,6 +35,7 @@ const sidebars: SidebarsConfig = {
         'build-guide/building-locally',
         'build-guide/release-process',
         'build-guide/versioning',
+        'build-guide/release-site',
       ],
     },
     {
