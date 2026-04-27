@@ -1,5 +1,5 @@
 schema_version: 1
-bundle_version: "0.0.0-dev"
+bundle_version: "2026.04.27.1"
 
 ubuntu:
   suites: [noble]
@@ -40,8 +40,8 @@ helm:
   version: "v3.17.3"
 
 aether_ops:
-  version: "v0.1.48"
-  source: ./artifacts/aether-ops_0.1.48_linux_amd64.tar.gz  # local pre-built binary
+  version: "v0.1.49"
+  source: ./artifacts/aether-ops_0.1.49_linux_amd64.tar.gz  # local pre-built binary
   # ref: "main"           # build from source at this git ref (mutually exclusive with source)
   # repo: aether-gui/aether-ops
   # frontend_ref: ""      # override frontend submodule (source build only)
@@ -80,7 +80,7 @@ onramp:
   repo: https://github.com/opennetworkinglab/aether-onramp.git
   # Pinned to a specific upstream commit for reproducibility; bump
   # after reviewing upstream changes. HEAD of main at time of pin.
-  ref: befeb8771706cd8c7e241acddf95a4a16486b4e5
+  ref: eb0b89bdeb00342deab732b73c0187175a0a7265
   recurse_submodules: false
 
 # Helm chart repositories to bundle. Each entry is cloned to
