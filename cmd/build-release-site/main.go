@@ -34,21 +34,29 @@ type releaseConfig struct {
 	ID          string         `yaml:"id"`
 	PublishedAt string         `yaml:"published_at"`
 	Current     bool           `yaml:"current"`
+	External    bool           `yaml:"external"`
 	Bootstrap   artifactConfig `yaml:"bootstrap"`
 	Bundle      artifactConfig `yaml:"bundle"`
 }
 
 type artifactConfig struct {
-	Label        string `yaml:"label"`
-	Version      string `yaml:"version"`
-	Path         string `yaml:"path"`
-	Filename     string `yaml:"filename"`
-	Source       string `yaml:"source"`
-	SHA256       string `yaml:"sha256"`
-	SHA256Source string `yaml:"sha256_source"`
-	Commit       string `yaml:"commit"`
-	BuildCommit  string `yaml:"build_commit"`
-	ReleaseNotes string `yaml:"release_notes"`
+	Label        string            `yaml:"label"`
+	Version      string            `yaml:"version"`
+	Path         string            `yaml:"path"`
+	Filename     string            `yaml:"filename"`
+	Source       string            `yaml:"source"`
+	SHA256       string            `yaml:"sha256"`
+	SHA256Source string            `yaml:"sha256_source"`
+	Commit       string            `yaml:"commit"`
+	BuildCommit  string            `yaml:"build_commit"`
+	ReleaseNotes string            `yaml:"release_notes"`
+	Components   []componentConfig `yaml:"components"`
+}
+
+type componentConfig struct {
+	Name    string `yaml:"name"`
+	Version string `yaml:"version"`
+	Commit  string `yaml:"commit"`
 }
 
 type publicMetadata struct {
@@ -61,21 +69,29 @@ type publicRelease struct {
 	ID          string         `json:"id"`
 	PublishedAt string         `json:"published_at"`
 	Current     bool           `json:"current"`
+	External    bool           `json:"external,omitempty"`
 	Bootstrap   publicArtifact `json:"bootstrap"`
 	Bundle      publicArtifact `json:"bundle"`
 }
 
 type publicArtifact struct {
-	Label        string `json:"label"`
-	Version      string `json:"version"`
-	Path         string `json:"path"`
-	Filename     string `json:"filename"`
-	SHA256       string `json:"sha256"`
-	Commit       string `json:"commit,omitempty"`
-	BuildCommit  string `json:"build_commit,omitempty"`
-	ReleaseNotes string `json:"release_notes,omitempty"`
-	URL          string `json:"url"`
-	SHA256URL    string `json:"sha256_url,omitempty"`
+	Label        string            `json:"label"`
+	Version      string            `json:"version"`
+	Path         string            `json:"path"`
+	Filename     string            `json:"filename"`
+	SHA256       string            `json:"sha256"`
+	Commit       string            `json:"commit,omitempty"`
+	BuildCommit  string            `json:"build_commit,omitempty"`
+	ReleaseNotes string            `json:"release_notes,omitempty"`
+	URL          string            `json:"url"`
+	SHA256URL    string            `json:"sha256_url,omitempty"`
+	Components   []publicComponent `json:"components,omitempty"`
+}
+
+type publicComponent struct {
+	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
+	Commit  string `json:"commit,omitempty"`
 }
 
 type renderedSite struct {
@@ -90,6 +106,7 @@ type renderedRelease struct {
 	ID          string
 	PublishedAt string
 	Current     bool
+	External    bool
 	Bootstrap   renderedArtifact
 	Bundle      renderedArtifact
 }
@@ -105,6 +122,13 @@ type renderedArtifact struct {
 	ReleaseNotes string
 	URL          string
 	SHA256URL    string
+	Components   []renderedComponent
+}
+
+type renderedComponent struct {
+	Name    string
+	Version string
+	Commit  string
 }
 
 const indexTemplate = `<!doctype html>
@@ -181,6 +205,37 @@ const indexTemplate = `<!doctype html>
       padding: 12px 14px;
       border-radius: 8px;
     }
+    .components {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border-top: 1px solid var(--border);
+    }
+    .components li {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: baseline;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .components .name {
+      font-weight: 600;
+      flex: 0 0 auto;
+    }
+    .components .ver {
+      color: var(--muted);
+      flex: 0 0 auto;
+    }
+    .components .hash {
+      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+      background: var(--code);
+      padding: 1px 6px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      flex: 0 0 auto;
+    }
     .footer-link {
       margin-top: 32px;
     }
@@ -195,7 +250,7 @@ const indexTemplate = `<!doctype html>
     <section class="grid">
       <article class="card">
         <h2>{{ .Latest.Bootstrap.Label }}</h2>
-        <p class="meta">Version {{ .Latest.Bootstrap.Version }}{{ if .Latest.Bootstrap.Commit }} · commit {{ .Latest.Bootstrap.Commit }}{{ end }}</p>
+        <p class="meta">Version {{ .Latest.Bootstrap.Version }}{{ if .Latest.Bootstrap.Commit }} · commit <span class="hash">{{ shortHash .Latest.Bootstrap.Commit }}</span>{{ end }}</p>
         <div class="linklist">
           <a href="{{ .Latest.Bootstrap.URL }}">Download {{ .Latest.Bootstrap.Filename }}</a>
         </div>
@@ -203,11 +258,23 @@ const indexTemplate = `<!doctype html>
         <code>{{ .Latest.Bootstrap.SHA256 }}</code>
         <h3>Release Notes</h3>
         <div class="notes">{{ .Latest.Bootstrap.ReleaseNotes }}</div>
+        {{ if .Latest.Bootstrap.Components }}
+        <h3>Components</h3>
+        <ul class="components">
+          {{ range .Latest.Bootstrap.Components }}
+          <li>
+            <span class="name">{{ .Name }}</span>
+            {{ if .Version }}<span class="ver">{{ .Version }}</span>{{ end }}
+            {{ if .Commit }}<span class="hash">{{ shortHash .Commit }}</span>{{ end }}
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
       </article>
 
       <article class="card">
         <h2>{{ .Latest.Bundle.Label }}</h2>
-        <p class="meta">Version {{ .Latest.Bundle.Version }}{{ if .Latest.Bundle.BuildCommit }} · build {{ .Latest.Bundle.BuildCommit }}{{ end }}</p>
+        <p class="meta">Version {{ .Latest.Bundle.Version }}{{ if .Latest.Bundle.BuildCommit }} · build <span class="hash">{{ shortHash .Latest.Bundle.BuildCommit }}</span>{{ end }}</p>
         <div class="linklist">
           <a href="{{ .Latest.Bundle.URL }}">Download {{ .Latest.Bundle.Filename }}</a>
           <a href="{{ .Latest.Bundle.SHA256URL }}">Download SHA256</a>
@@ -216,6 +283,18 @@ const indexTemplate = `<!doctype html>
         <code>{{ .Latest.Bundle.SHA256 }}</code>
         <h3>Release Notes</h3>
         <div class="notes">{{ .Latest.Bundle.ReleaseNotes }}</div>
+        {{ if .Latest.Bundle.Components }}
+        <h3>Components</h3>
+        <ul class="components">
+          {{ range .Latest.Bundle.Components }}
+          <li>
+            <span class="name">{{ .Name }}</span>
+            {{ if .Version }}<span class="ver">{{ .Version }}</span>{{ end }}
+            {{ if .Commit }}<span class="hash">{{ shortHash .Commit }}</span>{{ end }}
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
       </article>
     </section>
 
@@ -299,6 +378,30 @@ const releasesTemplate = `<!doctype html>
       white-space: pre-wrap;
       margin-top: 10px;
     }
+    .components {
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+      border-top: 1px solid var(--border);
+    }
+    .components li {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: baseline;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .components .name { font-weight: 600; }
+    .components .ver { color: var(--muted); }
+    .components .hash {
+      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+      background: var(--code);
+      padding: 1px 6px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+    }
   </style>
 </head>
 <body>
@@ -312,22 +415,44 @@ const releasesTemplate = `<!doctype html>
       <div class="artifacts">
         <article class="artifact">
           <h3>{{ .Bootstrap.Label }}</h3>
-          <p class="meta">Version {{ .Bootstrap.Version }}{{ if .Bootstrap.Commit }} · commit {{ .Bootstrap.Commit }}{{ end }}</p>
+          <p class="meta">Version {{ .Bootstrap.Version }}{{ if .Bootstrap.Commit }} · commit <span class="hash">{{ shortHash .Bootstrap.Commit }}</span>{{ end }}</p>
           <div class="linklist">
             <a href="{{ .Bootstrap.URL }}">Download {{ .Bootstrap.Filename }}</a>
           </div>
           <code>{{ .Bootstrap.SHA256 }}</code>
           <div class="notes">{{ .Bootstrap.ReleaseNotes }}</div>
+          {{ if .Bootstrap.Components }}
+          <ul class="components">
+            {{ range .Bootstrap.Components }}
+            <li>
+              <span class="name">{{ .Name }}</span>
+              {{ if .Version }}<span class="ver">{{ .Version }}</span>{{ end }}
+              {{ if .Commit }}<span class="hash">{{ shortHash .Commit }}</span>{{ end }}
+            </li>
+            {{ end }}
+          </ul>
+          {{ end }}
         </article>
         <article class="artifact">
           <h3>{{ .Bundle.Label }}</h3>
-          <p class="meta">Version {{ .Bundle.Version }}{{ if .Bundle.BuildCommit }} · build {{ .Bundle.BuildCommit }}{{ end }}</p>
+          <p class="meta">Version {{ .Bundle.Version }}{{ if .Bundle.BuildCommit }} · build <span class="hash">{{ shortHash .Bundle.BuildCommit }}</span>{{ end }}</p>
           <div class="linklist">
             <a href="{{ .Bundle.URL }}">Download {{ .Bundle.Filename }}</a>
             <a href="{{ .Bundle.SHA256URL }}">Download SHA256</a>
           </div>
           <code>{{ .Bundle.SHA256 }}</code>
           <div class="notes">{{ .Bundle.ReleaseNotes }}</div>
+          {{ if .Bundle.Components }}
+          <ul class="components">
+            {{ range .Bundle.Components }}
+            <li>
+              <span class="name">{{ .Name }}</span>
+              {{ if .Version }}<span class="ver">{{ .Version }}</span>{{ end }}
+              {{ if .Commit }}<span class="hash">{{ shortHash .Commit }}</span>{{ end }}
+            </li>
+            {{ end }}
+          </ul>
+          {{ end }}
         </article>
       </div>
     </section>
@@ -451,10 +576,10 @@ func validateMetadata(meta siteMetadata) error {
 		if rel.Current {
 			currentCount++
 		}
-		if err := validateArtifact("bootstrap", rel.Bootstrap); err != nil {
+		if err := validateArtifact("bootstrap", rel.Bootstrap, rel.External); err != nil {
 			return fmt.Errorf("release %q: %w", rel.ID, err)
 		}
-		if err := validateArtifact("bundle", rel.Bundle); err != nil {
+		if err := validateArtifact("bundle", rel.Bundle, rel.External); err != nil {
 			return fmt.Errorf("release %q: %w", rel.ID, err)
 		}
 	}
@@ -464,7 +589,7 @@ func validateMetadata(meta siteMetadata) error {
 	return nil
 }
 
-func validateArtifact(kind string, artifact artifactConfig) error {
+func validateArtifact(kind string, artifact artifactConfig, external bool) error {
 	if artifact.Version == "" {
 		return fmt.Errorf("%s version is required", kind)
 	}
@@ -477,6 +602,12 @@ func validateArtifact(kind string, artifact artifactConfig) error {
 	if artifact.Filename == "" {
 		return fmt.Errorf("%s filename is required", kind)
 	}
+	if external {
+		if artifact.SHA256 == "" {
+			return fmt.Errorf("%s sha256 is required for external releases", kind)
+		}
+		return nil
+	}
 	if artifact.Source == "" {
 		return fmt.Errorf("%s source is required", kind)
 	}
@@ -484,55 +615,63 @@ func validateArtifact(kind string, artifact artifactConfig) error {
 }
 
 func materializeRelease(metadataDir, outputDir, baseURL string, rel releaseConfig) (renderedRelease, publicRelease, error) {
-	bootstrapDir := filepath.Join(outputDir, "bootstrap", rel.Bootstrap.Path)
-	bundleDir := filepath.Join(outputDir, "bundles", rel.Bundle.Path)
-	if err := os.MkdirAll(bootstrapDir, 0o755); err != nil {
-		return renderedRelease{}, publicRelease{}, err
-	}
-	if err := os.MkdirAll(bundleDir, 0o755); err != nil {
-		return renderedRelease{}, publicRelease{}, err
-	}
-
 	bootstrapURL := joinURL(baseURL, "bootstrap", rel.Bootstrap.Path, rel.Bootstrap.Filename)
 	bundleURL := joinURL(baseURL, "bundles", rel.Bundle.Path, rel.Bundle.Filename)
 	bundleSHAURL := joinURL(baseURL, "bundles", rel.Bundle.Path, rel.Bundle.Filename+".sha256")
 	bootstrapSHAURL := joinURL(baseURL, "bootstrap", rel.Bootstrap.Path, rel.Bootstrap.Filename+".sha256")
 
-	bootstrapHash, err := copyArtifact(resolvePath(metadataDir, rel.Bootstrap.Source), filepath.Join(bootstrapDir, rel.Bootstrap.Filename))
-	if err != nil {
-		return renderedRelease{}, publicRelease{}, fmt.Errorf("bootstrap: %w", err)
-	}
-	if rel.Bootstrap.SHA256 != "" && rel.Bootstrap.SHA256 != bootstrapHash {
-		return renderedRelease{}, publicRelease{}, fmt.Errorf("bootstrap sha256 mismatch: metadata=%s computed=%s", rel.Bootstrap.SHA256, bootstrapHash)
-	}
-	if err := writeSHA256File(filepath.Join(bootstrapDir, rel.Bootstrap.Filename+".sha256"), rel.Bootstrap.Filename, bootstrapHash); err != nil {
-		return renderedRelease{}, publicRelease{}, err
-	}
+	var bootstrapHash, bundleHash string
+	if rel.External {
+		bootstrapHash = rel.Bootstrap.SHA256
+		bundleHash = rel.Bundle.SHA256
+	} else {
+		bootstrapDir := filepath.Join(outputDir, "bootstrap", rel.Bootstrap.Path)
+		bundleDir := filepath.Join(outputDir, "bundles", rel.Bundle.Path)
+		if err := os.MkdirAll(bootstrapDir, 0o755); err != nil {
+			return renderedRelease{}, publicRelease{}, err
+		}
+		if err := os.MkdirAll(bundleDir, 0o755); err != nil {
+			return renderedRelease{}, publicRelease{}, err
+		}
 
-	bundleHash, err := copyArtifact(resolvePath(metadataDir, rel.Bundle.Source), filepath.Join(bundleDir, rel.Bundle.Filename))
-	if err != nil {
-		return renderedRelease{}, publicRelease{}, fmt.Errorf("bundle: %w", err)
-	}
-	if rel.Bundle.SHA256 != "" && rel.Bundle.SHA256 != bundleHash {
-		return renderedRelease{}, publicRelease{}, fmt.Errorf("bundle sha256 mismatch: metadata=%s computed=%s", rel.Bundle.SHA256, bundleHash)
-	}
-	if rel.Bundle.SHA256Source != "" {
-		hashFromFile, err := parseSHA256File(resolvePath(metadataDir, rel.Bundle.SHA256Source))
+		var err error
+		bootstrapHash, err = copyArtifact(resolvePath(metadataDir, rel.Bootstrap.Source), filepath.Join(bootstrapDir, rel.Bootstrap.Filename))
 		if err != nil {
-			return renderedRelease{}, publicRelease{}, fmt.Errorf("bundle sha256 source: %w", err)
+			return renderedRelease{}, publicRelease{}, fmt.Errorf("bootstrap: %w", err)
 		}
-		if hashFromFile != bundleHash {
-			return renderedRelease{}, publicRelease{}, fmt.Errorf("bundle sha256 source mismatch: file=%s computed=%s", hashFromFile, bundleHash)
+		if rel.Bootstrap.SHA256 != "" && rel.Bootstrap.SHA256 != bootstrapHash {
+			return renderedRelease{}, publicRelease{}, fmt.Errorf("bootstrap sha256 mismatch: metadata=%s computed=%s", rel.Bootstrap.SHA256, bootstrapHash)
 		}
-	}
-	if err := writeSHA256File(filepath.Join(bundleDir, rel.Bundle.Filename+".sha256"), rel.Bundle.Filename, bundleHash); err != nil {
-		return renderedRelease{}, publicRelease{}, err
+		if err := writeSHA256File(filepath.Join(bootstrapDir, rel.Bootstrap.Filename+".sha256"), rel.Bootstrap.Filename, bootstrapHash); err != nil {
+			return renderedRelease{}, publicRelease{}, err
+		}
+
+		bundleHash, err = copyArtifact(resolvePath(metadataDir, rel.Bundle.Source), filepath.Join(bundleDir, rel.Bundle.Filename))
+		if err != nil {
+			return renderedRelease{}, publicRelease{}, fmt.Errorf("bundle: %w", err)
+		}
+		if rel.Bundle.SHA256 != "" && rel.Bundle.SHA256 != bundleHash {
+			return renderedRelease{}, publicRelease{}, fmt.Errorf("bundle sha256 mismatch: metadata=%s computed=%s", rel.Bundle.SHA256, bundleHash)
+		}
+		if rel.Bundle.SHA256Source != "" {
+			hashFromFile, err := parseSHA256File(resolvePath(metadataDir, rel.Bundle.SHA256Source))
+			if err != nil {
+				return renderedRelease{}, publicRelease{}, fmt.Errorf("bundle sha256 source: %w", err)
+			}
+			if hashFromFile != bundleHash {
+				return renderedRelease{}, publicRelease{}, fmt.Errorf("bundle sha256 source mismatch: file=%s computed=%s", hashFromFile, bundleHash)
+			}
+		}
+		if err := writeSHA256File(filepath.Join(bundleDir, rel.Bundle.Filename+".sha256"), rel.Bundle.Filename, bundleHash); err != nil {
+			return renderedRelease{}, publicRelease{}, err
+		}
 	}
 
 	renderedRel := renderedRelease{
 		ID:          rel.ID,
 		PublishedAt: rel.PublishedAt,
 		Current:     rel.Current,
+		External:    rel.External,
 		Bootstrap: renderedArtifact{
 			Label:        defaultString(rel.Bootstrap.Label, "Bootstrap Launcher"),
 			Version:      rel.Bootstrap.Version,
@@ -543,6 +682,7 @@ func materializeRelease(metadataDir, outputDir, baseURL string, rel releaseConfi
 			ReleaseNotes: defaultNotes(rel.Bootstrap.ReleaseNotes),
 			URL:          bootstrapURL,
 			SHA256URL:    bootstrapSHAURL,
+			Components:   renderComponents(rel.Bootstrap.Components),
 		},
 		Bundle: renderedArtifact{
 			Label:        defaultString(rel.Bundle.Label, "Offline Bundle"),
@@ -554,6 +694,7 @@ func materializeRelease(metadataDir, outputDir, baseURL string, rel releaseConfi
 			ReleaseNotes: defaultNotes(rel.Bundle.ReleaseNotes),
 			URL:          bundleURL,
 			SHA256URL:    bundleSHAURL,
+			Components:   renderComponents(rel.Bundle.Components),
 		},
 	}
 
@@ -561,6 +702,7 @@ func materializeRelease(metadataDir, outputDir, baseURL string, rel releaseConfi
 		ID:          rel.ID,
 		PublishedAt: rel.PublishedAt,
 		Current:     rel.Current,
+		External:    rel.External,
 		Bootstrap: publicArtifact{
 			Label:        renderedRel.Bootstrap.Label,
 			Version:      renderedRel.Bootstrap.Version,
@@ -571,6 +713,7 @@ func materializeRelease(metadataDir, outputDir, baseURL string, rel releaseConfi
 			ReleaseNotes: renderedRel.Bootstrap.ReleaseNotes,
 			URL:          renderedRel.Bootstrap.URL,
 			SHA256URL:    renderedRel.Bootstrap.SHA256URL,
+			Components:   publicComponents(renderedRel.Bootstrap.Components),
 		},
 		Bundle: publicArtifact{
 			Label:        renderedRel.Bundle.Label,
@@ -582,6 +725,7 @@ func materializeRelease(metadataDir, outputDir, baseURL string, rel releaseConfi
 			ReleaseNotes: renderedRel.Bundle.ReleaseNotes,
 			URL:          renderedRel.Bundle.URL,
 			SHA256URL:    renderedRel.Bundle.SHA256URL,
+			Components:   publicComponents(renderedRel.Bundle.Components),
 		},
 	}
 
@@ -632,7 +776,10 @@ func writeSHA256File(path, filename, hash string) error {
 }
 
 func writeTemplate(path, tmpl string, data any) error {
-	t, err := template.New(filepath.Base(path)).Parse(tmpl)
+	funcs := template.FuncMap{
+		"shortHash": shortHash,
+	}
+	t, err := template.New(filepath.Base(path)).Funcs(funcs).Parse(tmpl)
 	if err != nil {
 		return err
 	}
@@ -641,6 +788,44 @@ func writeTemplate(path, tmpl string, data any) error {
 		return err
 	}
 	return os.WriteFile(path, buf.Bytes(), 0o644)
+}
+
+func shortHash(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) > 7 {
+		return s[:7]
+	}
+	return s
+}
+
+func renderComponents(in []componentConfig) []renderedComponent {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]renderedComponent, len(in))
+	for i, c := range in {
+		out[i] = renderedComponent{
+			Name:    c.Name,
+			Version: c.Version,
+			Commit:  c.Commit,
+		}
+	}
+	return out
+}
+
+func publicComponents(in []renderedComponent) []publicComponent {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]publicComponent, len(in))
+	for i, c := range in {
+		out[i] = publicComponent{
+			Name:    c.Name,
+			Version: c.Version,
+			Commit:  c.Commit,
+		}
+	}
+	return out
 }
 
 func writeJSON(path string, data any) error {

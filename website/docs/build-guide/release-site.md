@@ -98,12 +98,44 @@ releases:
       build_commit: "341787b"
       release_notes: |
         Replace this with bundle-specific notes for the release.
+      components:                       # rendered under the artifact card
+        - name: aether-ops
+          version: v0.1.49
+        - name: aether-onramp
+          commit: eb0b89bdeb00342deab732b73c0187175a0a7265
+        - name: rke2
+          version: v1.33.1+rke2r1
 ```
 
 `source` paths are resolved relative to the metadata file's directory.
 If `sha256_source` is provided, the value is verified against a freshly
 computed hash of `source`; if omitted, the generator computes and emits
 the hash itself.
+
+`components` is an optional list of bundled-or-related software whose
+identity matters for an operator deciding whether to upgrade. Each entry
+needs a `name` plus at least one of `version` or `commit`. Long commit
+hashes are auto-shortened to 7 characters in the rendered HTML, but the
+full value is preserved in `metadata.json`. The same field is available
+on `bootstrap` for symmetry, though it's typically left empty there.
+
+## External releases
+
+Set `external: true` on a release to reference artifacts that already
+live on the published site (e.g. older releases whose source files you
+no longer have locally). External entries:
+
+- skip the `source` copy and SHA computation
+- require an explicit `sha256` on each artifact (used in metadata + UI)
+- still use `path` to construct the public URL
+- contribute to `metadata.json` and the release-history page
+
+Because `--output` is wiped on every run, syncing the generator's output
+to a host that uses `rsync --delete` (or any "replace tree" deploy)
+would remove the external artifact files. Use a deploy that preserves
+files outside the freshly-generated set (e.g. `rsync` without `--delete`,
+or only sync the new release's subdirectories plus `index.html`,
+`releases/index.html`, and `metadata.json`).
 
 The canonical example lives at
 [`site/releases.example.yaml`](https://github.com/aether-gui/aether-ops-bootstrap/blob/main/site/releases.example.yaml).

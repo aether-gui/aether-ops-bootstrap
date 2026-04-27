@@ -6,33 +6,32 @@ site:
   description: Public download page for the bootstrap launcher and offline bundle artifacts.
 
 releases:
-  - id: "2026-04-21-example"
-    published_at: "2026-04-21"
+  - id: "2026-04-27-onramp-pin-and-ops-0.1.49"
+    published_at: "2026-04-27"
     current: true
 
     bootstrap:
       label: Bootstrap Launcher
-      version: "0.1.43"
-      path: "0.1.43"
+      version: "2026.04.27.1"
+      path: "2026.04.27.1"
       filename: aether-ops-bootstrap
       source: ../dist/aether-ops-bootstrap
-      commit: "341787b"
+      commit: "7511880"
       release_notes: |
-        Replace this with launcher-specific notes for the release.
+        Bootstrap rebuilt against current main. Pairs with the
+        2026.04.27.1 offline bundle below.
 
     bundle:
       label: Offline Bundle
-      version: "2026.04.1"
-      path: "2026.04.1"
+      version: "2026.04.27.1"
+      path: "2026.04.27.1"
       filename: bundle.tar.zst
       source: ../dist/bundle.tar.zst
       sha256_source: ../dist/bundle.tar.zst.sha256
-      build_commit: "341787b"
+      build_commit: "7511880"
       release_notes: |
-        Replace this with bundle-specific notes for the release.
-      # Bundled components rendered as a list under the bundle card.
-      # Each entry is free-form: provide whichever of version/commit
-      # are meaningful. Long commit hashes are auto-shortened to 7 chars.
+        Pin aether-onramp to upstream HEAD eb0b89bd; bump aether-ops to
+        v0.1.49.
       components:
         - name: aether-ops
           version: v0.1.49
@@ -45,16 +44,10 @@ releases:
         - name: sdcore-helm-charts
           version: main
 
-  # External entries reference artifacts that already exist on the live
-  # site. They contribute to metadata.json and the release history page
-  # without re-copying source files. Use this to retain prior releases
-  # across regenerations without holding old (often multi-GB) artifacts
-  # locally. `external` requires `sha256` on each artifact (since there
-  # is no source to compute it from); `path` is still used to construct
-  # the URL into the existing tree.
-  - id: "2026-04-21-legacy-example"
+  - id: "2026-04-21-legacy-migration"
     published_at: "2026-04-21"
     external: true
+
     bootstrap:
       label: Bootstrap Launcher
       version: "75229ab"
@@ -62,6 +55,9 @@ releases:
       filename: aether-ops-bootstrap
       sha256: "e090bf6561696063d002ddff2316101b7206b52b80748a16d929d1e872de3b1c"
       commit: "75229ab"
+      release_notes: |
+        Current launcher artifact preserved during the migration from the legacy hash-based layout.
+
     bundle:
       label: Offline Bundle
       version: "0.0.0-dev"
@@ -69,3 +65,5 @@ releases:
       filename: bundle.tar.zst
       sha256: "80b576b97efacc7ea87c17747b90bfc0bc9d82c5cd9cb6ba897a0e29d06f6aa4"
       build_commit: "2760b8f"
+      release_notes: |
+        Current offline bundle preserved during the migration from the legacy hash-based layout.
