@@ -247,7 +247,7 @@ func scanShellSegmentForPip(segment, filePath, repoRoot string, acc *scanAccumul
 		return
 	}
 
-	start := -1
+	start := 0
 	switch {
 	case fields[0] == "pip" || strings.HasSuffix(fields[0], "/pip") || strings.HasSuffix(fields[0], "/pip3") || fields[0] == "pip3":
 		start = 0
