@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -127,11 +129,37 @@ func buildOne(specPath, outputPath, lockPath string) error {
 		log.Printf("aether-ops staged (%d files)", len(aetherOpsEntry.Files))
 	}
 
+	// Clone aether-onramp early so downstream dependency discovery can
+	// feed later artifact resolution (debs, wheels, validation).
+	var onrampEntry *bundle.OnrampEntry
+	var onrampScan *builder.OnrampDependencyScan
+	if spec.Onramp != nil {
+		log.Printf("cloning aether-onramp from %s...", spec.Onramp.Repo)
+		onrampEntry, err = builder.BuildOnramp(ctx, spec.Onramp, stageDir)
+		if err != nil {
+			return err
+		}
+		log.Printf("onramp staged at %s (sha %s, %d files)", onrampEntry.Path, onrampEntry.ResolvedSHA[:min(12, len(onrampEntry.ResolvedSHA))], len(onrampEntry.Files))
+
+		onrampRoot := filepath.Join(stageDir, onrampEntry.Path)
+		onrampScan, err = builder.ScanOnrampDependencies(onrampRoot)
+		if err != nil {
+			return fmt.Errorf("scanning onramp dependencies: %w", err)
+		}
+		log.Printf("onramp scan discovered %d apt packages and %d pip requirements", len(onrampScan.AptPackages), len(onrampScan.PipRequirements))
+		if len(onrampScan.Unresolved) > 0 {
+			return fmt.Errorf("onramp dependency scan found unresolved offline requirements:\n- %s", strings.Join(onrampScan.Unresolved, "\n- "))
+		}
+	}
+
 	// Fetch .deb packages.
 	var debEntries []bundle.DebEntry
-	if len(spec.Debs) > 0 {
+	effectiveDebs := mergeDebSpecs(spec.Debs, onrampScan)
+	if len(effectiveDebs) > 0 {
 		log.Printf("resolving and fetching .deb packages...")
-		debEntries, err = builder.FetchDebs(ctx, dl, spec, stageDir)
+		specWithDiscoveredDebs := *spec
+		specWithDiscoveredDebs.Debs = effectiveDebs
+		debEntries, err = builder.FetchDebs(ctx, dl, &specWithDiscoveredDebs, stageDir)
 		if err != nil {
 			return err
 		}
@@ -153,6 +181,20 @@ func buildOne(specPath, outputPath, lockPath string) error {
 		}
 	}
 
+	// Build an offline wheelhouse for pip requirements referenced by the
+	// vendored onramp tree.
+	var wheelhouseEntry *bundle.WheelhouseEntry
+	if onrampScan != nil && len(onrampScan.PipRequirements) > 0 {
+		log.Printf("building wheelhouse for %d pip requirements...", len(onrampScan.PipRequirements))
+		wheelhouseEntry, err = builder.BuildWheelhouse(ctx, onrampScan.PipRequirements, stageDir)
+		if err != nil {
+			return err
+		}
+		if wheelhouseEntry != nil {
+			log.Printf("staged %d wheelhouse files", len(wheelhouseEntry.Files))
+		}
+	}
+
 	// Stage templates.
 	var templatesEntry *bundle.TemplatesEntry
 	if spec.TemplatesDir != "" {
@@ -163,17 +205,6 @@ func buildOne(specPath, outputPath, lockPath string) error {
 		if templatesEntry != nil {
 			log.Printf("staged %d template files", len(templatesEntry.Files))
 		}
-	}
-
-	// Clone aether-onramp into the bundle for airgap deployments.
-	var onrampEntry *bundle.OnrampEntry
-	if spec.Onramp != nil {
-		log.Printf("cloning aether-onramp from %s...", spec.Onramp.Repo)
-		onrampEntry, err = builder.BuildOnramp(ctx, spec.Onramp, stageDir)
-		if err != nil {
-			return err
-		}
-		log.Printf("onramp staged at %s (sha %s, %d files)", onrampEntry.Path, onrampEntry.ResolvedSHA[:min(12, len(onrampEntry.ResolvedSHA))], len(onrampEntry.Files))
 	}
 
 	// Clone helm chart repositories.
@@ -214,6 +245,7 @@ func buildOne(specPath, outputPath, lockPath string) error {
 	manifest := builder.BuildManifest(spec, gitSHA, builder.ManifestInputs{
 		RKE2:       rke2Entry,
 		Helm:       helmEntry,
+		Wheelhouse: wheelhouseEntry,
 		AetherOps:  aetherOpsEntry,
 		Debs:       debEntries,
 		Templates:  templatesEntry,
@@ -242,6 +274,30 @@ func buildOne(specPath, outputPath, lockPath string) error {
 
 	log.Printf("bundle written to %s (SHA256: %s)", outputPath, hash)
 	return nil
+}
+
+func mergeDebSpecs(explicit []bundle.DebSpec, scan *builder.OnrampDependencyScan) []bundle.DebSpec {
+	seen := make(map[string]bundle.DebSpec, len(explicit))
+	for _, deb := range explicit {
+		seen[deb.Name] = deb
+	}
+	if scan != nil {
+		for _, name := range scan.AptPackages {
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = bundle.DebSpec{Name: name}
+		}
+	}
+
+	out := make([]bundle.DebSpec, 0, len(seen))
+	for _, deb := range seen {
+		out = append(out, deb)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Name < out[j].Name
+	})
+	return out
 }
 
 // resolveImageRefs computes the final set of image references to pull

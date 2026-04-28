@@ -11,6 +11,7 @@ import (
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/serviceaccount"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/ssh"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/sudoers"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/components/wheelhouse"
 )
 
 // BuildRegistry creates the component registry in dependency order.
@@ -31,6 +32,7 @@ func BuildRegistry(extractDir string, manifest *bundle.Manifest, suite string) *
 	svcComp := serviceaccount.New()
 	svcComp.SetManifest(manifest)
 	r.Register(svcComp)
+	r.Register(wheelhouse.New(extractDir, manifest))
 	r.Register(rke2.New(extractDir, manifest))
 	r.Register(helm.New(extractDir, manifest))
 	// onramp extracts the bundled Ansible toolchain and helm charts so

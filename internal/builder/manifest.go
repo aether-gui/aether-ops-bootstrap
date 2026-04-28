@@ -12,6 +12,7 @@ import (
 type ManifestInputs struct {
 	RKE2       *bundle.RKE2Entry
 	Helm       *bundle.HelmEntry
+	Wheelhouse *bundle.WheelhouseEntry
 	AetherOps  *bundle.AetherOpsEntry
 	Debs       []bundle.DebEntry
 	Templates  *bundle.TemplatesEntry
@@ -40,6 +41,9 @@ func BuildManifest(spec *bundle.Spec, gitSHA string, in ManifestInputs) *bundle.
 	}
 	if in.Helm != nil {
 		m.Components.Helm = in.Helm
+	}
+	if in.Wheelhouse != nil {
+		m.Components.Wheelhouse = in.Wheelhouse
 	}
 	if in.AetherOps != nil {
 		m.Components.AetherOps = in.AetherOps
