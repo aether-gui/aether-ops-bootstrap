@@ -122,6 +122,10 @@
         "version": "24.0-1",
         "sha256": "decc936e9512c2de78fcf9e8d8459ce58952c40bf8bd1f06e62556d7fe887db6"
       },
+      "python3-pip": {
+        "version": "24.0+dfsg-1ubuntu1",
+        "sha256": "2396f9ffc11940ecbc31363ef82a34502801272580b34dae542f65f6ba49bbb3"
+      },
       "python3-pkg-resources": {
         "version": "68.1.2-2ubuntu1",
         "sha256": "2ae733be7fe2dc55e1fe419c5483488f8ee91393aac467f18ba30cd70bed6766"
@@ -173,6 +177,10 @@
       "python3-websocket": {
         "version": "1.7.0-1",
         "sha256": "9cbf7b4e2cd9f663d53e7f24d8bdd0518e36a893c6a224edab788cfcf4b6dbdc"
+      },
+      "python3-wheel": {
+        "version": "0.42.0-2",
+        "sha256": "e1a4076425d3d1f1772b11bff6a025055723b2d0a4972f9519849ddaa8cd3953"
       },
       "python3-zipp": {
         "version": "1.0.0-6",
