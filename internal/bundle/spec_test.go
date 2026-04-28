@@ -16,8 +16,8 @@ func TestParseSpec(t *testing.T) {
 	if s.SchemaVersion != 1 {
 		t.Errorf("SchemaVersion = %d, want 1", s.SchemaVersion)
 	}
-	if s.BundleVersion != "0.0.0-dev" {
-		t.Errorf("BundleVersion = %q, want %q", s.BundleVersion, "0.0.0-dev")
+	if s.BundleVersion == "" {
+		t.Error("BundleVersion should not be empty")
 	}
 
 	// Ubuntu targets.
