@@ -804,11 +804,7 @@ func renderComponents(in []componentConfig) []renderedComponent {
 	}
 	out := make([]renderedComponent, len(in))
 	for i, c := range in {
-		out[i] = renderedComponent{
-			Name:    c.Name,
-			Version: c.Version,
-			Commit:  c.Commit,
-		}
+		out[i] = renderedComponent(c)
 	}
 	return out
 }
@@ -819,11 +815,7 @@ func publicComponents(in []renderedComponent) []publicComponent {
 	}
 	out := make([]publicComponent, len(in))
 	for i, c := range in {
-		out[i] = publicComponent{
-			Name:    c.Name,
-			Version: c.Version,
-			Commit:  c.Commit,
-		}
+		out[i] = publicComponent(c)
 	}
 	return out
 }

@@ -6,37 +6,38 @@ site:
   description: Public download page for the bootstrap launcher and offline bundle artifacts.
 
 releases:
-  - id: "2026-04-27-onramp-pin-and-ops-0.1.49"
-    published_at: "2026-04-27"
+  - id: "2026-04-28-forked-onramp-offline-bundle"
+    published_at: "2026-04-28"
     current: true
 
     bootstrap:
       label: Bootstrap Launcher
-      version: "2026.04.27.1"
-      path: "2026.04.27.1"
+      version: "2026.04.28.1"
+      path: "2026.04.28.1"
       filename: aether-ops-bootstrap
       source: ../dist/aether-ops-bootstrap
-      commit: "7511880"
+      commit: "8a9b6a7"
       release_notes: |
-        Bootstrap rebuilt against current main. Pairs with the
-        2026.04.27.1 offline bundle below.
+        Bootstrap rebuilt with offline dependency discovery updates.
+        Pairs with the 2026.04.28.1 offline bundle below.
 
     bundle:
       label: Offline Bundle
-      version: "2026.04.27.1"
-      path: "2026.04.27.1"
+      version: "2026.04.28.1"
+      path: "2026.04.28.1"
       filename: bundle.tar.zst
       source: ../dist/bundle.tar.zst
       sha256_source: ../dist/bundle.tar.zst.sha256
-      build_commit: "7511880"
+      build_commit: "8a9b6a7"
       release_notes: |
-        Pin aether-onramp to upstream HEAD eb0b89bd; bump aether-ops to
-        v0.1.49.
+        Pin aether-onramp to Ben Grewell's fork main at 10f95969 and
+        bundle the offline discovery fixes for downstream apt sources
+        and Python dependencies.
       components:
         - name: aether-ops
           version: v0.1.49
         - name: aether-onramp
-          commit: eb0b89bdeb00342deab732b73c0187175a0a7265
+          commit: 10f95969fae1a281ffc09e3b042c4232b766c4be
         - name: rke2
           version: v1.33.1+rke2r1
         - name: helm

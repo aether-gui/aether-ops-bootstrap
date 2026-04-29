@@ -35,6 +35,7 @@ type ComponentList struct {
 	Debs       []DebEntry        `json:"debs,omitempty"`
 	RKE2       *RKE2Entry        `json:"rke2,omitempty"`
 	Helm       *HelmEntry        `json:"helm,omitempty"`
+	Wheelhouse *WheelhouseEntry  `json:"wheelhouse,omitempty"`
 	AetherOps  *AetherOpsEntry   `json:"aether_ops,omitempty"`
 	Onramp     *OnrampEntry      `json:"onramp,omitempty"`
 	HelmCharts []HelmChartsEntry `json:"helm_charts,omitempty"`
@@ -85,6 +86,13 @@ type AetherOpsEntry struct {
 type HelmEntry struct {
 	Version string       `json:"version"`
 	Files   []BundleFile `json:"files"`
+}
+
+// WheelhouseEntry describes bundled Python wheels plus the normalized
+// requirement set they were built from.
+type WheelhouseEntry struct {
+	Requirements []string     `json:"requirements,omitempty"`
+	Files        []BundleFile `json:"files,omitempty"`
 }
 
 // OnrampEntry describes the aether-onramp repository bundled as an offline

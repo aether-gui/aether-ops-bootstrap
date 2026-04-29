@@ -1,5 +1,5 @@
 schema_version: 1
-bundle_version: "2026.04.27.1"
+bundle_version: "2026.04.28.1"
 
 ubuntu:
   suites: [noble]
@@ -81,7 +81,7 @@ onramp:
   repo: https://github.com/bengrewell/aether-onramp.git
   # Pinned to a specific upstream commit for reproducibility; bump
   # after reviewing upstream changes. HEAD of main at time of pin.
-  ref: main
+  ref: 7aad6b908c82f1631081224a870bea96bf43db6d
   recurse_submodules: false
 
 # Helm chart repositories to bundle. Each entry is cloned to

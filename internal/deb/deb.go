@@ -13,6 +13,8 @@ type Package struct {
 	Size       int64
 	Essential  bool
 	Priority   string // "required", "important", "standard", "optional", "extra"
+	SourceName string
+	SourceURL  string
 }
 
 // Dependency represents one dependency group from a Depends line.
