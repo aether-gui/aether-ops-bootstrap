@@ -54,6 +54,65 @@ func TestDesiredVersion_Composite(t *testing.T) {
 	}
 }
 
+func TestDesiredVersion_DiffersWhenOnrampTreeSHADiffers(t *testing.T) {
+	// Two manifests with the same upstream onramp ref but different
+	// patched-tree contents must produce distinct composite versions
+	// so the launcher re-extracts on a host already at that ref.
+	a := &bundle.Manifest{
+		Components: bundle.ComponentList{
+			Onramp: &bundle.OnrampEntry{ResolvedSHA: "sha", TreeSHA256: "1111111111111111aaaa"},
+		},
+	}
+	b := &bundle.Manifest{
+		Components: bundle.ComponentList{
+			Onramp: &bundle.OnrampEntry{ResolvedSHA: "sha", TreeSHA256: "2222222222222222bbbb"},
+		},
+	}
+	c := New("", a)
+	if va, vb := c.DesiredVersion(a), c.DesiredVersion(b); va == vb {
+		t.Errorf("composite versions must differ when TreeSHA256 differs: %q == %q", va, vb)
+	}
+}
+
+func TestDesiredVersion_LegacyComposite_WhenTreeSHAEmpty(t *testing.T) {
+	// A manifest produced by an older builder (no TreeSHA256) must
+	// reproduce the pre-field composite verbatim so installed hosts
+	// don't re-extract on a no-content-change launcher upgrade.
+	m := &bundle.Manifest{
+		Components: bundle.ComponentList{
+			Onramp: &bundle.OnrampEntry{ResolvedSHA: "aaa"},
+			HelmCharts: []bundle.HelmChartsEntry{
+				{Name: "sdcore", ResolvedSHA: "bbb"},
+			},
+		},
+	}
+	c := New("", m)
+	if v := c.DesiredVersion(m); v != "onramp:aaa,sdcore:bbb" {
+		t.Errorf("legacy composite changed: %q", v)
+	}
+}
+
+func TestDesiredVersion_HelmChartTreeSHAFlowsThroughComposite(t *testing.T) {
+	a := &bundle.Manifest{
+		Components: bundle.ComponentList{
+			HelmCharts: []bundle.HelmChartsEntry{
+				{Name: "sdcore", ResolvedSHA: "x", TreeSHA256: "1111aaaa"},
+			},
+		},
+	}
+	b := &bundle.Manifest{
+		Components: bundle.ComponentList{
+			HelmCharts: []bundle.HelmChartsEntry{
+				{Name: "sdcore", ResolvedSHA: "x", TreeSHA256: "2222bbbb"},
+			},
+		},
+	}
+	c := New("", a)
+	if c.DesiredVersion(a) == c.DesiredVersion(b) {
+		t.Errorf("composite versions must differ when chart TreeSHA256 differs")
+	}
+}
+
 func TestCurrentVersion(t *testing.T) {
 	s := &state.State{
 		Components: map[string]state.ComponentState{

@@ -84,6 +84,33 @@ onramp:
   ref: 7aad6b908c82f1631081224a870bea96bf43db6d
   recurse_submodules: false
 
+  # `patches:` overrides files inside the cloned onramp tree before
+  # the tree is hashed into the manifest, so the bundle ships the
+  # operator's edits as canonical content. Patches run after the
+  # built-in offline-mode adaptations (airgapped.enabled, sd-core
+  # chart_ref) so user overrides always win.
+  #
+  # Each entry must set exactly one of:
+  #   source:  path on the build host, resolved relative to this spec file
+  #   content: inline literal, useful for one-line value swaps
+  # `target:` is rooted at the cloned onramp tree (i.e. relative to
+  # /var/lib/aether-ops/aether-onramp/ on the target host). The target
+  # file must already exist in the upstream tree — patches do not
+  # implicitly add files in v1.
+  #
+  # The same schema is also accepted by `patch-bundle` for ad-hoc
+  # overrides of an already-built bundle without a full rebuild.
+  #
+  # patches:
+  #   - target: ocudu/roles/uEsimulator/templates/ue_zmq.conf
+  #     source: ./patches/onramp/ocudu/uEsimulator/ue_zmq.conf
+  #   - target: ocudu/roles/gNB/templates/gnb_zmq.yaml
+  #     source: ./patches/onramp/ocudu/gNB/gnb_zmq.yaml
+  #   - target: ocudu/roles/gNB/templates/gnb_uhd_x310.yaml
+  #     source: ./patches/onramp/ocudu/gNB/gnb_uhd_x310.yaml
+  #   - target: 5gc/roles/core/templates/sdcore-5g-values.yaml
+  #     source: ./patches/onramp/5gc/core/sdcore-5g-values.yaml
+
 # Helm chart repositories to bundle. Each entry is cloned to
 # /var/lib/aether-ops/helm-charts/<name> on the target host.
 helm_charts:

@@ -3,6 +3,7 @@ package bundle
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -452,5 +453,110 @@ func TestValidateSpecImagesRejectsEmptyEntry(t *testing.T) {
 	}
 	if err := ValidateSpec(s); err == nil {
 		t.Fatal("should reject empty/whitespace image entry")
+	}
+}
+
+func TestValidateFilePatches(t *testing.T) {
+	cases := []struct {
+		name    string
+		patches []FilePatch
+		wantErr string // substring; empty for ok
+	}{
+		{
+			name:    "empty slice ok",
+			patches: nil,
+		},
+		{
+			name: "valid source",
+			patches: []FilePatch{
+				{Target: "ocudu/x.conf", Source: "./patches/x.conf"},
+			},
+		},
+		{
+			name: "valid content",
+			patches: []FilePatch{
+				{Target: "ocudu/x.conf", Content: "hello\n"},
+			},
+		},
+		{
+			name: "missing target",
+			patches: []FilePatch{
+				{Content: "x"},
+			},
+			wantErr: "target is required",
+		},
+		{
+			name: "absolute target",
+			patches: []FilePatch{
+				{Target: "/etc/passwd", Content: "x"},
+			},
+			wantErr: "must be relative",
+		},
+		{
+			name: "traversal target",
+			patches: []FilePatch{
+				{Target: "ocudu/../../escape", Content: "x"},
+			},
+			wantErr: "'..' segments",
+		},
+		{
+			name: "backslash target",
+			patches: []FilePatch{
+				{Target: `ocudu\x.conf`, Content: "x"},
+			},
+			wantErr: "forward slashes",
+		},
+		{
+			name: "neither source nor content",
+			patches: []FilePatch{
+				{Target: "ocudu/x.conf"},
+			},
+			wantErr: "source or content",
+		},
+		{
+			name: "both source and content",
+			patches: []FilePatch{
+				{Target: "ocudu/x.conf", Source: "./x", Content: "x"},
+			},
+			wantErr: "source or content",
+		},
+		{
+			name: "duplicate targets",
+			patches: []FilePatch{
+				{Target: "ocudu/x.conf", Content: "a"},
+				{Target: "ocudu/x.conf", Content: "b"},
+			},
+			wantErr: "duplicate target",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateFilePatches(tc.patches, "patches")
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("expected error containing %q, got nil", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error %q does not contain %q", err.Error(), tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateSpecPropagatesPatchErrors(t *testing.T) {
+	s := baseValidSpec()
+	s.Onramp = &OnrampSpec{
+		Repo: "https://example.com/onramp.git",
+		Patches: []FilePatch{
+			{Target: "/absolute/bad", Content: "x"},
+		},
+	}
+	if err := ValidateSpec(s); err == nil {
+		t.Fatal("ValidateSpec must surface invalid onramp.patches")
 	}
 }

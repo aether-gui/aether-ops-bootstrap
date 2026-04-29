@@ -137,7 +137,10 @@ func buildOne(specPath, outputPath, lockPath string) error {
 	var onrampScan *builder.OnrampDependencyScan
 	if spec.Onramp != nil {
 		log.Printf("cloning aether-onramp from %s...", spec.Onramp.Repo)
-		onrampEntry, err = builder.BuildOnramp(ctx, spec.Onramp, stageDir)
+		// specDir lets BuildOnramp resolve relative `source:` paths in
+		// onramp.patches against the directory of the spec file.
+		specDir := filepath.Dir(specPath)
+		onrampEntry, err = builder.BuildOnramp(ctx, spec.Onramp, stageDir, specDir)
 		if err != nil {
 			return err
 		}

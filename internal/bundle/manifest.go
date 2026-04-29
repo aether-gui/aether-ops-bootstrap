@@ -1,9 +1,12 @@
 package bundle
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 )
 
 // SchemaVersion is the current manifest schema version.
@@ -99,20 +102,31 @@ type WheelhouseEntry struct {
 // payload. The repo is stored as a flat file tree under Path inside the
 // bundle. ResolvedSHA is the commit the builder checked out so installs
 // are reproducible even when the source Ref is a mutable branch.
+//
+// TreeSHA256 captures the actual on-disk state shipped, including any
+// build-time or tool-applied patches, so consumers can detect content
+// drift even when ResolvedSHA is unchanged. Empty on bundles built
+// before this field was introduced; consumers must treat empty as
+// "unknown" rather than "no patches".
 type OnrampEntry struct {
 	Repo        string       `json:"repo"`
 	Ref         string       `json:"ref,omitempty"`
 	ResolvedSHA string       `json:"resolved_sha"`
+	TreeSHA256  string       `json:"tree_sha256,omitempty"`
 	Path        string       `json:"path"` // directory inside the bundle (e.g. "onramp/aether-onramp")
 	Files       []BundleFile `json:"files,omitempty"`
 }
 
 // HelmChartsEntry describes a single bundled helm-charts repository.
+//
+// See OnrampEntry.TreeSHA256 for semantics; the same field on a chart
+// entry covers post-clone dependency resolution and any user patches.
 type HelmChartsEntry struct {
 	Name        string       `json:"name"`
 	Repo        string       `json:"repo"`
 	Ref         string       `json:"ref,omitempty"`
 	ResolvedSHA string       `json:"resolved_sha"`
+	TreeSHA256  string       `json:"tree_sha256,omitempty"`
 	Path        string       `json:"path"` // directory inside the bundle (e.g. "helm-charts/sdcore-helm-charts")
 	Files       []BundleFile `json:"files,omitempty"`
 }
@@ -142,6 +156,27 @@ type BundleFile struct {
 	Path   string `json:"path"`
 	SHA256 string `json:"sha256"`
 	Size   int64  `json:"size"`
+}
+
+// ComputeTreeSHA256 returns a stable hash that summarizes a set of
+// BundleFile entries — `sha256("<path> <sha>\n" * sortedByPath)`.
+// Two trees with identical (path, sha256) pairs hash to the same
+// digest regardless of input order. Returns the empty string when
+// files is empty so callers can use the result directly as a
+// JSON-omitempty field.
+func ComputeTreeSHA256(files []BundleFile) string {
+	if len(files) == 0 {
+		return ""
+	}
+	sorted := make([]BundleFile, len(files))
+	copy(sorted, files)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Path < sorted[j].Path })
+
+	h := sha256.New()
+	for _, f := range sorted {
+		fmt.Fprintf(h, "%s %s\n", f.Path, f.SHA256)
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // ErrManifestSchema is returned when a manifest has an unrecognized schema version.
