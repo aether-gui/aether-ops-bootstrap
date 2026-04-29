@@ -55,6 +55,46 @@ func BuildWheelhouse(ctx context.Context, requirements []string, stageDir string
 	}, nil
 }
 
+type WheelhousePlan struct {
+	Requirements       []string
+	DistroSatisfiedPip []string
+}
+
+var pipToDebPackage = map[string]string{
+	"docker":         "python3-docker",
+	"docker-compose": "python3-compose",
+	"openshift":      "python3-openshift",
+}
+
+// PlanWheelhouseRequirements filters pip requirements that are already
+// satisfied by bundled distro Python packages. This keeps offline builds
+// from failing on stale or unnecessary PyPI-only pins when OnRamp also
+// installs the Ubuntu-packaged equivalent.
+func PlanWheelhouseRequirements(requirements []string, debs []bundle.DebSpec) WheelhousePlan {
+	bundledDebs := map[string]bool{}
+	for _, pkg := range debs {
+		bundledDebs[pkg.Name] = true
+	}
+
+	var distroSatisfied []string
+	var filtered []string
+	for _, req := range normalizeRequirements(requirements) {
+		name := normalizeRequirementName(req)
+		debName, ok := pipToDebPackage[name]
+		if ok && bundledDebs[debName] {
+			distroSatisfied = append(distroSatisfied, fmt.Sprintf("%s via %s", req, debName))
+			continue
+		}
+		filtered = append(filtered, req)
+	}
+
+	sort.Strings(distroSatisfied)
+	return WheelhousePlan{
+		Requirements:       filtered,
+		DistroSatisfiedPip: distroSatisfied,
+	}
+}
+
 func normalizeRequirements(requirements []string) []string {
 	seen := map[string]bool{}
 	var out []string
@@ -68,4 +108,15 @@ func normalizeRequirements(requirements []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func normalizeRequirementName(req string) string {
+	req = strings.TrimSpace(req)
+	if req == "" {
+		return ""
+	}
+	if idx := strings.IndexAny(req, " <>=!~["); idx >= 0 {
+		req = req[:idx]
+	}
+	return strings.ToLower(strings.TrimSpace(req))
 }

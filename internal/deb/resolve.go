@@ -1,6 +1,9 @@
 package deb
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // Index is a lookup structure built from parsed Package entries.
 // For each package name, it keeps the entry with the highest version.
@@ -61,6 +64,10 @@ func Resolve(wanted []string, idx *Index, constraints map[string]Constraint) ([]
 		}
 	}
 
+	if missing := MissingPackages(wanted, idx); len(missing) > 0 {
+		return nil, &MissingPackagesError{Names: missing}
+	}
+
 	resolved := make(map[string]bool)
 	var result []*Package
 	queue := make([]string, len(wanted))
@@ -107,6 +114,37 @@ func Resolve(wanted []string, idx *Index, constraints map[string]Constraint) ([]
 	}
 
 	return result, nil
+}
+
+// MissingPackagesError reports top-level package names that do not exist
+// in the current package index.
+type MissingPackagesError struct {
+	Names []string
+}
+
+func (e *MissingPackagesError) Error() string {
+	if len(e.Names) == 1 {
+		return fmt.Sprintf("package %q not found in index", e.Names[0])
+	}
+	return fmt.Sprintf("packages not found in index: %v", e.Names)
+}
+
+// MissingPackages returns the subset of wanted package names that do not
+// resolve in the index, accounting for virtual package providers.
+func MissingPackages(wanted []string, idx *Index) []string {
+	seen := make(map[string]bool)
+	var missing []string
+	for _, name := range wanted {
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		if idx.Lookup(name) == nil {
+			missing = append(missing, name)
+		}
+	}
+	sort.Strings(missing)
+	return missing
 }
 
 // resolveAlternative picks the first alternative from a dependency group

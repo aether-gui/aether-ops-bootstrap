@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/deb"
@@ -15,6 +16,14 @@ import (
 
 // sections to search for packages.
 var indexSections = []string{"main", "universe"}
+
+type resolvedAptSource struct {
+	Name          string
+	URL           string
+	Components    []string
+	Suites        []string
+	Architectures []string
+}
 
 // FetchDebs resolves transitive dependencies for the requested packages
 // and downloads all .deb files for each (suite, arch) pair in the spec.
@@ -38,14 +47,14 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 	}
 
 	var allEntries []bundle.DebEntry
+	sources := aptSourcesForSpec(spec)
 
 	for _, suite := range spec.Ubuntu.Suites {
 		for _, arch := range spec.Ubuntu.Architectures {
 			log.Printf("resolving .deb dependencies for %s/%s", suite, arch)
 
 			// Fetch and parse Packages indexes.
-			mirror := spec.Ubuntu.Mirror
-			idx, err := fetchPackageIndex(ctx, dl, mirror, suite, arch)
+			idx, err := fetchPackageIndex(ctx, dl, sources, suite, arch)
 			if err != nil {
 				return nil, fmt.Errorf("fetching package index for %s/%s: %w", suite, arch, err)
 			}
@@ -64,7 +73,7 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 			}
 
 			for _, pkg := range resolved {
-				url := fmt.Sprintf("%s/%s", mirror, pkg.Filename)
+				url := fmt.Sprintf("%s/%s", pkg.SourceURL, pkg.Filename)
 				basename := filepath.Base(pkg.Filename)
 				destPath := filepath.Join(debDir, basename)
 
@@ -95,42 +104,80 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 	return allEntries, nil
 }
 
+func aptSourcesForSpec(spec *bundle.Spec) []resolvedAptSource {
+	sources := []resolvedAptSource{
+		{
+			Name:          "ubuntu",
+			URL:           spec.Ubuntu.Mirror,
+			Components:    indexSections,
+			Suites:        spec.Ubuntu.Suites,
+			Architectures: spec.Ubuntu.Architectures,
+		},
+	}
+	for _, src := range spec.AptSources {
+		suites := src.Suites
+		if len(suites) == 0 {
+			suites = spec.Ubuntu.Suites
+		}
+		arches := src.Architectures
+		if len(arches) == 0 {
+			arches = spec.Ubuntu.Architectures
+		}
+		sources = append(sources, resolvedAptSource{
+			Name:          src.Name,
+			URL:           strings.TrimRight(src.URL, "/"),
+			Components:    src.Components,
+			Suites:        suites,
+			Architectures: arches,
+		})
+	}
+	return sources
+}
+
 // fetchPackageIndex downloads and parses Packages.gz from all sections
-// (main, universe) for the given suite and architecture, merging the
+// for the given suite and architecture across every configured source, merging the
 // results into a single index. Also fetches binary-all indexes for
 // architecture-independent packages.
-func fetchPackageIndex(ctx context.Context, dl *Downloader, mirror, suite, arch string) (*deb.Index, error) {
+func fetchPackageIndex(ctx context.Context, dl *Downloader, sources []resolvedAptSource, suite, arch string) (*deb.Index, error) {
 	var allPkgs []deb.Package
 
 	arches := []string{arch, "all"}
-	for _, section := range indexSections {
-		for _, a := range arches {
-			url := fmt.Sprintf("%s/dists/%s/%s/binary-%s/Packages.gz",
-				mirror, suite, section, a)
+	for _, src := range sources {
+		if !containsString(src.Suites, suite) || !containsString(src.Architectures, arch) {
+			continue
+		}
+		for _, component := range src.Components {
+			for _, a := range arches {
+				url := fmt.Sprintf("%s/dists/%s/%s/binary-%s/Packages.gz",
+					src.URL, suite, component, a)
 
-			tmpFile, err := os.CreateTemp("", "packages-*.gz")
-			if err != nil {
-				return nil, err
-			}
-			tmpPath := tmpFile.Name()
-			tmpFile.Close()
-			defer os.Remove(tmpPath)
-
-			if _, err := dl.Download(ctx, url, tmpPath); err != nil {
-				// Skip only on HTTP 404 (binary-all may not exist for all sections).
-				var httpErr *HTTPError
-				if errors.As(err, &httpErr) && httpErr.StatusCode == 404 {
-					log.Printf("skipping %s/%s/binary-%s (not available)", suite, section, a)
-					continue
+				tmpFile, err := os.CreateTemp("", "packages-*.gz")
+				if err != nil {
+					return nil, err
 				}
-				return nil, fmt.Errorf("downloading %s/%s/binary-%s/Packages.gz: %w", suite, section, a, err)
-			}
+				tmpPath := tmpFile.Name()
+				tmpFile.Close()
+				defer os.Remove(tmpPath)
 
-			pkgs, err := parsePackagesGz(tmpPath)
-			if err != nil {
-				return nil, fmt.Errorf("parsing %s/%s/binary-%s/Packages.gz: %w", suite, section, a, err)
+				if _, err := dl.Download(ctx, url, tmpPath); err != nil {
+					var httpErr *HTTPError
+					if errors.As(err, &httpErr) && httpErr.StatusCode == 404 {
+						log.Printf("skipping %s:%s/%s/binary-%s (not available)", src.Name, suite, component, a)
+						continue
+					}
+					return nil, fmt.Errorf("downloading %s:%s/%s/binary-%s/Packages.gz: %w", src.Name, suite, component, a, err)
+				}
+
+				pkgs, err := parsePackagesGz(tmpPath)
+				if err != nil {
+					return nil, fmt.Errorf("parsing %s:%s/%s/binary-%s/Packages.gz: %w", src.Name, suite, component, a, err)
+				}
+				for i := range pkgs {
+					pkgs[i].SourceName = src.Name
+					pkgs[i].SourceURL = src.URL
+				}
+				allPkgs = append(allPkgs, pkgs...)
 			}
-			allPkgs = append(allPkgs, pkgs...)
 		}
 	}
 
@@ -139,6 +186,15 @@ func fetchPackageIndex(ctx context.Context, dl *Downloader, mirror, suite, arch 
 	}
 
 	return deb.NewIndex(allPkgs), nil
+}
+
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }
 
 // parsePackagesGz decompresses and parses a Packages.gz file.

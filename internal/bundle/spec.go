@@ -41,6 +41,7 @@ type Spec struct {
 	SchemaVersion int              `yaml:"schema_version"`
 	BundleVersion string           `yaml:"bundle_version"`
 	Ubuntu        UbuntuSpec       `yaml:"ubuntu"`
+	AptSources    []AptSourceSpec  `yaml:"apt_sources,omitempty"`
 	Debs          []DebSpec        `yaml:"debs"`
 	RKE2          *RKE2Spec        `yaml:"rke2,omitempty"`
 	Helm          *HelmSpec        `yaml:"helm,omitempty"`
@@ -67,6 +68,18 @@ type UbuntuSpec struct {
 type DebSpec struct {
 	Name    string `yaml:"name"`
 	Version string `yaml:"version,omitempty"` // optional constraint: ">=2.14", "=1.2.3-1"
+}
+
+// AptSourceSpec declares an additional APT repository beyond the default
+// Ubuntu archive. Packages discovered from downstream automation can be
+// resolved from these repositories at bundle-build time.
+type AptSourceSpec struct {
+	Name          string   `yaml:"name"`
+	URL           string   `yaml:"url"`
+	Components    []string `yaml:"components"`
+	Suites        []string `yaml:"suites,omitempty"`
+	Architectures []string `yaml:"architectures,omitempty"`
+	KeyURL        string   `yaml:"key_url,omitempty"`
 }
 
 // RKE2Spec declares the RKE2 version and artifact configuration.
@@ -222,6 +235,27 @@ func ValidateSpec(s *Spec) error {
 	for i, d := range s.Debs {
 		if d.Name == "" {
 			return fmt.Errorf("debs[%d].name is required", i)
+		}
+	}
+	for i, src := range s.AptSources {
+		if src.Name == "" {
+			return fmt.Errorf("apt_sources[%d].name is required", i)
+		}
+		if src.URL == "" {
+			return fmt.Errorf("apt_sources[%d].url is required", i)
+		}
+		if len(src.Components) == 0 {
+			return fmt.Errorf("apt_sources[%d].components must contain at least one entry", i)
+		}
+		for _, suite := range src.Suites {
+			if !knownSuites[suite] {
+				return fmt.Errorf("apt_sources[%d].suites contains unrecognized suite %q", i, suite)
+			}
+		}
+		for _, arch := range src.Architectures {
+			if !knownArchitectures[arch] {
+				return fmt.Errorf("apt_sources[%d].architectures contains unrecognized arch %q", i, arch)
+			}
 		}
 	}
 

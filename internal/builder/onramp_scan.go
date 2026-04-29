@@ -3,12 +3,14 @@ package builder
 import (
 	"bufio"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,6 +31,12 @@ var (
 		"command":                 true,
 		"ansible.builtin.command": true,
 	}
+	aptRepoModuleKeys = map[string]bool{
+		"copy":                           true,
+		"ansible.builtin.copy":           true,
+		"apt_repository":                 true,
+		"ansible.builtin.apt_repository": true,
+	}
 	commandSplitPattern = regexp.MustCompile(`&&|\|\||;|\r?\n`)
 )
 
@@ -36,6 +44,9 @@ var (
 // bootstrap can auto-discover from the vendored aether-onramp tree today.
 type OnrampDependencyScan struct {
 	AptPackages     []string
+	AptSources      map[string][]string
+	AptRepositories []bundle.AptSourceSpec
+	AptRepoSources  map[string][]string
 	PipRequirements []string
 	Unresolved      []string
 }
@@ -47,6 +58,9 @@ type OnrampDependencyScan struct {
 func ScanOnrampDependencies(root string) (*OnrampDependencyScan, error) {
 	acc := &scanAccumulator{
 		aptPackages:     map[string]bool{},
+		aptSources:      map[string]map[string]bool{},
+		aptRepos:        map[string]bundle.AptSourceSpec{},
+		aptRepoSources:  map[string]map[string]bool{},
 		pipRequirements: map[string]bool{},
 		unresolved:      map[string]bool{},
 		seenReqFiles:    map[string]bool{},
@@ -88,6 +102,9 @@ func ScanOnrampDependencies(root string) (*OnrampDependencyScan, error) {
 
 	return &OnrampDependencyScan{
 		AptPackages:     sortedKeys(acc.aptPackages),
+		AptSources:      sortedSourceMap(acc.aptSources),
+		AptRepositories: sortedAptRepos(acc.aptRepos),
+		AptRepoSources:  sortedSourceMap(acc.aptRepoSources),
 		PipRequirements: sortedKeys(acc.pipRequirements),
 		Unresolved:      sortedKeys(acc.unresolved),
 	}, nil
@@ -95,6 +112,9 @@ func ScanOnrampDependencies(root string) (*OnrampDependencyScan, error) {
 
 type scanAccumulator struct {
 	aptPackages     map[string]bool
+	aptSources      map[string]map[string]bool
+	aptRepos        map[string]bundle.AptSourceSpec
+	aptRepoSources  map[string]map[string]bool
 	pipRequirements map[string]bool
 	unresolved      map[string]bool
 	seenReqFiles    map[string]bool
@@ -111,46 +131,223 @@ func scanYAMLNode(n *yaml.Node, filePath, repoRoot string, acc *scanAccumulator)
 			scanYAMLNode(c, filePath, repoRoot, acc)
 		}
 	case yaml.MappingNode:
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			key := n.Content[i]
-			val := n.Content[i+1]
-			if key.Kind == yaml.ScalarNode {
-				switch {
-				case aptModuleKeys[key.Value]:
-					scanAptTask(val, filePath, acc)
-				case pipModuleKeys[key.Value]:
-					scanPipTask(val, filePath, repoRoot, acc)
-				case shellModuleKeys[key.Value]:
-					scanShellTask(val, filePath, repoRoot, acc)
-				}
+		discoverAptRepository(n, filePath, acc)
+		if taskModule, taskVal, ok := detectTaskModule(n); ok {
+			switch {
+			case aptModuleKeys[taskModule]:
+				scanAptTaskWithContext(n, taskVal, filePath, acc)
+			case pipModuleKeys[taskModule]:
+				scanPipTask(taskVal, filePath, repoRoot, acc)
+			case shellModuleKeys[taskModule]:
+				scanShellTask(taskVal, filePath, repoRoot, acc)
 			}
+		}
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			val := n.Content[i+1]
 			scanYAMLNode(val, filePath, repoRoot, acc)
 		}
 	}
 }
 
-func scanAptTask(n *yaml.Node, filePath string, acc *scanAccumulator) {
-	if n == nil {
+func discoverAptRepository(taskNode *yaml.Node, filePath string, acc *scanAccumulator) {
+	module, moduleVal, ok := detectTaskModule(taskNode)
+	if !ok {
 		return
 	}
-	switch n.Kind {
+	switch module {
+	case "copy", "ansible.builtin.copy":
+		if src, ok := aptSourceFromCopyTask(moduleVal); ok {
+			recordAptRepository(src, filePath, acc)
+		}
+	case "apt_repository", "ansible.builtin.apt_repository":
+		if src, ok := aptSourceFromAptRepositoryTask(moduleVal); ok {
+			recordAptRepository(src, filePath, acc)
+		}
+	}
+}
+
+func aptSourceFromCopyTask(n *yaml.Node) (bundle.AptSourceSpec, bool) {
+	if n == nil || n.Kind != yaml.MappingNode {
+		return bundle.AptSourceSpec{}, false
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key := n.Content[i]
+		val := n.Content[i+1]
+		if key.Kind != yaml.ScalarNode || key.Value != "content" || val.Kind != yaml.ScalarNode {
+			continue
+		}
+		return parseDeb822Source(val.Value)
+	}
+	return bundle.AptSourceSpec{}, false
+}
+
+func aptSourceFromAptRepositoryTask(n *yaml.Node) (bundle.AptSourceSpec, bool) {
+	if n == nil || n.Kind != yaml.MappingNode {
+		return bundle.AptSourceSpec{}, false
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key := n.Content[i]
+		val := n.Content[i+1]
+		if key.Kind != yaml.ScalarNode || val.Kind != yaml.ScalarNode {
+			continue
+		}
+		if key.Value != "repo" {
+			continue
+		}
+		fields := strings.Fields(strings.TrimSpace(val.Value))
+		if len(fields) < 4 || fields[0] != "deb" {
+			continue
+		}
+		repoURL := ""
+		var comps []string
+		for _, field := range fields[1:] {
+			if strings.HasPrefix(field, "[") {
+				continue
+			}
+			if strings.HasPrefix(field, "http://") || strings.HasPrefix(field, "https://") {
+				repoURL = field
+				continue
+			}
+			if repoURL != "" {
+				comps = append(comps, field)
+			}
+		}
+		if repoURL == "" || len(comps) == 0 {
+			continue
+		}
+		return buildAptSourceSpec(repoURL, comps)
+	}
+	return bundle.AptSourceSpec{}, false
+}
+
+func parseDeb822Source(content string) (bundle.AptSourceSpec, bool) {
+	var repoURL string
+	var comps []string
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		switch {
+		case strings.HasPrefix(line, "URIs:"):
+			repoURL = strings.TrimSpace(strings.TrimPrefix(line, "URIs:"))
+		case strings.HasPrefix(line, "Components:"):
+			comps = strings.Fields(strings.TrimSpace(strings.TrimPrefix(line, "Components:")))
+		}
+	}
+	if repoURL == "" || len(comps) == 0 {
+		return bundle.AptSourceSpec{}, false
+	}
+	return buildAptSourceSpec(repoURL, comps)
+}
+
+func buildAptSourceSpec(repoURL string, comps []string) (bundle.AptSourceSpec, bool) {
+	u, err := url.Parse(strings.TrimSpace(repoURL))
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return bundle.AptSourceSpec{}, false
+	}
+	name := aptSourceName(u)
+	return bundle.AptSourceSpec{
+		Name:       name,
+		URL:        strings.TrimRight(repoURL, "/"),
+		Components: comps,
+	}, true
+}
+
+func aptSourceName(u *url.URL) string {
+	host := u.Hostname()
+	path := strings.Trim(u.Path, "/")
+	if host == "download.docker.com" && path == "linux/ubuntu" {
+		return "docker"
+	}
+	name := host
+	if path != "" {
+		name += "-" + strings.NewReplacer("/", "-", ".", "-").Replace(path)
+	}
+	return name
+}
+
+func recordAptRepository(src bundle.AptSourceSpec, filePath string, acc *scanAccumulator) {
+	if src.Name == "" || src.URL == "" || len(src.Components) == 0 {
+		return
+	}
+	if existing, ok := acc.aptRepos[src.Name]; ok {
+		if existing.URL == src.URL && strings.Join(existing.Components, ",") == strings.Join(src.Components, ",") {
+			recordSource(src.Name, filePath, acc.aptRepoSources)
+			return
+		}
+	}
+	acc.aptRepos[src.Name] = src
+	recordSource(src.Name, filePath, acc.aptRepoSources)
+}
+
+func detectTaskModule(n *yaml.Node) (module string, moduleVal *yaml.Node, ok bool) {
+	if n == nil || n.Kind != yaml.MappingNode {
+		return "", nil, false
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key := n.Content[i]
+		val := n.Content[i+1]
+		if key.Kind != yaml.ScalarNode {
+			continue
+		}
+		switch {
+		case aptModuleKeys[key.Value], pipModuleKeys[key.Value], shellModuleKeys[key.Value], aptRepoModuleKeys[key.Value]:
+			return key.Value, val, true
+		}
+	}
+	return "", nil, false
+}
+
+func scanAptTaskWithContext(taskNode, aptNode *yaml.Node, filePath string, acc *scanAccumulator) {
+	loopItems, hasStaticLoop, loopDynamic := extractStaticLoopItems(taskNode)
+	if loopDynamic {
+		acc.unresolved[fmt.Sprintf("%s: dynamic apt loop items", filePath)] = true
+	}
+
+	if aptNode == nil {
+		return
+	}
+	if aptTaskRemovesPackages(aptNode) {
+		return
+	}
+	switch aptNode.Kind {
 	case yaml.ScalarNode:
-		for _, pkg := range splitInlineNames(n.Value) {
-			recordStaticValue(pkg, filePath, "apt package", acc.aptPackages, acc.unresolved)
+		for _, pkg := range splitInlineNames(aptNode.Value) {
+			recordLoopAwareValue(pkg, filePath, "apt package", loopItems, hasStaticLoop, acc.aptPackages, acc.aptSources, acc.unresolved)
 		}
 	case yaml.MappingNode:
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			key := n.Content[i]
-			val := n.Content[i+1]
+		for i := 0; i+1 < len(aptNode.Content); i += 2 {
+			key := aptNode.Content[i]
+			val := aptNode.Content[i+1]
 			if key.Kind != yaml.ScalarNode {
 				continue
 			}
 			if key.Value != "name" && key.Value != "pkg" && key.Value != "package" {
 				continue
 			}
-			collectNamesNode(val, filePath, "apt package", acc.aptPackages, acc.unresolved)
+			collectNamesNodeWithLoop(val, filePath, "apt package", loopItems, hasStaticLoop, acc.aptPackages, acc.aptSources, acc.unresolved)
 		}
 	}
+}
+
+func aptTaskRemovesPackages(n *yaml.Node) bool {
+	if n == nil || n.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key := n.Content[i]
+		val := n.Content[i+1]
+		if key.Kind != yaml.ScalarNode || val.Kind != yaml.ScalarNode {
+			continue
+		}
+		if key.Value != "state" {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(val.Value)) {
+		case "absent", "removed", "purged":
+			return true
+		}
+	}
+	return false
 }
 
 func scanPipTask(n *yaml.Node, filePath, repoRoot string, acc *scanAccumulator) {
@@ -355,13 +552,17 @@ func recordShellPipRequirement(arg, filePath string, acc *scanAccumulator) {
 }
 
 func collectNamesNode(n *yaml.Node, filePath, kind string, out, unresolved map[string]bool) {
+	collectNamesNodeWithLoop(n, filePath, kind, nil, false, out, nil, unresolved)
+}
+
+func collectNamesNodeWithLoop(n *yaml.Node, filePath, kind string, loopItems []string, hasStaticLoop bool, out map[string]bool, sources map[string]map[string]bool, unresolved map[string]bool) {
 	if n == nil {
 		return
 	}
 	switch n.Kind {
 	case yaml.ScalarNode:
 		for _, item := range splitInlineNames(n.Value) {
-			recordStaticValue(item, filePath, kind, out, unresolved)
+			recordLoopAwareValue(item, filePath, kind, loopItems, hasStaticLoop, out, sources, unresolved)
 		}
 	case yaml.SequenceNode:
 		for _, c := range n.Content {
@@ -369,14 +570,14 @@ func collectNamesNode(n *yaml.Node, filePath, kind string, out, unresolved map[s
 				unresolved[fmt.Sprintf("%s: non-scalar %s entry", filePath, kind)] = true
 				continue
 			}
-			recordStaticValue(c.Value, filePath, kind, out, unresolved)
+			recordLoopAwareValue(c.Value, filePath, kind, loopItems, hasStaticLoop, out, sources, unresolved)
 		}
 	default:
 		unresolved[fmt.Sprintf("%s: unsupported %s value kind %d", filePath, kind, n.Kind)] = true
 	}
 }
 
-func recordStaticValue(raw, filePath, kind string, out, unresolved map[string]bool) {
+func recordStaticValue(raw, filePath, kind string, out map[string]bool, sources map[string]map[string]bool, unresolved map[string]bool) {
 	value := strings.TrimSpace(raw)
 	if value == "" {
 		return
@@ -386,6 +587,87 @@ func recordStaticValue(raw, filePath, kind string, out, unresolved map[string]bo
 		return
 	}
 	out[value] = true
+	recordSource(value, filePath, sources)
+}
+
+func recordLoopAwareValue(raw, filePath, kind string, loopItems []string, hasStaticLoop bool, out map[string]bool, sources map[string]map[string]bool, unresolved map[string]bool) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return
+	}
+	if !isLoopItemReference(value) {
+		recordStaticValue(value, filePath, kind, out, sources, unresolved)
+		return
+	}
+	if !hasStaticLoop {
+		return
+	}
+	for _, item := range loopItems {
+		recordStaticValue(item, filePath, kind, out, sources, unresolved)
+	}
+}
+
+func recordSource(name, filePath string, sources map[string]map[string]bool) {
+	if sources == nil || name == "" {
+		return
+	}
+	if sources[name] == nil {
+		sources[name] = map[string]bool{}
+	}
+	sources[name][filePath] = true
+}
+
+func extractStaticLoopItems(taskNode *yaml.Node) (items []string, hasStatic bool, dynamic bool) {
+	if taskNode == nil || taskNode.Kind != yaml.MappingNode {
+		return nil, false, false
+	}
+	for i := 0; i+1 < len(taskNode.Content); i += 2 {
+		key := taskNode.Content[i]
+		val := taskNode.Content[i+1]
+		if key.Kind != yaml.ScalarNode {
+			continue
+		}
+		switch key.Value {
+		case "loop", "with_items":
+			return scalarListFromNode(val)
+		}
+	}
+	return nil, false, false
+}
+
+func scalarListFromNode(n *yaml.Node) (items []string, hasStatic bool, dynamic bool) {
+	if n == nil {
+		return nil, false, false
+	}
+	switch n.Kind {
+	case yaml.SequenceNode:
+		out := make([]string, 0, len(n.Content))
+		for _, c := range n.Content {
+			if c.Kind != yaml.ScalarNode {
+				return nil, false, true
+			}
+			v := strings.TrimSpace(c.Value)
+			if v == "" {
+				continue
+			}
+			if isDynamicValue(v) {
+				return nil, false, true
+			}
+			out = append(out, v)
+		}
+		return out, true, false
+	case yaml.ScalarNode:
+		v := strings.TrimSpace(n.Value)
+		if v == "" {
+			return nil, false, false
+		}
+		if isDynamicValue(v) {
+			return nil, false, true
+		}
+		return splitInlineNames(v), true, false
+	default:
+		return nil, false, true
+	}
 }
 
 func collectRequirementsFile(path, repoRoot string, acc *scanAccumulator) error {
@@ -454,6 +736,33 @@ func sortedKeys(m map[string]bool) []string {
 	return out
 }
 
+func sortedSourceMap(in map[string]map[string]bool) map[string][]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string][]string, len(in))
+	for name, refs := range in {
+		out[name] = sortedKeys(refs)
+	}
+	return out
+}
+
+func sortedAptRepos(in map[string]bundle.AptSourceSpec) []bundle.AptSourceSpec {
+	if len(in) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(in))
+	for name := range in {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out := make([]bundle.AptSourceSpec, 0, len(names))
+	for _, name := range names {
+		out = append(out, in[name])
+	}
+	return out
+}
+
 func splitInlineNames(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -471,6 +780,16 @@ func splitInlineNames(raw string) []string {
 		return out
 	}
 	return []string{raw}
+}
+
+func isLoopItemReference(v string) bool {
+	v = strings.TrimSpace(v)
+	switch v {
+	case "{{ item }}", "{{item}}":
+		return true
+	default:
+		return false
+	}
 }
 
 func isDynamicValue(v string) bool {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/builder"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/deb"
 )
 
 var gitSHA string // set via ldflags: -X main.gitSHA=...
@@ -148,19 +150,33 @@ func buildOne(specPath, outputPath, lockPath string) error {
 		}
 		log.Printf("onramp scan discovered %d apt packages and %d pip requirements", len(onrampScan.AptPackages), len(onrampScan.PipRequirements))
 		if len(onrampScan.Unresolved) > 0 {
-			return fmt.Errorf("onramp dependency scan found unresolved offline requirements:\n- %s", strings.Join(onrampScan.Unresolved, "\n- "))
+			return fmt.Errorf(
+				"onramp dependency scan found %d unresolved offline requirement(s).\n"+
+					"Bundle build continued far enough to collect everything the scanner could resolve, "+
+					"but these references still need to be addressed before offline bundling is reliable.\n\n"+
+					"Unresolved references:\n- %s",
+				len(onrampScan.Unresolved),
+				strings.Join(onrampScan.Unresolved, "\n- "),
+			)
 		}
 	}
 
+	effectiveAptSources, discoveredAptSources := mergeAptSources(spec.AptSources, onrampScan)
+
 	// Fetch .deb packages.
 	var debEntries []bundle.DebEntry
-	effectiveDebs := mergeDebSpecs(spec.Debs, onrampScan)
+	effectiveDebs, discoveredDebs := mergeDebSpecs(spec.Debs, onrampScan)
 	if len(effectiveDebs) > 0 {
 		log.Printf("resolving and fetching .deb packages...")
 		specWithDiscoveredDebs := *spec
 		specWithDiscoveredDebs.Debs = effectiveDebs
+		specWithDiscoveredDebs.AptSources = effectiveAptSources
 		debEntries, err = builder.FetchDebs(ctx, dl, &specWithDiscoveredDebs, stageDir)
 		if err != nil {
+			var missingErr *deb.MissingPackagesError
+			if errors.As(err, &missingErr) {
+				return formatMissingDebsError(spec.Ubuntu.Suites, effectiveDebs, discoveredDebs, discoveredAptSources, onrampScan, missingErr.Names)
+			}
 			return err
 		}
 		log.Printf("staged %d .deb packages", len(debEntries))
@@ -185,13 +201,21 @@ func buildOne(specPath, outputPath, lockPath string) error {
 	// vendored onramp tree.
 	var wheelhouseEntry *bundle.WheelhouseEntry
 	if onrampScan != nil && len(onrampScan.PipRequirements) > 0 {
-		log.Printf("building wheelhouse for %d pip requirements...", len(onrampScan.PipRequirements))
-		wheelhouseEntry, err = builder.BuildWheelhouse(ctx, onrampScan.PipRequirements, stageDir)
-		if err != nil {
-			return err
+		wheelPlan := builder.PlanWheelhouseRequirements(onrampScan.PipRequirements, effectiveDebs)
+		for _, advisory := range wheelPlan.DistroSatisfiedPip {
+			log.Printf("wheelhouse advisory: using bundled distro package for %s", advisory)
 		}
-		if wheelhouseEntry != nil {
-			log.Printf("staged %d wheelhouse files", len(wheelhouseEntry.Files))
+		if len(wheelPlan.Requirements) > 0 {
+			log.Printf("building wheelhouse for %d pip requirements...", len(wheelPlan.Requirements))
+			wheelhouseEntry, err = builder.BuildWheelhouse(ctx, wheelPlan.Requirements, stageDir)
+			if err != nil {
+				return err
+			}
+			if wheelhouseEntry != nil {
+				log.Printf("staged %d wheelhouse files", len(wheelhouseEntry.Files))
+			}
+		} else {
+			log.Printf("all discovered pip requirements are satisfied by bundled distro packages; skipping wheelhouse download")
 		}
 	}
 
@@ -272,21 +296,24 @@ func buildOne(specPath, outputPath, lockPath string) error {
 		return err
 	}
 
-	log.Printf("bundle written to %s (SHA256: %s)", outputPath, hash)
+	logDynamicDiscoveryAdvisory(discoveredDebs, discoveredAptSources)
+	logBuildSummary(outputPath, hash, rke2Entry, helmEntry, aetherOpsEntry, onrampEntry, debEntries, wheelhouseEntry, templatesEntry, helmChartsEntries, imagesEntry)
 	return nil
 }
 
-func mergeDebSpecs(explicit []bundle.DebSpec, scan *builder.OnrampDependencyScan) []bundle.DebSpec {
+func mergeDebSpecs(explicit []bundle.DebSpec, scan *builder.OnrampDependencyScan) ([]bundle.DebSpec, []string) {
 	seen := make(map[string]bundle.DebSpec, len(explicit))
 	for _, deb := range explicit {
 		seen[deb.Name] = deb
 	}
+	var discovered []string
 	if scan != nil {
 		for _, name := range scan.AptPackages {
 			if _, ok := seen[name]; ok {
 				continue
 			}
 			seen[name] = bundle.DebSpec{Name: name}
+			discovered = append(discovered, name)
 		}
 	}
 
@@ -297,7 +324,204 @@ func mergeDebSpecs(explicit []bundle.DebSpec, scan *builder.OnrampDependencyScan
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].Name < out[j].Name
 	})
-	return out
+	sort.Strings(discovered)
+	return out, discovered
+}
+
+func mergeAptSources(explicit []bundle.AptSourceSpec, scan *builder.OnrampDependencyScan) ([]bundle.AptSourceSpec, []bundle.AptSourceSpec) {
+	seen := make(map[string]bundle.AptSourceSpec, len(explicit))
+	for _, src := range explicit {
+		seen[src.Name] = src
+	}
+	var discovered []bundle.AptSourceSpec
+	if scan != nil {
+		for _, src := range scan.AptRepositories {
+			if _, ok := seen[src.Name]; ok {
+				continue
+			}
+			seen[src.Name] = src
+			discovered = append(discovered, src)
+		}
+	}
+	out := make([]bundle.AptSourceSpec, 0, len(seen))
+	for _, src := range seen {
+		out = append(out, src)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	sort.Slice(discovered, func(i, j int) bool { return discovered[i].Name < discovered[j].Name })
+	return out, discovered
+}
+
+func formatMissingDebsError(suites []string, effective []bundle.DebSpec, discovered []string, discoveredSources []bundle.AptSourceSpec, scan *builder.OnrampDependencyScan, missing []string) error {
+	explicitSet := make(map[string]bool, len(effective))
+	for _, d := range effective {
+		explicitSet[d.Name] = true
+	}
+	discoveredSet := make(map[string]bool, len(discovered))
+	for _, name := range discovered {
+		discoveredSet[name] = true
+	}
+
+	var missingExplicit []string
+	var missingDiscovered []string
+	for _, name := range missing {
+		if discoveredSet[name] {
+			missingDiscovered = append(missingDiscovered, name)
+			continue
+		}
+		if explicitSet[name] {
+			missingExplicit = append(missingExplicit, name)
+		}
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "some requested .deb packages could not be resolved from the Ubuntu package indexes for suites %s.\n", strings.Join(suites, ", "))
+	if len(discoveredSources) > 0 {
+		fmt.Fprintf(&b, "\nAuto-discovered apt repositories added for this build (%d):\n", len(discoveredSources))
+		for _, src := range discoveredSources {
+			fmt.Fprintf(&b, "- %s (%s)\n", src.Name, src.URL)
+			if scan != nil && len(scan.AptRepoSources[src.Name]) > 0 {
+				fmt.Fprintf(&b, "  discovered from:\n")
+				for _, ref := range scan.AptRepoSources[src.Name] {
+					fmt.Fprintf(&b, "  - %s\n", ref)
+				}
+			}
+		}
+	}
+	if len(discovered) > 0 {
+		fmt.Fprintf(&b, "\nAuto-discovered apt packages added for this build (%d):\n- %s\n", len(discovered), strings.Join(discovered, "\n- "))
+	}
+	if len(missingDiscovered) > 0 {
+		fmt.Fprintf(&b, "\nAuto-discovered packages not found in the Ubuntu indexes:\n")
+		for _, name := range missingDiscovered {
+			fmt.Fprintf(&b, "- %s", name)
+			if scan != nil && len(scan.AptSources[name]) > 0 {
+				fmt.Fprintf(&b, "\n  discovered from:\n")
+				for _, src := range scan.AptSources[name] {
+					fmt.Fprintf(&b, "  - %s\n", src)
+				}
+			} else {
+				fmt.Fprintf(&b, "\n")
+			}
+		}
+	}
+	if len(missingExplicit) > 0 {
+		fmt.Fprintf(&b, "\nExplicit spec packages not found in the Ubuntu indexes:\n- %s\n", strings.Join(missingExplicit, "\n- "))
+	}
+	fmt.Fprintf(&b, "\nThis usually means the package comes from a third-party repository (for example Docker packages like containerd.io) rather than the Ubuntu archive. When that happens, dynamically adding the package name is not enough; bootstrap needs explicit handling for that package source or an Ubuntu-native alternative package name.\n\nConsider adding the discovered repositories and first-level package dependencies to bundle.yaml so the bundle spec explicitly reflects the upstream dependency sources, even though bootstrap will continue resolving deeper dependency chains automatically.")
+	return errors.New(b.String())
+}
+
+func logDynamicDiscoveryAdvisory(discoveredDebs []string, discoveredSources []bundle.AptSourceSpec) {
+	if len(discoveredDebs) == 0 && len(discoveredSources) == 0 {
+		return
+	}
+
+	log.Printf("")
+	log.Printf("=== Dependency Discovery Summary ===")
+	log.Printf("The bundle build succeeded, but first-level upstream dependencies were discovered dynamically.")
+	log.Printf("Consider adding them to bundle.yaml so the spec explicitly captures the intended dependency sources.")
+	if len(discoveredSources) > 0 {
+		log.Printf("")
+		log.Printf("Apt Repositories Discovered:")
+		for _, src := range discoveredSources {
+			log.Printf("  %s:", displaySourceName(src.Name))
+			log.Printf("    name: %s", src.Name)
+			log.Printf("    url: %s", src.URL)
+			log.Printf("    components: [%s]", strings.Join(src.Components, ", "))
+			if len(src.Suites) > 0 {
+				log.Printf("    suites: [%s]", strings.Join(src.Suites, ", "))
+			} else {
+				log.Printf("    suites: <inherits ubuntu.suites>")
+			}
+			if len(src.Architectures) > 0 {
+				log.Printf("    architectures: [%s]", strings.Join(src.Architectures, ", "))
+			} else {
+				log.Printf("    architectures: <inherits ubuntu.architectures>")
+			}
+			if src.KeyURL != "" {
+				log.Printf("    key_url: %s", src.KeyURL)
+			}
+		}
+	}
+	if len(discoveredDebs) > 0 {
+		log.Printf("")
+		log.Printf("Apt Packages Discovered:")
+		for _, name := range discoveredDebs {
+			log.Printf("  - %s", name)
+		}
+	}
+	log.Printf("")
+	log.Printf("=== End Dependency Discovery Summary ===")
+}
+
+func displaySourceName(name string) string {
+	if name == "" {
+		return "Repository"
+	}
+	parts := strings.FieldsFunc(name, func(r rune) bool {
+		return r == '-' || r == '_' || r == '.'
+	})
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		parts[i] = strings.ToUpper(part[:1]) + part[1:]
+	}
+	if len(parts) == 0 {
+		return name
+	}
+	return strings.Join(parts, " ")
+}
+
+func logBuildSummary(
+	outputPath, hash string,
+	rke2Entry *bundle.RKE2Entry,
+	helmEntry *bundle.HelmEntry,
+	aetherOpsEntry *bundle.AetherOpsEntry,
+	onrampEntry *bundle.OnrampEntry,
+	debEntries []bundle.DebEntry,
+	wheelhouseEntry *bundle.WheelhouseEntry,
+	templatesEntry *bundle.TemplatesEntry,
+	helmChartsEntries []bundle.HelmChartsEntry,
+	imagesEntry *bundle.ImagesEntry,
+) {
+	log.Printf("")
+	log.Printf("=== Bundle Build Summary ===")
+	log.Printf("Bundle Path: %s", outputPath)
+	log.Printf("Bundle SHA256: %s", hash)
+	log.Printf("")
+	log.Printf("Components:")
+	log.Printf("  .deb packages: %d", len(debEntries))
+
+	if rke2Entry != nil {
+		log.Printf("  RKE2 artifacts: %d", len(rke2Entry.Artifacts))
+	}
+	if helmEntry != nil {
+		log.Printf("  Helm files: %d", len(helmEntry.Files))
+	}
+	if aetherOpsEntry != nil {
+		log.Printf("  aether-ops files: %d", len(aetherOpsEntry.Files))
+	}
+	if onrampEntry != nil {
+		log.Printf("  aether-onramp files: %d", len(onrampEntry.Files))
+	}
+	if wheelhouseEntry != nil {
+		log.Printf("  wheelhouse requirements: %d", len(wheelhouseEntry.Requirements))
+		log.Printf("  wheelhouse files: %d", len(wheelhouseEntry.Files))
+	}
+	if templatesEntry != nil {
+		log.Printf("  template files: %d", len(templatesEntry.Files))
+	}
+	if len(helmChartsEntries) > 0 {
+		log.Printf("  Helm chart repositories: %d", len(helmChartsEntries))
+	}
+	if imagesEntry != nil {
+		log.Printf("  container images: %d", len(imagesEntry.Images))
+	}
+
+	log.Printf("")
+	log.Printf("=== End Bundle Build Summary ===")
 }
 
 // resolveImageRefs computes the final set of image references to pull

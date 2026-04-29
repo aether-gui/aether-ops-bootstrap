@@ -1,6 +1,10 @@
 package deb
 
-import "testing"
+import (
+	"errors"
+	"reflect"
+	"testing"
+)
 
 func makeTestPackages() []Package {
 	return []Package{
@@ -154,6 +158,29 @@ func TestResolveMissingPackage(t *testing.T) {
 	_, err := Resolve([]string{"nonexistent"}, idx, nil)
 	if err == nil {
 		t.Fatal("should error on missing package")
+	}
+	var missing *MissingPackagesError
+	if !errors.As(err, &missing) {
+		t.Fatalf("expected MissingPackagesError, got %T (%v)", err, err)
+	}
+	if !reflect.DeepEqual(missing.Names, []string{"nonexistent"}) {
+		t.Fatalf("missing.Names = %#v, want %#v", missing.Names, []string{"nonexistent"})
+	}
+}
+
+func TestResolveMissingPackagesAggregated(t *testing.T) {
+	idx := NewIndex(makeTestPackages())
+	_, err := Resolve([]string{"nonexistent-b", "app", "nonexistent-a"}, idx, nil)
+	if err == nil {
+		t.Fatal("should error on missing packages")
+	}
+	var missing *MissingPackagesError
+	if !errors.As(err, &missing) {
+		t.Fatalf("expected MissingPackagesError, got %T (%v)", err, err)
+	}
+	want := []string{"nonexistent-a", "nonexistent-b"}
+	if !reflect.DeepEqual(missing.Names, want) {
+		t.Fatalf("missing.Names = %#v, want %#v", missing.Names, want)
 	}
 }
 

@@ -38,6 +38,22 @@ func TestScanOnrampDependencies(t *testing.T) {
 
 - name: shell pip requirements file
   command: pip install -r ../files/shell-requirements.txt
+
+- name: loop-driven apt packages
+  apt:
+    name: "{{ item }}"
+  loop:
+    - iproute2
+    - net-tools
+
+- name: add docker repo
+  copy:
+    dest: /etc/apt/sources.list.d/docker.sources
+    content: |
+      Types: deb
+      URIs: https://download.docker.com/linux/ubuntu
+      Suites: noble
+      Components: stable
 `)
 
 	writeOnrampScanTestFile(t, filepath.Join(root, "deps", "role", "files", "requirements.txt"), `
@@ -59,9 +75,21 @@ certifi==2024.2.2
 		t.Fatalf("ScanOnrampDependencies: %v", err)
 	}
 
-	wantApt := []string{"python3-docker", "python3-pip", "python3-venv"}
+	wantApt := []string{"iproute2", "net-tools", "python3-docker", "python3-pip", "python3-venv"}
 	if !reflect.DeepEqual(scan.AptPackages, wantApt) {
 		t.Fatalf("AptPackages = %#v, want %#v", scan.AptPackages, wantApt)
+	}
+	if got := scan.AptSources["iproute2"]; len(got) != 1 || got[0] != filepath.Join(root, "deps", "role", "tasks", "main.yml") {
+		t.Fatalf("AptSources[iproute2] = %#v", got)
+	}
+	if len(scan.AptRepositories) != 1 {
+		t.Fatalf("AptRepositories = %#v, want 1 entry", scan.AptRepositories)
+	}
+	if scan.AptRepositories[0].Name != "docker" || scan.AptRepositories[0].URL != "https://download.docker.com/linux/ubuntu" {
+		t.Fatalf("AptRepositories[0] = %#v", scan.AptRepositories[0])
+	}
+	if got := scan.AptRepoSources["docker"]; len(got) != 1 || got[0] != filepath.Join(root, "deps", "role", "tasks", "main.yml") {
+		t.Fatalf("AptRepoSources[docker] = %#v", got)
 	}
 
 	wantPip := []string{"ansible-core==2.17.1", "certifi==2024.2.2", "charset-normalizer==3.3.2", "docker==7.1.0", "pyyaml==6.0.2", "requests==2.31.0", "urllib3==2.2.1"}
@@ -85,6 +113,9 @@ func TestScanOnrampDependenciesTracksUnresolved(t *testing.T) {
 - ansible.builtin.pip:
     name: "{{ runtime_pip_pkg }}"
 - shell: pip install https://example.com/pkg.whl
+- apt:
+    name: "{{ item }}"
+  loop: "{{ packages }}"
 `)
 
 	writeOnrampScanTestFile(t, filepath.Join(root, "reqs.txt"), `
@@ -96,8 +127,65 @@ git+https://example.com/repo.git
 		t.Fatalf("ScanOnrampDependencies: %v", err)
 	}
 
-	if len(scan.Unresolved) != 4 {
-		t.Fatalf("len(Unresolved) = %d, want 4 (%#v)", len(scan.Unresolved), scan.Unresolved)
+	if len(scan.Unresolved) != 5 {
+		t.Fatalf("len(Unresolved) = %d, want 5 (%#v)", len(scan.Unresolved), scan.Unresolved)
+	}
+}
+
+func TestScanOnrampDependenciesWithItemsScalarList(t *testing.T) {
+	root := t.TempDir()
+
+	writeOnrampScanTestFile(t, filepath.Join(root, "tasks.yml"), `
+- ansible.builtin.apt:
+    name: "{{ item }}"
+  with_items: curl, wget
+`)
+
+	scan, err := ScanOnrampDependencies(root)
+	if err != nil {
+		t.Fatalf("ScanOnrampDependencies: %v", err)
+	}
+
+	wantApt := []string{"curl", "wget"}
+	if !reflect.DeepEqual(scan.AptPackages, wantApt) {
+		t.Fatalf("AptPackages = %#v, want %#v", scan.AptPackages, wantApt)
+	}
+	if len(scan.Unresolved) != 0 {
+		t.Fatalf("Unresolved = %#v, want empty", scan.Unresolved)
+	}
+}
+
+func TestScanOnrampDependenciesIgnoresAbsentAptTasks(t *testing.T) {
+	root := t.TempDir()
+
+	writeOnrampScanTestFile(t, filepath.Join(root, "tasks.yml"), `
+- name: remove conflicting docker packages
+  apt:
+    name:
+      - docker.io
+      - podman-docker
+      - runc
+    state: absent
+
+- name: install docker packages
+  apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+    state: present
+`)
+
+	scan, err := ScanOnrampDependencies(root)
+	if err != nil {
+		t.Fatalf("ScanOnrampDependencies: %v", err)
+	}
+
+	wantApt := []string{"docker-ce", "docker-ce-cli"}
+	if !reflect.DeepEqual(scan.AptPackages, wantApt) {
+		t.Fatalf("AptPackages = %#v, want %#v", scan.AptPackages, wantApt)
+	}
+	if len(scan.Unresolved) != 0 {
+		t.Fatalf("Unresolved = %#v, want empty", scan.Unresolved)
 	}
 }
 

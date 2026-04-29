@@ -1,5 +1,5 @@
 schema_version: 1
-bundle_version: "2026.04.27.1"
+bundle_version: "2026.04.28.1"
 
 ubuntu:
   suites: [noble]
@@ -77,10 +77,10 @@ aether_ops:
 # defaults to the bundled-deployment model — notably flipping
 # `airgapped.enabled: true` so `apt: update_cache` calls are gated off.
 onramp:
-  repo: https://github.com/opennetworkinglab/aether-onramp.git
-  # Pinned to a specific upstream commit for reproducibility; bump
-  # after reviewing upstream changes. HEAD of main at time of pin.
-  ref: eb0b89bdeb00342deab732b73c0187175a0a7265
+  repo: https://github.com/bengrewell/aether-onramp.git
+  # Pinned to the current main commit on Ben Grewell's fork for
+  # reproducibility; bump after reviewing fork updates.
+  ref: 10f95969fae1a281ffc09e3b042c4232b766c4be
   recurse_submodules: false
 
 # Helm chart repositories to bundle. Each entry is cloned to
