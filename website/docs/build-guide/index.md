@@ -77,6 +77,29 @@ The [release workflow](./release-process.md) takes it from there: GoReleaser
 builds the launcher, the bundle builder is run in CI, SBOMs and vulnerability
 scans are generated, and every artifact is attached to the GitHub release.
 
+### I'm overriding template files for a deployment
+
+You have two options, depending on whether the override should ship as
+part of the spec.
+
+**Reproducible (rebuild from spec).** Add an
+[`onramp.patches:`](./bundle-yaml-reference.md#onramp) block listing the
+files to override and run `make bundle` as usual.
+
+**Ad-hoc (no rebuild).** Patch an existing bundle directly with
+[`patch-bundle`](./patch-bundle.md):
+
+```bash
+make build-patch-bundle
+./dist/patch-bundle \
+  --in  dist/bundle.tar.zst \
+  --out dist/bundle-patched.tar.zst \
+  --replace ocudu/roles/uEsimulator/templates/ue_zmq.conf=./ue_zmq.conf
+```
+
+Both paths produce a bundle whose manifest reflects the patched bytes,
+so the launcher detects the change and re-extracts on existing hosts.
+
 ### I'm publishing the download page
 
 ```bash

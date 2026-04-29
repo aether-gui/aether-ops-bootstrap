@@ -185,11 +185,39 @@ onramp:
   repo: https://github.com/opennetworkinglab/aether-onramp.git
   ref: main
   recurse_submodules: true
+
+  # Optional: override files in the cloned tree before hashing.
+  patches:
+    - target: ocudu/roles/uEsimulator/templates/ue_zmq.conf
+      source: ./patches/onramp/ocudu/uEsimulator/ue_zmq.conf
+    - target: ocudu/roles/gNB/templates/gnb_zmq.yaml
+      content: |
+        # tiny inline override
+        zmq_port: 5555
 ```
 
 The aether-onramp Ansible toolchain is cloned at build time, its resolved
 commit SHA is pinned in the manifest, and the launcher extracts it to
 `/var/lib/aether-ops/aether-onramp` on install.
+
+`patches:` (optional) overrides files inside the cloned tree before the
+manifest is hashed, so the bundle ships the operator's edits as canonical
+content. Each entry sets exactly one of:
+
+- `source:` — path on the build host, resolved relative to the spec file.
+- `content:` — inline literal, useful for one-line value swaps.
+
+`target:` is rooted at the cloned onramp tree (i.e. relative to
+`/var/lib/aether-ops/aether-onramp/` on the target host), uses forward
+slashes, and must not contain `..` segments. The target file must already
+exist in the upstream tree — patches do not implicitly add files in v1.
+`file_mode:` (optional) overrides the existing mode; otherwise the
+upstream file's mode is preserved.
+
+Patches run after the built-in offline-mode adaptations (e.g. flipping
+`airgapped.enabled` to `true`) so user overrides always win. The same
+schema is also accepted by the [`patch-bundle`](./patch-bundle.md) tool
+for ad-hoc edits to an already-built bundle.
 
 ### `helm_charts`
 
