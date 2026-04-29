@@ -6,16 +6,57 @@ site:
   description: Public download page for the bootstrap launcher and offline bundle artifacts.
 
 releases:
+  - id: "2026-04-29-dynamic-discovery-ocudu"
+    published_at: "2026-04-29"
+    current: true
+
+    bootstrap:
+      label: Bootstrap Launcher
+      version: "2026.04.29.1"
+      path: "2026.04.29.1"
+      filename: aether-ops-bootstrap
+      source: ../dist/aether-ops-bootstrap
+      commit: "ec4d6b8"
+      release_notes: |
+        Bootstrap rebuilt to pair with the 2026.04.29.1 offline bundle.
+        Inherits the dynamic component discovery and ocudu support
+        introduced by aether-ops v0.1.48-11.
+
+    bundle:
+      label: Offline Bundle
+      version: "2026.04.29.1"
+      path: "2026.04.29.1"
+      filename: bundle.tar.zst
+      source: ../dist/bundle.tar.zst
+      sha256_source: ../dist/bundle.tar.zst.sha256
+      build_commit: "ec4d6b8"
+      release_notes: |
+        Bundle rebuilt with aether-ops v0.1.48-11, which migrates internal
+        component discovery to a dynamic scheme and adds support for ocudu
+        (O-CU/O-DU) workloads. aether-onramp is pinned to
+        bengrewell/aether-onramp at 7aad6b9.
+      components:
+        - name: aether-ops
+          version: v0.1.48-11
+        - name: aether-onramp
+          commit: 7aad6b908c82f1631081224a870bea96bf43db6d
+        - name: rke2
+          version: v1.33.1+rke2r1
+        - name: helm
+          version: v3.17.3
+        - name: sdcore-helm-charts
+          version: main
+
   - id: "2026-04-28-forked-onramp-offline-bundle"
     published_at: "2026-04-28"
-    current: true
+    external: true
 
     bootstrap:
       label: Bootstrap Launcher
       version: "2026.04.28.1"
       path: "2026.04.28.1"
       filename: aether-ops-bootstrap
-      source: ../dist/aether-ops-bootstrap
+      sha256: "35c23354af5e8a204c53ac1754bf088837b068aaecb0aa4e42f2683f547f1711"
       commit: "8a9b6a7"
       release_notes: |
         Bootstrap rebuilt with offline dependency discovery updates.
@@ -26,8 +67,7 @@ releases:
       version: "2026.04.28.1"
       path: "2026.04.28.1"
       filename: bundle.tar.zst
-      source: ../dist/bundle.tar.zst
-      sha256_source: ../dist/bundle.tar.zst.sha256
+      sha256: "0c9ca2c771e2bf0733be67e9a5308c90aeba238d0e8f5b866d10e59987bfc50a"
       build_commit: "8a9b6a7"
       release_notes: |
         Pin aether-onramp to Ben Grewell's fork main at 10f95969 and
