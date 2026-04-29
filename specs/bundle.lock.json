@@ -226,10 +226,6 @@
         "version": "24.0+dfsg-1ubuntu1",
         "sha256": "2396f9ffc11940ecbc31363ef82a34502801272580b34dae542f65f6ba49bbb3"
       },
-      "python3-pip-whl": {
-        "version": "24.0+dfsg-1ubuntu1",
-        "sha256": "aa59fd08ef407f90f248b3ad9eafd4d2c8b49aa6037b955589687648abeec688"
-      },
       "python3-pkg-resources": {
         "version": "68.1.2-2ubuntu1",
         "sha256": "2ae733be7fe2dc55e1fe419c5483488f8ee91393aac467f18ba30cd70bed6766"
@@ -309,10 +305,6 @@
       "python3-wheel": {
         "version": "0.42.0-2",
         "sha256": "e1a4076425d3d1f1772b11bff6a025055723b2d0a4972f9519849ddaa8cd3953"
-      },
-      "python3-wheel-whl": {
-        "version": "0.42.0-2",
-        "sha256": "5bfc43e56fd5202be42a51184fd60779915a5cea169a668319e7f2fb0022f589"
       },
       "python3-zipp": {
         "version": "1.0.0-6",

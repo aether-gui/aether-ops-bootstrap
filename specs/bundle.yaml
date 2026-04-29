@@ -25,6 +25,7 @@ debs:
   # Upstream onramp's 5gc core role does not install this itself yet
   # (pending opennetworkinglab/aether-onramp#183).
   - name: python3-kubernetes
+  - name: python3-pip
 
 rke2:
   version: "v1.33.1+rke2r1"
@@ -78,9 +79,9 @@ aether_ops:
 # `airgapped.enabled: true` so `apt: update_cache` calls are gated off.
 onramp:
   repo: https://github.com/bengrewell/aether-onramp.git
-  # Pinned to the current main commit on Ben Grewell's fork for
-  # reproducibility; bump after reviewing fork updates.
-  ref: 10f95969fae1a281ffc09e3b042c4232b766c4be
+  # Pinned to a specific upstream commit for reproducibility; bump
+  # after reviewing upstream changes. HEAD of main at time of pin.
+  ref: 7aad6b908c82f1631081224a870bea96bf43db6d
   recurse_submodules: false
 
 # Helm chart repositories to bundle. Each entry is cloned to

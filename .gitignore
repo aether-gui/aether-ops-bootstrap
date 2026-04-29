@@ -10,6 +10,7 @@ docs/generated/
 *.tar.gz
 *.deb
 !artifacts/**
+artifacts/*SNAPSHOT*.tar.gz
 
 # Local / experimental bundle specs — dotfile-prefixed files in specs/
 # (e.g. specs/.onramp-branchxyz-test.yaml and its generated .lock.json).
@@ -45,6 +46,7 @@ website/yarn-debug.log*
 website/yarn-error.log*
 
 # AI coding assistants (local settings)
+.codex
 .claude/
 .codex/
 .cursor/
