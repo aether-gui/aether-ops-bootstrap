@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strings"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -35,6 +37,22 @@ import (
 // daemon runs. Kept as a constant because nothing should ever reconfigure
 // it — rke2, helm, onramp, and the systemd unit all assume this name.
 const daemonAccount = "aether-ops"
+
+// daemonSudoersPath is the absolute path of the dropin that grants the
+// daemon service account passwordless sudo for component probes.
+const daemonSudoersPath = "/etc/sudoers.d/" + daemonAccount
+
+// daemonSudoersContent is the NOPASSWD: ALL grant for the daemon service
+// account. Probes run as the daemon user (no login shell, no password)
+// and need root to query cluster/container state via `sudo -n kubectl`,
+// `sudo -n helm`, `sudo -n docker`, etc. Without this dropin, every
+// probe sees "a password is required" and reconciliation flips healthy
+// components to not_installed.
+//
+// Note: scope is currently NOPASSWD: ALL. Tightening to the specific
+// binaries probes invoke (kubectl, helm, docker, sysctl) is a follow-up
+// on the aether-ops side.
+const daemonSudoersContent = daemonAccount + " ALL=(ALL) NOPASSWD: ALL\n"
 
 // Component provisions the daemon service account and the onramp user.
 type Component struct {
@@ -80,6 +98,10 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 		{
 			Description: fmt.Sprintf("create daemon account %s", daemonAccount),
 			Fn:          createDaemonAccount,
+		},
+		{
+			Description: fmt.Sprintf("install %s sudoers dropin", daemonAccount),
+			Fn:          installDaemonSudoers,
 		},
 		{
 			Description: fmt.Sprintf("create onramp user %s", onrampUser),
@@ -137,6 +159,45 @@ func createDaemonAccount(ctx context.Context) error {
 		return fmt.Errorf("useradd %s: %w\n%s", daemonAccount, err, output)
 	}
 	log.Printf("  created user %s (system, nologin)", daemonAccount)
+	return nil
+}
+
+// installDaemonSudoers writes /etc/sudoers.d/aether-ops with mode 0440,
+// granting the daemon service account passwordless sudo. The content is
+// validated with `visudo -c -f` against a temp file before the dropin is
+// committed; a malformed dropin would lock the host out of sudo entirely,
+// so the validation gate is non-negotiable.
+//
+// Idempotent: the file content is deterministic, so re-running this on a
+// host that already has the dropin overwrites byte-for-byte.
+func installDaemonSudoers(ctx context.Context) error {
+	tmp, err := os.CreateTemp("", "sudoers-aether-ops-*.tmp")
+	if err != nil {
+		return fmt.Errorf("creating temp sudoers file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+
+	if _, err := tmp.WriteString(daemonSudoersContent); err != nil {
+		tmp.Close()
+		return fmt.Errorf("writing temp sudoers file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	cmd := exec.CommandContext(ctx, "visudo", "-c", "-f", tmpPath)
+	if output, err := cmdutil.Run(ctx, cmd); err != nil {
+		return fmt.Errorf("validating %s: %w\n%s", daemonSudoersPath, err, output)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(daemonSudoersPath), 0755); err != nil {
+		return fmt.Errorf("creating %s: %w", filepath.Dir(daemonSudoersPath), err)
+	}
+	if err := os.WriteFile(daemonSudoersPath, []byte(daemonSudoersContent), 0440); err != nil {
+		return fmt.Errorf("writing %s: %w", daemonSudoersPath, err)
+	}
+	log.Printf("  installed %s (validated)", daemonSudoersPath)
 	return nil
 }
 

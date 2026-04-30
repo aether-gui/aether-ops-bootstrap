@@ -1,6 +1,7 @@
 package serviceaccount
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -48,7 +49,7 @@ func TestPlanReturnsActions(t *testing.T) {
 	}
 }
 
-func TestPlanCreatesTwoAccounts_DefaultUser(t *testing.T) {
+func TestPlanCreatesAccountsAndDaemonSudoers_DefaultUser(t *testing.T) {
 	c := New()
 	// Manifest without an explicit OnrampUser; the component should
 	// default to "aether" (distinct from the "aether-ops" daemon).
@@ -61,17 +62,22 @@ func TestPlanCreatesTwoAccounts_DefaultUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
-	if len(plan.Actions) != 2 {
-		t.Fatalf("len(Actions) = %d, want 2 (daemon + onramp)", len(plan.Actions))
+	if len(plan.Actions) != 3 {
+		t.Fatalf("len(Actions) = %d, want 3 (daemon + daemon sudoers + onramp)", len(plan.Actions))
 	}
-	// Order matters: the daemon account is created first so the
-	// service account's group exists before anything else that tries
-	// to chown into /var/lib/aether-ops.
-	if got := plan.Actions[0].Description; got != "create daemon account aether-ops" {
-		t.Errorf("Actions[0] = %q, want %q", got, "create daemon account aether-ops")
+	// Order matters: the daemon account exists before the sudoers
+	// dropin grants it sudo, and both precede the onramp user so a
+	// failure in the daemon-side setup short-circuits before any
+	// interactive account is provisioned.
+	want := []string{
+		"create daemon account aether-ops",
+		"install aether-ops sudoers dropin",
+		"create onramp user aether",
 	}
-	if got := plan.Actions[1].Description; got != "create onramp user aether" {
-		t.Errorf("Actions[1] = %q, want %q", got, "create onramp user aether")
+	for i, w := range want {
+		if got := plan.Actions[i].Description; got != w {
+			t.Errorf("Actions[%d] = %q, want %q", i, got, w)
+		}
 	}
 }
 
@@ -86,8 +92,27 @@ func TestPlanUsesExplicitOnrampUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
-	if plan.Actions[1].Description != "create onramp user ops-engineer" {
-		t.Errorf("Actions[1] = %q, want the configured onramp user", plan.Actions[1].Description)
+	if plan.Actions[2].Description != "create onramp user ops-engineer" {
+		t.Errorf("Actions[2] = %q, want the configured onramp user", plan.Actions[2].Description)
+	}
+}
+
+// TestDaemonSudoersConstants pins the dropin path and content shape so a
+// rename of daemonAccount can't silently desync them. The launcher
+// installs whatever these constants render to, so the test doubles as a
+// guard against typos in the sudoers grant itself.
+func TestDaemonSudoersConstants(t *testing.T) {
+	if want := "/etc/sudoers.d/" + daemonAccount; daemonSudoersPath != want {
+		t.Errorf("daemonSudoersPath = %q, want %q", daemonSudoersPath, want)
+	}
+	if !strings.HasPrefix(daemonSudoersContent, daemonAccount+" ") {
+		t.Errorf("daemonSudoersContent = %q, want prefix %q", daemonSudoersContent, daemonAccount+" ")
+	}
+	if !strings.Contains(daemonSudoersContent, "NOPASSWD: ALL") {
+		t.Errorf("daemonSudoersContent = %q, missing NOPASSWD: ALL grant", daemonSudoersContent)
+	}
+	if !strings.HasSuffix(daemonSudoersContent, "\n") {
+		t.Errorf("daemonSudoersContent must end with newline; got %q", daemonSudoersContent)
 	}
 }
 
