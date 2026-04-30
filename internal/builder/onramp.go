@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/builder/patch"
@@ -56,7 +57,11 @@ func onrampPatches() []patch.Action {
 // area so it can be shipped for airgapped installs. The cloned tree is
 // placed at "onramp/aether-onramp" relative to stageDir; the manifest
 // records that path plus the resolved commit SHA for reproducibility.
-func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir string) (*bundle.OnrampEntry, error) {
+//
+// specDir is the directory of the bundle spec file; it is used to
+// resolve any relative `source:` paths in spec.Patches. Pass "" when
+// no user patches are configured.
+func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir, specDir string) (*bundle.OnrampEntry, error) {
 	relPath := filepath.Join("onramp", "aether-onramp")
 	destDir := filepath.Join(stageDir, relPath)
 
@@ -74,7 +79,21 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir string) 
 		log.Printf("  onramp patch: %s", action.Name())
 	}
 
-	files, err := hashTree(destDir, relPath)
+	// User patches run after the built-in adaptations so they can
+	// override anything the build does (and so a user `replace_file`
+	// on `vars/main.yml` would clobber the airgapped flag if intended).
+	userActions, err := BuildFilePatchActions(spec.Patches, specDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolving onramp.patches: %w", err)
+	}
+	for _, action := range userActions {
+		if err := action.Apply(destDir); err != nil {
+			return nil, fmt.Errorf("applying onramp.patches: %s: %w", action.Name(), err)
+		}
+		log.Printf("  onramp patch: %s", action.Name())
+	}
+
+	files, err := HashTree(destDir, relPath)
 	if err != nil {
 		return nil, fmt.Errorf("hashing onramp tree: %w", err)
 	}
@@ -83,9 +102,56 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir string) 
 		Repo:        spec.Repo,
 		Ref:         spec.Ref,
 		ResolvedSHA: resolvedSHA,
+		TreeSHA256:  bundle.ComputeTreeSHA256(files),
 		Path:        relPath,
 		Files:       files,
 	}, nil
+}
+
+// BuildFilePatchActions resolves the source files and inline content
+// in a FilePatch slice into a sequence of patch.Action values ready to
+// apply against a cloned tree. baseDir is used to resolve any
+// relative source paths; pass "" when patches is empty or only uses
+// inline content.
+func BuildFilePatchActions(patches []bundle.FilePatch, baseDir string) ([]patch.Action, error) {
+	if len(patches) == 0 {
+		return nil, nil
+	}
+	out := make([]patch.Action, 0, len(patches))
+	for i, p := range patches {
+		body, err := resolveFilePatchBody(p, baseDir)
+		if err != nil {
+			return nil, fmt.Errorf("patches[%d] (%s): %w", i, p.Target, err)
+		}
+		action := patch.ReplaceFile{
+			RelPath: filepath.FromSlash(p.Target),
+			Body:    body,
+		}
+		if p.FileMode != nil {
+			mode := os.FileMode(*p.FileMode)
+			action.Mode = &mode
+		}
+		out = append(out, action)
+	}
+	return out, nil
+}
+
+func resolveFilePatchBody(p bundle.FilePatch, baseDir string) ([]byte, error) {
+	if p.Source != "" {
+		full := p.Source
+		if !filepath.IsAbs(full) {
+			if baseDir == "" {
+				return nil, fmt.Errorf("source %q is relative but no base directory was provided", p.Source)
+			}
+			full = filepath.Join(baseDir, p.Source)
+		}
+		body, err := os.ReadFile(full)
+		if err != nil {
+			return nil, fmt.Errorf("reading source: %w", err)
+		}
+		return body, nil
+	}
+	return []byte(p.Content), nil
 }
 
 // BuildHelmCharts clones each configured helm chart repo into the staging
@@ -113,7 +179,7 @@ func BuildHelmCharts(ctx context.Context, specs []bundle.HelmChartsSpec, stageDi
 			return nil, fmt.Errorf("resolving helm deps for %q: %w", hc.Name, err)
 		}
 
-		files, err := hashTree(destDir, relPath)
+		files, err := HashTree(destDir, relPath)
 		if err != nil {
 			return nil, fmt.Errorf("hashing helm chart %q tree: %w", hc.Name, err)
 		}
@@ -123,6 +189,7 @@ func BuildHelmCharts(ctx context.Context, specs []bundle.HelmChartsSpec, stageDi
 			Repo:        hc.Repo,
 			Ref:         hc.Ref,
 			ResolvedSHA: resolvedSHA,
+			TreeSHA256:  bundle.ComputeTreeSHA256(files),
 			Path:        relPath,
 			Files:       files,
 		})
@@ -176,14 +243,16 @@ func cloneRepo(ctx context.Context, url, ref, destDir string, recurse bool) (str
 	return strings.TrimSpace(out), nil
 }
 
-// hashTree walks a directory and returns a BundleFile entry for every
+// HashTree walks a directory and returns a BundleFile entry for every
 // regular file found. The .git directory is skipped because it is large,
-// ephemeral, and has no value in the installed bundle.
+// ephemeral, and has no value in the installed bundle. Entries are
+// returned sorted by Path so manifests built from the same tree are
+// byte-stable across runs.
 //
 // bundleRelRoot is the directory path the entries should be recorded as,
 // relative to the bundle root (e.g. "onramp/aether-onramp"). File paths
 // in the returned entries are bundle-relative.
-func hashTree(rootDir, bundleRelRoot string) ([]bundle.BundleFile, error) {
+func HashTree(rootDir, bundleRelRoot string) ([]bundle.BundleFile, error) {
 	var files []bundle.BundleFile
 	err := filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -222,5 +291,6 @@ func hashTree(rootDir, bundleRelRoot string) ([]bundle.BundleFile, error) {
 	if err != nil {
 		return nil, err
 	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files, nil
 }

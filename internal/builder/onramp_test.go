@@ -85,7 +85,7 @@ func TestBuildOnramp(t *testing.T) {
 	entry, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{
 		Repo: url,
 		Ref:  "main",
-	}, stageDir)
+	}, stageDir, "")
 	if err != nil {
 		t.Fatalf("BuildOnramp: %v", err)
 	}
@@ -132,6 +132,17 @@ func TestBuildOnramp(t *testing.T) {
 	if !strings.Contains(got, "chart_ref: "+localSDCoreChartDir) {
 		t.Errorf("expected core.helm.chart_ref=%s after BuildOnramp, got:\n%s", localSDCoreChartDir, got)
 	}
+
+	if entry.TreeSHA256 == "" {
+		t.Errorf("TreeSHA256 should be set, got empty")
+	}
+	// File entries must be sorted by Path for deterministic manifests.
+	for i := 1; i < len(entry.Files); i++ {
+		if entry.Files[i-1].Path > entry.Files[i].Path {
+			t.Errorf("Files not sorted: %q before %q", entry.Files[i-1].Path, entry.Files[i].Path)
+			break
+		}
+	}
 }
 
 func TestBuildOnrampCleansExistingDest(t *testing.T) {
@@ -150,12 +161,99 @@ func TestBuildOnrampCleansExistingDest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{Repo: url}, stageDir); err != nil {
+	if _, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{Repo: url}, stageDir, ""); err != nil {
 		t.Fatalf("BuildOnramp: %v", err)
 	}
 
 	if _, err := os.Stat(filepath.Join(destDir, "stale.txt")); !os.IsNotExist(err) {
 		t.Errorf("stale file should have been removed by clean clone")
+	}
+}
+
+func TestBuildOnrampAppliesUserPatches(t *testing.T) {
+	url, _ := setupGitFixture(t, map[string]string{
+		"vars/main.yml": upstreamVarsMainYAML,
+		"ocudu/roles/uEsimulator/templates/ue_zmq.conf": "upstream content\n",
+		"ocudu/roles/gNB/templates/gnb_zmq.yaml":        "upstream gnb\n",
+	})
+	stageDir := t.TempDir()
+
+	// One inline patch and one source-backed patch to cover both paths.
+	specDir := t.TempDir()
+	srcPath := filepath.Join(specDir, "patches", "gnb_zmq.yaml")
+	if err := os.MkdirAll(filepath.Dir(srcPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(srcPath, []byte("operator gnb\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	entry, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{
+		Repo: url,
+		Patches: []bundle.FilePatch{
+			{
+				Target:  "ocudu/roles/uEsimulator/templates/ue_zmq.conf",
+				Content: "operator ue\n",
+			},
+			{
+				Target: "ocudu/roles/gNB/templates/gnb_zmq.yaml",
+				Source: "patches/gnb_zmq.yaml",
+			},
+		},
+	}, stageDir, specDir)
+	if err != nil {
+		t.Fatalf("BuildOnramp: %v", err)
+	}
+
+	// On-disk content must match the patches.
+	got1, err := os.ReadFile(filepath.Join(stageDir, entry.Path, "ocudu/roles/uEsimulator/templates/ue_zmq.conf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got1) != "operator ue\n" {
+		t.Errorf("inline patch content = %q, want %q", got1, "operator ue\n")
+	}
+	got2, err := os.ReadFile(filepath.Join(stageDir, entry.Path, "ocudu/roles/gNB/templates/gnb_zmq.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got2) != "operator gnb\n" {
+		t.Errorf("source-backed patch content = %q, want %q", got2, "operator gnb\n")
+	}
+
+	// Manifest hashes must reflect the patched bytes, not upstream.
+	wantUEHash := sha256Hex([]byte("operator ue\n"))
+	wantGNBHash := sha256Hex([]byte("operator gnb\n"))
+	for _, f := range entry.Files {
+		if strings.HasSuffix(f.Path, "ue_zmq.conf") && f.SHA256 != wantUEHash {
+			t.Errorf("ue_zmq.conf manifest hash = %s, want %s", f.SHA256, wantUEHash)
+		}
+		if strings.HasSuffix(f.Path, "gnb_zmq.yaml") && f.SHA256 != wantGNBHash {
+			t.Errorf("gnb_zmq.yaml manifest hash = %s, want %s", f.SHA256, wantGNBHash)
+		}
+	}
+
+	if entry.TreeSHA256 == "" {
+		t.Error("TreeSHA256 should be set on a patched build")
+	}
+}
+
+func TestBuildOnrampMissingPatchTargetIsHardError(t *testing.T) {
+	url, _ := setupGitFixture(t, map[string]string{
+		"vars/main.yml": upstreamVarsMainYAML,
+	})
+	stageDir := t.TempDir()
+	_, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{
+		Repo: url,
+		Patches: []bundle.FilePatch{
+			{Target: "does/not/exist.conf", Content: "x"},
+		},
+	}, stageDir, "")
+	if err == nil {
+		t.Fatal("expected error when patch target is absent from clone")
+	}
+	if !strings.Contains(err.Error(), "does/not/exist.conf") {
+		t.Errorf("error should mention missing target; got %v", err)
 	}
 }
 

@@ -256,9 +256,16 @@ func (c *Component) extractRepo(bundleRelPath, destDir string) error {
 	return nil
 }
 
-// composeVersion builds a deterministic version string that captures the
-// identity of every bundled repo. Any change in any component's
-// ResolvedSHA produces a new composite and forces a re-apply.
+// composeVersion builds a deterministic version string that captures
+// the identity of every bundled repo. Any change in any component's
+// ResolvedSHA — or in the actual on-disk tree (TreeSHA256) — produces
+// a new composite and forces a re-apply.
+//
+// TreeSHA256 captures patches applied at build time or by the
+// patch-bundle tool. It is appended only when set so manifests built
+// before the field was introduced reproduce the legacy composite
+// exactly and don't churn already-installed hosts on first deploy of
+// a launcher that knows about the field.
 func composeVersion(m *bundle.Manifest) string {
 	if m == nil {
 		return ""
@@ -270,12 +277,18 @@ func composeVersion(m *bundle.Manifest) string {
 	parts := ""
 	if m.Components.Onramp != nil {
 		parts = "onramp:" + m.Components.Onramp.ResolvedSHA
+		if t := m.Components.Onramp.TreeSHA256; t != "" {
+			parts += ":tree_" + shortSHA(t)
+		}
 	}
 	for _, hc := range m.Components.HelmCharts {
 		if parts != "" {
 			parts += ","
 		}
 		parts += hc.Name + ":" + hc.ResolvedSHA
+		if t := hc.TreeSHA256; t != "" {
+			parts += ":tree_" + shortSHA(t)
+		}
 	}
 	return parts
 }

@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS := -X main.version=$(VERSION)
 
-.PHONY: dist build build-bundle build-release-site build-all bundle package release-site test lint install-lint vet clean
+.PHONY: dist build build-bundle build-patch-bundle build-release-site build-all bundle package release-site test lint install-lint vet clean
 .PHONY: test-e2e test-e2e-quick test-e2e-bootstrap test-e2e-deploy
 .PHONY: test-e2e-multi-bootstrap test-e2e-multi-deploy
 .PHONY: docs docs-build docs-serve
@@ -16,10 +16,15 @@ build: dist
 build-bundle: dist
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '-X main.gitSHA=$(COMMIT)' -o dist/build-bundle ./cmd/build-bundle
 
+# patch-bundle rewrites files inside an existing bundle.tar.zst without
+# performing a full build. See docs/patch-bundle.md for usage.
+build-patch-bundle: dist
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/patch-bundle ./cmd/patch-bundle
+
 build-release-site: dist
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/build-release-site ./cmd/build-release-site
 
-build-all: build build-bundle
+build-all: build build-bundle build-patch-bundle
 
 # Build the offline bundle from specs/bundle.yaml using the build-bundle tool.
 bundle: build-bundle

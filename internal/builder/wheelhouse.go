@@ -44,7 +44,7 @@ func BuildWheelhouse(ctx context.Context, requirements []string, stageDir string
 		return nil, fmt.Errorf("python3 -m pip download: %w\n%s", err, out)
 	}
 
-	files, err := hashTree(wheelDir, "wheelhouse")
+	files, err := HashTree(wheelDir, "wheelhouse")
 	if err != nil {
 		return nil, fmt.Errorf("hashing wheelhouse: %w", err)
 	}
