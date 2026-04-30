@@ -3,7 +3,36 @@ schema_version: 1
 site:
   title: Aether Ops Bootstrap Downloads
   base_url_path: /aether-ops-bootstrap
-  description: Public download page for the bootstrap launcher and offline bundle artifacts.
+  description: Public download page for the bootstrap launcher, offline bundle, and bundle patch tool.
+  # artifact_kinds carries static metadata about each artifact type:
+  # what it is and where to find docs. Per-release entries inherit
+  # description and docs_url from the matching kind so blurbs stay
+  # consistent across releases.
+  artifact_kinds:
+    bootstrap:
+      label: Bootstrap Launcher
+      description: >-
+        One-shot offline installer for the Aether platform layer. Reads an
+        offline bundle and brings up RKE2, aether-ops, and the prerequisites
+        on a freshly installed Ubuntu Server host without touching the
+        network.
+      docs_url: https://aether-gui.github.io/docs/tools/aether-ops-bootstrap
+    bundle:
+      label: Offline Bundle
+      description: >-
+        Opaque tarball containing every artifact the launcher needs to bring
+        a host up offline — `.deb` packages, RKE2, Helm, aether-ops, the
+        aether-onramp toolchain, container images, and a manifest pinning
+        every file's SHA256.
+      docs_url: https://aether-gui.github.io/docs/concepts/bundle-structure
+    patch_tool:
+      label: Bundle Patch Tool
+      description: >-
+        Rewrites files inside an existing bundle without re-running a full
+        build — fast path for swapping aether-onramp configuration templates
+        (SDR parameters, ZMQ ports, SD-Core values) without re-pulling images
+        or APT packages.
+      docs_url: https://aether-gui.github.io/docs/tools/patch-bundle
 
 releases:
   - id: "2026-04-29-dynamic-discovery-ocudu"
@@ -11,7 +40,6 @@ releases:
     current: true
 
     bootstrap:
-      label: Bootstrap Launcher
       version: "2026.04.29.1"
       path: "2026.04.29.1"
       filename: aether-ops-bootstrap
@@ -23,7 +51,6 @@ releases:
         introduced by aether-ops v0.1.48-11.
 
     bundle:
-      label: Offline Bundle
       version: "2026.04.29.1"
       path: "2026.04.29.1"
       filename: bundle.tar.zst
@@ -46,6 +73,20 @@ releases:
           version: v3.17.3
         - name: sdcore-helm-charts
           version: main
+
+    patch_tool:
+      version: "2026.04.29.1"
+      path: "2026.04.29.1"
+      filename: patch-bundle
+      source: ../dist/patch-bundle
+      build_commit: "20a98e7"
+      release_notes: |
+        Initial release of the standalone bundle patch tool. Replaces files
+        inside an existing bundle.tar.zst (typically aether-onramp templates)
+        and re-archives without a full rebuild. Use with
+        `aether-ops-bootstrap install --bundle patched.tar.zst` for a fresh
+        install. Patched bundles carry a tree_sha256 in their manifest so
+        future launchers can detect the change and re-extract during upgrade.
 
   - id: "2026-04-28-forked-onramp-offline-bundle"
     published_at: "2026-04-28"
