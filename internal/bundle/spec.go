@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -100,9 +101,25 @@ type HelmSpec struct {
 // stores the working tree inside the bundle. The launcher extracts it to
 // /var/lib/aether-ops/aether-onramp on install.
 type OnrampSpec struct {
-	Repo              string `yaml:"repo"`                         // git URL (required)
-	Ref               string `yaml:"ref,omitempty"`                // branch, tag, or SHA; defaults to remote HEAD
-	RecurseSubmodules bool   `yaml:"recurse_submodules,omitempty"` // clone with --recurse-submodules
+	Repo              string      `yaml:"repo"`                         // git URL (required)
+	Ref               string      `yaml:"ref,omitempty"`                // branch, tag, or SHA; defaults to remote HEAD
+	RecurseSubmodules bool        `yaml:"recurse_submodules,omitempty"` // clone with --recurse-submodules
+	Patches           []FilePatch `yaml:"patches,omitempty"`            // user file overrides applied after the built-in adaptations
+}
+
+// FilePatch declares a single file in a cloned tree to override at
+// build time, before the tree is hashed into the manifest. Exactly one
+// of Source or Content must be set. Target is slash-separated and
+// rooted at the cloned tree (i.e. the onramp repo root); it must not
+// contain ".." segments or absolute paths.
+//
+// FilePatch is also the wire schema for the standalone patch-bundle
+// tool's --patches FILE input, so the same struct backs both code paths.
+type FilePatch struct {
+	Target   string  `yaml:"target"`
+	Source   string  `yaml:"source,omitempty"`
+	Content  string  `yaml:"content,omitempty"`
+	FileMode *uint32 `yaml:"file_mode,omitempty"`
 }
 
 // HelmChartsSpec declares a helm chart repository to bundle. Multiple entries
@@ -304,6 +321,9 @@ func ValidateSpec(s *Spec) error {
 		if s.Onramp.Repo == "" {
 			return fmt.Errorf("onramp.repo is required when onramp section is present")
 		}
+		if err := ValidateFilePatches(s.Onramp.Patches, "onramp.patches"); err != nil {
+			return err
+		}
 	}
 
 	chartNames := map[string]bool{}
@@ -331,6 +351,45 @@ func ValidateSpec(s *Spec) error {
 		}
 	}
 
+	return nil
+}
+
+// ValidateFilePatches checks structural rules common to spec-level
+// onramp.patches and the standalone patch-bundle tool's --patches input.
+// fieldName is the dotted YAML path used in error messages (e.g.
+// "onramp.patches" or "patches" for the standalone tool).
+func ValidateFilePatches(patches []FilePatch, fieldName string) error {
+	if len(patches) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(patches))
+	for i, p := range patches {
+		if p.Target == "" {
+			return fmt.Errorf("%s[%d].target is required", fieldName, i)
+		}
+		// Reject absolute paths and ".." traversal so a patch can never
+		// escape the cloned tree it is rooted at.
+		if strings.HasPrefix(p.Target, "/") {
+			return fmt.Errorf("%s[%d].target %q must be relative (no leading slash)", fieldName, i, p.Target)
+		}
+		// Use forward slashes consistently; reject backslashes which
+		// would smuggle in path separators on Windows-style paths.
+		if strings.Contains(p.Target, "\\") {
+			return fmt.Errorf("%s[%d].target %q must use forward slashes", fieldName, i, p.Target)
+		}
+		if slices.Contains(strings.Split(p.Target, "/"), "..") {
+			return fmt.Errorf("%s[%d].target %q must not contain '..' segments", fieldName, i, p.Target)
+		}
+		hasSource := p.Source != ""
+		hasContent := p.Content != ""
+		if hasSource == hasContent {
+			return fmt.Errorf("%s[%d] requires exactly one of source or content (got source=%v, content=%v)", fieldName, i, hasSource, hasContent)
+		}
+		if seen[p.Target] {
+			return fmt.Errorf("%s contains duplicate target %q", fieldName, p.Target)
+		}
+		seen[p.Target] = true
+	}
 	return nil
 }
 

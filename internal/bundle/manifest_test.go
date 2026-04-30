@@ -217,6 +217,40 @@ func TestManifestOnrampChartsImagesRoundTrip(t *testing.T) {
 	}
 }
 
+func TestComputeTreeSHA256(t *testing.T) {
+	files := []BundleFile{
+		{Path: "b/y", SHA256: "bb"},
+		{Path: "a/x", SHA256: "aa"},
+	}
+	got := ComputeTreeSHA256(files)
+	if got == "" {
+		t.Fatal("expected non-empty hash for non-empty input")
+	}
+
+	// Reordering inputs must not change the hash.
+	reordered := []BundleFile{
+		{Path: "a/x", SHA256: "aa"},
+		{Path: "b/y", SHA256: "bb"},
+	}
+	if again := ComputeTreeSHA256(reordered); again != got {
+		t.Errorf("hash changed on reorder: %q != %q", got, again)
+	}
+
+	// Different content → different hash.
+	mutated := []BundleFile{
+		{Path: "a/x", SHA256: "aa"},
+		{Path: "b/y", SHA256: "cc"},
+	}
+	if mut := ComputeTreeSHA256(mutated); mut == got {
+		t.Errorf("hash unchanged after content mutation: %q", mut)
+	}
+
+	// Empty input → empty hash so JSON-omitempty stays clean.
+	if empty := ComputeTreeSHA256(nil); empty != "" {
+		t.Errorf("empty input should hash to empty string; got %q", empty)
+	}
+}
+
 func TestReadSchemaVersionMismatch(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad-schema.json")
