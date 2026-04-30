@@ -164,6 +164,15 @@ playbooks. It is **distinct** from the daemon's service account
 `aether-ops` (which has no login shell and no password). Default:
 `aether`.
 
+The daemon account is also granted passwordless sudo via
+`/etc/sudoers.d/aether-ops` (mode `0440`, validated with `visudo -c`)
+so the daemon's component probes can shell out via `sudo -n` to
+`kubectl`, `helm`, `docker`, and similar tools. The grant is currently
+`NOPASSWD: ALL`; a follow-up will tighten it to the specific binaries
+probes invoke. The dropin is not operator-configurable — its user name
+mirrors the `aether-ops` daemon-account constant the rest of the stack
+already assumes.
+
 `onramp_password` is the password the installer sets on that account.
 It is resolved at install time in this order of precedence:
 
