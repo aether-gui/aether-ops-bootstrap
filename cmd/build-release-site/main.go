@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -186,7 +187,7 @@ const indexTemplate = `<!doctype html>
     .grid {
       display: grid;
       gap: 20px;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: 1fr;
       margin-top: 28px;
     }
     .card {
@@ -270,12 +271,12 @@ const indexTemplate = `<!doctype html>
   <main>
     <h1>{{ .Title }}</h1>
     <p class="lede">{{ .Description }}</p>
-    <p class="meta">Latest published release: {{ .Latest.PublishedAt }}</p>
+    <p class="meta">Latest published release: {{ formatPublished .Latest.PublishedAt }}</p>
 
     <section class="grid">
       {{ template "card" .Latest.Bootstrap }}
-      {{ template "card" .Latest.Bundle }}
       {{ if .Latest.PatchTool }}{{ template "card" .Latest.PatchTool }}{{ end }}
+      {{ template "card" .Latest.Bundle }}
     </section>
 
     <p class="footer-link"><a href="{{ .BaseURLPath }}/releases/">See older versions</a></p>
@@ -352,7 +353,7 @@ const releasesTemplate = `<!doctype html>
     .artifacts {
       display: grid;
       gap: 18px;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: 1fr;
     }
     .artifact {
       background: #fbfcfe;
@@ -424,11 +425,11 @@ const releasesTemplate = `<!doctype html>
     <p>{{ .Description }}</p>
     {{ range .Releases }}
     <section class="release">
-      <h2>{{ .PublishedAt }}{{ if .Current }} · current{{ end }}</h2>
+      <h2>{{ formatPublished .PublishedAt }}{{ if .Current }} · current{{ end }}</h2>
       <div class="artifacts">
         {{ template "release-artifact" .Bootstrap }}
-        {{ template "release-artifact" .Bundle }}
         {{ if .PatchTool }}{{ template "release-artifact" .PatchTool }}{{ end }}
+        {{ template "release-artifact" .Bundle }}
       </div>
     </section>
     {{ end }}
@@ -803,7 +804,8 @@ func writeSHA256File(path, filename, hash string) error {
 
 func writeTemplate(path, tmpl string, data any) error {
 	funcs := template.FuncMap{
-		"shortHash": shortHash,
+		"shortHash":       shortHash,
+		"formatPublished": formatPublished,
 	}
 	t, err := template.New(filepath.Base(path)).Funcs(funcs).Parse(tmpl)
 	if err != nil {
@@ -822,6 +824,52 @@ func shortHash(s string) string {
 		return s[:7]
 	}
 	return s
+}
+
+// publishedTimeLayouts is the set of layouts the formatPublished helper
+// will accept for a release's published_at field. The first match wins.
+// Date-only strings are returned verbatim; layouts that include a clock
+// component are normalized to "YYYY-MM-DD HH:MM" (seconds dropped) with
+// a trailing UTC suffix when the input had a timezone.
+var publishedTimeLayouts = []struct {
+	layout  string
+	hasZone bool
+}{
+	{time.RFC3339, true},
+	{"2006-01-02T15:04:05", false},
+	{"2006-01-02 15:04:05", false},
+	{"2006-01-02 15:04", false},
+	{"2006-01-02T15:04", false},
+}
+
+// formatPublished renders a release's published_at string for human
+// display. Supports plain dates ("2026-04-29") verbatim plus several
+// timestamp layouts; timestamps are shown as "YYYY-MM-DD HH:MM" with
+// "UTC" appended when the input carried a timezone.
+//
+// Anything unparseable is returned unchanged so spec authors aren't
+// punished for unusual formats — the cost is just a slightly less
+// polished display.
+func formatPublished(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return ""
+	}
+	// Date only — present is preserved.
+	if _, err := time.Parse("2006-01-02", s); err == nil {
+		return s
+	}
+	for _, l := range publishedTimeLayouts {
+		t, err := time.Parse(l.layout, s)
+		if err != nil {
+			continue
+		}
+		if l.hasZone {
+			return t.UTC().Format("2006-01-02 15:04") + " UTC"
+		}
+		return t.Format("2006-01-02 15:04")
+	}
+	return raw
 }
 
 func renderComponents(in []componentConfig) []renderedComponent {

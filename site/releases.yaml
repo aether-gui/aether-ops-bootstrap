@@ -36,7 +36,7 @@ site:
 
 releases:
   - id: "2026-04-29-dynamic-discovery-ocudu"
-    published_at: "2026-04-29"
+    published_at: "2026-04-29T18:15:00Z"
     current: true
 
     bootstrap:
