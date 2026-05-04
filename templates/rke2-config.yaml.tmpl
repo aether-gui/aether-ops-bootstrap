@@ -16,3 +16,12 @@ write-kubeconfig-group: "aether-ops"
 cni:
   - multus
   - canal
+
+# Node labels expected by aether-onramp's nodeSelector-based scheduling.
+# Bootstrap short-circuits onramp's k8s role, which would otherwise apply
+# these via its master-config template (deps/k8s/roles/rke2/templates/
+# master-config.yaml). Without them, sd-core helm releases that pin pods
+# to a labeled node have no eligible scheduling target.
+node-label:
+  - "node-role.aetherproject.org/5gc=true"
+  - "node-role.aetherproject.org/upf=true"
