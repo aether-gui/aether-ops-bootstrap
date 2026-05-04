@@ -35,15 +35,121 @@ site:
       docs_url: https://aether-gui.github.io/docs/tools/patch-bundle
 
 releases:
+  - id: "2026-04-30-aether-ops-v0150"
+    published_at: "2026-04-30T20:00:00Z"
+    current: true
+
+    bootstrap:
+      version: "2026.04.30.2"
+      path: "2026.04.30.2"
+      filename: aether-ops-bootstrap
+      source: ../dist/aether-ops-bootstrap
+      commit: "fbfec6e"
+      release_notes: |
+        Bootstrap rebuilt to pair with the 2026.04.30.2 offline bundle.
+        Carries the same daemon sudoers-dropin fix introduced in
+        2026.04.30.1 (aether-ops#175); no launcher-side changes since.
+
+    bundle:
+      version: "2026.04.30.2"
+      path: "2026.04.30.2"
+      filename: bundle.tar.zst
+      source: ../dist/bundle.tar.zst
+      sha256_source: ../dist/bundle.tar.zst.sha256
+      build_commit: "fbfec6e"
+      release_notes: |
+        Bundle rebuilt with the released aether-ops v0.1.50, replacing
+        the v0.1.48-SNAPSHOT-57840b5 build that shipped in 2026.04.30.1.
+        v0.1.50 lands the data-driven component manifest used to resolve
+        install/uninstall verbs for OnRamp integration, treats probe
+        execution failures as `unknown` (not `not_installed`), and pins
+        the frontend submodule to the beta channel with a refreshed
+        embedded dist. aether-onramp pin is unchanged
+        (bengrewell/aether-onramp at 7aad6b9).
+      components:
+        - name: aether-ops
+          version: v0.1.50
+        - name: aether-onramp
+          commit: 7aad6b908c82f1631081224a870bea96bf43db6d
+        - name: rke2
+          version: v1.33.1+rke2r1
+        - name: helm
+          version: v3.17.3
+        - name: sdcore-helm-charts
+          version: main
+
+    patch_tool:
+      version: "2026.04.30.2"
+      path: "2026.04.30.2"
+      filename: patch-bundle
+      source: ../dist/patch-bundle
+      build_commit: "fbfec6e"
+      release_notes: |
+        Patch tool rebuilt alongside the 2026.04.30.2 launcher and
+        bundle. No functional changes since 2026.04.30.1.
+
+  - id: "2026-04-30-daemon-sudoers-grant"
+    published_at: "2026-04-30T18:00:00Z"
+    external: true
+
+    bootstrap:
+      version: "2026.04.30.1"
+      path: "2026.04.30.1"
+      filename: aether-ops-bootstrap
+      sha256: "c9ad39ed22bd0dbe857b1923a42771b3ec69a8a7973c7c5158ff9454339f929e"
+      commit: "fbfec6e"
+      release_notes: |
+        Bootstrap installs a NOPASSWD sudoers dropin at
+        /etc/sudoers.d/aether-ops alongside the existing onramp-user
+        fragment, fixing component probes (kubectl, helm, docker) that
+        run as the daemon user via `sudo -n`. Without it, healthy
+        components flipped to not_installed about two minutes after each
+        install (see aether-ops#175). Pairs with the 2026.04.30.1
+        offline bundle.
+
+    bundle:
+      version: "2026.04.30.1"
+      path: "2026.04.30.1"
+      filename: bundle.tar.zst
+      sha256: "90e082955292e57db27f7296efb704b0dc2bdd6b8b8b53dc29db327e3dae0c62"
+      build_commit: "fbfec6e"
+      release_notes: |
+        Bundle rebuilt with aether-ops v0.1.48-SNAPSHOT-57840b5. Pairs
+        with the launcher fix that installs the daemon sudoers dropin —
+        see the bootstrap notes for context. aether-onramp pin is
+        unchanged from 2026.04.29.1 (bengrewell/aether-onramp at
+        7aad6b9).
+      components:
+        - name: aether-ops
+          version: v0.1.48-SNAPSHOT-57840b5
+        - name: aether-onramp
+          commit: 7aad6b908c82f1631081224a870bea96bf43db6d
+        - name: rke2
+          version: v1.33.1+rke2r1
+        - name: helm
+          version: v3.17.3
+        - name: sdcore-helm-charts
+          version: main
+
+    patch_tool:
+      version: "2026.04.30.1"
+      path: "2026.04.30.1"
+      filename: patch-bundle
+      sha256: "2f67c6f4966812911516f95f2056f8688c8c1e8c6f1a589ad00586a0a44d1b68"
+      build_commit: "fbfec6e"
+      release_notes: |
+        Patch tool rebuilt alongside the 2026.04.30.1 launcher and
+        bundle. No functional changes since the 2026.04.29.1 release.
+
   - id: "2026-04-29-dynamic-discovery-ocudu"
     published_at: "2026-04-29T18:15:00Z"
-    current: true
+    external: true
 
     bootstrap:
       version: "2026.04.29.1"
       path: "2026.04.29.1"
       filename: aether-ops-bootstrap
-      source: ../dist/aether-ops-bootstrap
+      sha256: "4f7eefae843bfa08814e046178ee63832a1e7bc3ac2d36b9b94268d3a26fc00d"
       commit: "ec4d6b8"
       release_notes: |
         Bootstrap rebuilt to pair with the 2026.04.29.1 offline bundle.
@@ -54,8 +160,7 @@ releases:
       version: "2026.04.29.1"
       path: "2026.04.29.1"
       filename: bundle.tar.zst
-      source: ../dist/bundle.tar.zst
-      sha256_source: ../dist/bundle.tar.zst.sha256
+      sha256: "926b44d1ed32e529bbc7e5fec1ffd71c576a86554504468e82cd5a873afc7ac2"
       build_commit: "ec4d6b8"
       release_notes: |
         Bundle rebuilt with aether-ops v0.1.48-11, which migrates internal
@@ -78,7 +183,7 @@ releases:
       version: "2026.04.29.1"
       path: "2026.04.29.1"
       filename: patch-bundle
-      source: ../dist/patch-bundle
+      sha256: "4bf38cbd5ff7521dbfc57ae54c32b81b9536662a49e1ed1c8f39ce99f41cf772"
       build_commit: "20a98e7"
       release_notes: |
         Initial release of the standalone bundle patch tool. Replaces files
