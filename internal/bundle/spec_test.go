@@ -51,8 +51,8 @@ func TestParseSpec(t *testing.T) {
 	if s.RKE2 == nil {
 		t.Fatal("RKE2 is nil")
 	}
-	if s.RKE2.Version != "v1.33.1+rke2r1" {
-		t.Errorf("RKE2.Version = %q, want %q", s.RKE2.Version, "v1.33.1+rke2r1")
+	if s.RKE2.Version != "v1.35.3+rke2r3" {
+		t.Errorf("RKE2.Version = %q, want %q", s.RKE2.Version, "v1.35.3+rke2r3")
 	}
 	if s.RKE2.ImageMode != ImageModeCoreVariant {
 		t.Errorf("RKE2.ImageMode = %q, want %q", s.RKE2.ImageMode, ImageModeCoreVariant)
