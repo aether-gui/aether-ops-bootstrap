@@ -26,7 +26,14 @@ type resolvedAptSource struct {
 }
 
 // FetchDebs resolves transitive dependencies for the requested packages
-// and downloads all .deb files for each (suite, arch) pair in the spec.
+// and downloads all .deb files. Apt suites are grouped by their release
+// codename (the release pocket plus its -updates / -security pockets are
+// merged into a single index per arch), so the resolver picks the highest
+// available version across pockets — the same behaviour `apt install`
+// gives operators on a fresh Ubuntu host. Bundle entries record the base
+// release codename in Suite, regardless of which pocket the chosen
+// version came from, so the on-host installer's suite filter keeps
+// matching.
 func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir string) ([]bundle.DebEntry, error) {
 	if len(spec.Debs) == 0 {
 		return nil, nil
@@ -49,25 +56,40 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 	var allEntries []bundle.DebEntry
 	sources := aptSourcesForSpec(spec)
 
-	for _, suite := range spec.Ubuntu.Suites {
+	groups := groupSuitesByBase(spec.Ubuntu.Suites)
+	for _, group := range groups {
+		baseSuite := group.base
 		for _, arch := range spec.Ubuntu.Architectures {
-			log.Printf("resolving .deb dependencies for %s/%s", suite, arch)
+			log.Printf("resolving .deb dependencies for %s/%s (pockets: %v)", baseSuite, arch, group.suites)
 
-			// Fetch and parse Packages indexes.
-			idx, err := fetchPackageIndex(ctx, dl, sources, suite, arch)
-			if err != nil {
-				return nil, fmt.Errorf("fetching package index for %s/%s: %w", suite, arch, err)
+			// Aggregate Packages indexes across every pocket in the
+			// group (release + updates + security). NewIndex keeps
+			// the highest version per package, which is what apt
+			// would pick on a vanilla host.
+			var allPkgs []deb.Package
+			for _, suite := range group.suites {
+				pkgs, err := fetchPackagesForSuite(ctx, dl, sources, suite, arch)
+				if err != nil {
+					return nil, fmt.Errorf("fetching package index for %s/%s: %w", suite, arch, err)
+				}
+				allPkgs = append(allPkgs, pkgs...)
+			}
+			if len(allPkgs) == 0 {
+				return nil, fmt.Errorf("no packages found for %s/%s across pockets %v", baseSuite, arch, group.suites)
 			}
 
-			// Resolve dependencies.
+			idx := deb.NewIndex(allPkgs)
 			resolved, err := deb.Resolve(wanted, idx, constraints)
 			if err != nil {
-				return nil, fmt.Errorf("resolving dependencies for %s/%s: %w", suite, arch, err)
+				return nil, fmt.Errorf("resolving dependencies for %s/%s: %w", baseSuite, arch, err)
 			}
-			log.Printf("resolved %d packages for %s/%s", len(resolved), suite, arch)
+			log.Printf("resolved %d packages for %s/%s", len(resolved), baseSuite, arch)
 
-			// Download each .deb.
-			debDir := filepath.Join(stageDir, "debs", suite, arch)
+			// Download each .deb. Stage under the base suite so the
+			// on-host installer's suite filter (which compares
+			// against the host's release codename, not the pocket)
+			// continues to match.
+			debDir := filepath.Join(stageDir, "debs", baseSuite, arch)
 			if err := os.MkdirAll(debDir, 0755); err != nil {
 				return nil, err
 			}
@@ -78,7 +100,7 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 				destPath := filepath.Join(debDir, basename)
 
 				if pkg.SHA256 == "" {
-					return nil, fmt.Errorf("missing SHA256 for package %s %s in %s/%s", pkg.Name, pkg.Version, suite, arch)
+					return nil, fmt.Errorf("missing SHA256 for package %s %s in %s/%s", pkg.Name, pkg.Version, baseSuite, arch)
 				}
 
 				if _, err := dl.Download(ctx, url, destPath); err != nil {
@@ -93,8 +115,8 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 					Name:     pkg.Name,
 					Version:  pkg.Version,
 					Arch:     pkg.Arch,
-					Suite:    suite,
-					Filename: filepath.Join("debs", suite, arch, basename),
+					Suite:    baseSuite,
+					Filename: filepath.Join("debs", baseSuite, arch, basename),
 					SHA256:   pkg.SHA256,
 				})
 			}
@@ -102,6 +124,46 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 	}
 
 	return allEntries, nil
+}
+
+// suiteGroup is one release codename plus the pockets configured for
+// it (release / -updates / -security / -backports / -proposed).
+type suiteGroup struct {
+	base   string
+	suites []string
+}
+
+// pocketSuffixes are the standard apt pockets that share an index
+// with their release codename.
+var pocketSuffixes = []string{"-updates", "-security", "-backports", "-proposed"}
+
+// baseSuite strips a pocket suffix to yield the release codename.
+// Already-bare codenames pass through unchanged.
+func baseSuite(s string) string {
+	for _, suffix := range pocketSuffixes {
+		if strings.HasSuffix(s, suffix) {
+			return strings.TrimSuffix(s, suffix)
+		}
+	}
+	return s
+}
+
+// groupSuitesByBase keeps the order of first appearance of each base
+// codename in suites so build output is deterministic and matches the
+// spec's ordering.
+func groupSuitesByBase(suites []string) []suiteGroup {
+	idx := make(map[string]int)
+	var groups []suiteGroup
+	for _, s := range suites {
+		base := baseSuite(s)
+		if i, ok := idx[base]; ok {
+			groups[i].suites = append(groups[i].suites, s)
+			continue
+		}
+		idx[base] = len(groups)
+		groups = append(groups, suiteGroup{base: base, suites: []string{s}})
+	}
+	return groups
 }
 
 func aptSourcesForSpec(spec *bundle.Spec) []resolvedAptSource {
@@ -134,11 +196,17 @@ func aptSourcesForSpec(spec *bundle.Spec) []resolvedAptSource {
 	return sources
 }
 
-// fetchPackageIndex downloads and parses Packages.gz from all sections
-// for the given suite and architecture across every configured source, merging the
-// results into a single index. Also fetches binary-all indexes for
-// architecture-independent packages.
-func fetchPackageIndex(ctx context.Context, dl *Downloader, sources []resolvedAptSource, suite, arch string) (*deb.Index, error) {
+// fetchPackagesForSuite downloads and parses Packages.gz from every
+// configured source for the given suite and architecture, returning
+// the raw package entries tagged with the suite they came from.
+// Callers compose these across pockets and build a single index.
+//
+// Sources whose advertised Suites/Architectures don't include the
+// requested pair are skipped silently. A 404 on an individual
+// (component, arch) is also skipped (third-party repos like Docker
+// publish only `<release>/stable/binary-amd64`, no `binary-all`,
+// no `noble-updates/`, etc.); other download errors are fatal.
+func fetchPackagesForSuite(ctx context.Context, dl *Downloader, sources []resolvedAptSource, suite, arch string) ([]deb.Package, error) {
 	var allPkgs []deb.Package
 
 	arches := []string{arch, "all"}
@@ -175,17 +243,14 @@ func fetchPackageIndex(ctx context.Context, dl *Downloader, sources []resolvedAp
 				for i := range pkgs {
 					pkgs[i].SourceName = src.Name
 					pkgs[i].SourceURL = src.URL
+					pkgs[i].Suite = suite
 				}
 				allPkgs = append(allPkgs, pkgs...)
 			}
 		}
 	}
 
-	if len(allPkgs) == 0 {
-		return nil, fmt.Errorf("no packages found for %s/%s", suite, arch)
-	}
-
-	return deb.NewIndex(allPkgs), nil
+	return allPkgs, nil
 }
 
 func containsString(items []string, want string) bool {

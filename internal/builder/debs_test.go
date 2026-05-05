@@ -136,6 +136,92 @@ Priority: optional
 
 }
 
+func TestBaseSuite(t *testing.T) {
+	cases := map[string]string{
+		"noble":           "noble",
+		"noble-updates":   "noble",
+		"noble-security":  "noble",
+		"noble-backports": "noble",
+		"noble-proposed":  "noble",
+		"jammy":           "jammy",
+		"jammy-updates":   "jammy",
+		"plucky-security": "plucky",
+	}
+	for in, want := range cases {
+		if got := baseSuite(in); got != want {
+			t.Errorf("baseSuite(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestGroupSuitesByBase(t *testing.T) {
+	groups := groupSuitesByBase([]string{"noble", "noble-updates", "noble-security"})
+	if len(groups) != 1 {
+		t.Fatalf("expected 1 group, got %d: %+v", len(groups), groups)
+	}
+	if groups[0].base != "noble" {
+		t.Errorf("group[0].base = %q, want noble", groups[0].base)
+	}
+	wantSuites := []string{"noble", "noble-updates", "noble-security"}
+	if len(groups[0].suites) != len(wantSuites) {
+		t.Fatalf("group[0].suites = %v, want %v", groups[0].suites, wantSuites)
+	}
+	for i, s := range wantSuites {
+		if groups[0].suites[i] != s {
+			t.Errorf("group[0].suites[%d] = %q, want %q", i, groups[0].suites[i], s)
+		}
+	}
+}
+
+func TestGroupSuitesByBaseMultipleReleases(t *testing.T) {
+	groups := groupSuitesByBase([]string{"jammy", "noble", "noble-updates"})
+	if len(groups) != 2 {
+		t.Fatalf("expected 2 groups, got %d: %+v", len(groups), groups)
+	}
+	// First-appearance ordering: jammy comes first.
+	if groups[0].base != "jammy" {
+		t.Errorf("groups[0].base = %q, want jammy", groups[0].base)
+	}
+	if groups[1].base != "noble" {
+		t.Errorf("groups[1].base = %q, want noble", groups[1].base)
+	}
+	if len(groups[1].suites) != 2 {
+		t.Errorf("noble group should have 2 pockets, got %v", groups[1].suites)
+	}
+}
+
+// TestPocketMergePicksHigherVersion checks that when a package
+// appears in both the release and -updates pocket, NewIndex picks
+// the higher version — the same behaviour the build relies on to
+// surface point-release fixes from noble-updates.
+func TestPocketMergePicksHigherVersion(t *testing.T) {
+	pkgs := []deb.Package{
+		{
+			Name:    "libapt-pkg6.0t64",
+			Version: "2.7.14build2",
+			Arch:    "amd64",
+			Suite:   "noble",
+		},
+		{
+			Name:    "libapt-pkg6.0t64",
+			Version: "2.8.3-0ubuntu0.24.04.1",
+			Arch:    "amd64",
+			Suite:   "noble-updates",
+		},
+	}
+	idx := deb.NewIndex(pkgs)
+	got := idx.Lookup("libapt-pkg6.0t64")
+	if got == nil {
+		t.Fatal("Lookup returned nil")
+	}
+	if got.Version != "2.8.3-0ubuntu0.24.04.1" {
+		t.Errorf("merged index picked version %q, want the noble-updates version", got.Version)
+	}
+	if got.Suite != "noble-updates" {
+		t.Errorf("Suite tag = %q, want noble-updates", got.Suite)
+	}
+}
+
 func writeGzFile(t *testing.T, path, content string) {
 	t.Helper()
 	f, err := os.Create(path)

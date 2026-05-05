@@ -24,11 +24,19 @@ const (
 	ImageModeCoreVariant = "core+variant"
 )
 
-// Known Ubuntu suite codenames.
+// Known Ubuntu suite codenames. The release pocket plus the
+// updates/security pockets so a bundle can resolve transitive deps
+// against current point-release versions instead of frozen GA.
 var knownSuites = map[string]bool{
-	"jammy":  true, // 22.04
-	"noble":  true, // 24.04
-	"plucky": true, // 25.04
+	"jammy":           true, // 22.04
+	"jammy-updates":   true,
+	"jammy-security":  true,
+	"noble":           true, // 24.04
+	"noble-updates":   true,
+	"noble-security":  true,
+	"plucky":          true, // 25.04
+	"plucky-updates":  true,
+	"plucky-security": true,
 }
 
 // Known architectures.
