@@ -35,15 +35,75 @@ site:
       docs_url: https://aether-gui.github.io/docs/tools/patch-bundle
 
 releases:
+  - id: "2026-05-05-rke2-onramp-config-parity"
+    published_at: "2026-05-05T14:53:09Z"
+    current: true
+
+    bootstrap:
+      version: "2026.05.05.1"
+      path: "2026.05.05.1"
+      filename: aether-ops-bootstrap
+      source: ../dist/aether-ops-bootstrap
+      commit: "90eda9b"
+      release_notes: |
+        Bootstrap rebuilt with the RKE2 onramp-config parity changes
+        from aether-ops-bootstrap#32. Adds the kubelet
+        `--allowed-unsafe-sysctls=net.*` and kube-apiserver
+        `--service-node-port-range=2000-36767` args sd-core depends
+        on, plus the kube-proxy metrics bind, explicit pod/service
+        CIDRs, cluster token, and node-name fields onramp's k8s role
+        would otherwise have applied. Drops a
+        `/etc/sysctl.d/90-aether-ops.conf` with `fs.file-max` and the
+        `fs.inotify.*` limits and runs `sysctl --system` before
+        rke2-server starts so kubelet boots under the tuned limits.
+        Pairs with the 2026.05.05.1 offline bundle.
+
+    bundle:
+      version: "2026.05.05.1"
+      path: "2026.05.05.1"
+      filename: bundle.tar.zst
+      source: ../dist/bundle.tar.zst
+      sha256_source: ../dist/bundle.tar.zst.sha256
+      build_commit: "90eda9b"
+      release_notes: |
+        Bundle rebuilt to pair with the 2026.05.05.1 launcher.
+        aether-onramp moves off the bengrewell fork and pins
+        opennetworkinglab/aether-onramp at 25099664 (current HEAD of
+        upstream main). aether-ops v0.1.50, rke2 v1.33.1+rke2r1, and
+        helm v3.17.3 are unchanged. The launcher's new RKE2 config
+        template and pre-install sysctl drop-in ride along inside
+        the bundle.
+      components:
+        - name: aether-ops
+          version: v0.1.50
+        - name: aether-onramp
+          commit: 25099664b08a67f0f2b3c74f356aabfe71d50a8f
+        - name: rke2
+          version: v1.33.1+rke2r1
+        - name: helm
+          version: v3.17.3
+        - name: sdcore-helm-charts
+          version: main
+
+    patch_tool:
+      version: "2026.05.05.1"
+      path: "2026.05.05.1"
+      filename: patch-bundle
+      source: ../dist/patch-bundle
+      build_commit: "90eda9b"
+      release_notes: |
+        Patch tool rebuilt alongside the 2026.05.05.1 launcher and
+        bundle. No functional changes since 2026.04.30.2.
+
   - id: "2026-04-30-aether-ops-v0150"
     published_at: "2026-04-30T20:00:00Z"
-    current: true
+    external: true
 
     bootstrap:
       version: "2026.04.30.2"
       path: "2026.04.30.2"
       filename: aether-ops-bootstrap
-      source: ../dist/aether-ops-bootstrap
+      sha256: "c9ad39ed22bd0dbe857b1923a42771b3ec69a8a7973c7c5158ff9454339f929e"
       commit: "fbfec6e"
       release_notes: |
         Bootstrap rebuilt to pair with the 2026.04.30.2 offline bundle.
@@ -54,8 +114,7 @@ releases:
       version: "2026.04.30.2"
       path: "2026.04.30.2"
       filename: bundle.tar.zst
-      source: ../dist/bundle.tar.zst
-      sha256_source: ../dist/bundle.tar.zst.sha256
+      sha256: "e8bf67e4629066a2e9955e69c3f7e15a854c36873cfc17f68027bb9498cdd4c6"
       build_commit: "fbfec6e"
       release_notes: |
         Bundle rebuilt with the released aether-ops v0.1.50, replacing
@@ -82,7 +141,7 @@ releases:
       version: "2026.04.30.2"
       path: "2026.04.30.2"
       filename: patch-bundle
-      source: ../dist/patch-bundle
+      sha256: "2f67c6f4966812911516f95f2056f8688c8c1e8c6f1a589ad00586a0a44d1b68"
       build_commit: "fbfec6e"
       release_notes: |
         Patch tool rebuilt alongside the 2026.04.30.2 launcher and
