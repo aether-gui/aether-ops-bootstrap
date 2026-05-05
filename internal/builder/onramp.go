@@ -24,15 +24,25 @@ const localSDCoreChartDir = "/var/lib/aether-ops/helm-charts/sdcore-helm-charts/
 // onrampPatches returns the mutations applied to every vendored
 // aether-onramp checkout after clone, adapting upstream's online-first
 // defaults to this bootstrap's offline deployment model.
-func onrampPatches() []patch.Action {
-	return []patch.Action{
+//
+// The canonical vars/main.yml is patched strictly (any missing key is
+// a hard error) so upstream renames surface as build failures. The
+// vars/main-*.yml blueprint variants are patched leniently with
+// Upsert because they may legitimately omit the local_charts key
+// (the role-side default is false). The strict patch on the
+// canonical file is what guards against silent upstream drift; the
+// blueprint patches just make sure aether-ops's HandleComposeConfig
+// merge can't restore an OCI-pointing chart_ref over the patched
+// main.yml.
+func onrampPatches(destDir string) ([]patch.Action, error) {
+	actions := []patch.Action{
 		// Upstream defaults `airgapped.enabled: false` to keep stock
 		// online installs unchanged. Bundles built here always target
 		// offline hosts, so the flag must be on before playbooks run —
 		// otherwise `apt: update_cache=yes` tasks hit unreachable
 		// archives. See opennetworkinglab/aether-onramp#180.
 		patch.SetYAMLField{
-			RelPath: "vars/main.yml",
+			RelPath: filepath.Join("vars", "main.yml"),
 			KeyPath: []string{"airgapped", "enabled"},
 			Value:   true,
 		},
@@ -41,16 +51,54 @@ func onrampPatches() []patch.Action {
 		// In airgap ghcr.io is unreachable; flip to local_charts and
 		// point at the umbrella chart dir shipped in the bundle.
 		patch.SetYAMLField{
-			RelPath: "vars/main.yml",
+			RelPath: filepath.Join("vars", "main.yml"),
 			KeyPath: []string{"core", "helm", "local_charts"},
 			Value:   true,
 		},
 		patch.SetYAMLField{
-			RelPath: "vars/main.yml",
+			RelPath: filepath.Join("vars", "main.yml"),
 			KeyPath: []string{"core", "helm", "chart_ref"},
 			Value:   localSDCoreChartDir,
 		},
 	}
+
+	// Patch every blueprint variant (vars/main-<flavor>.yml) too.
+	// aether-ops's HandleComposeConfig deep-merges the selected
+	// blueprint's `core` section over vars/main.yml, which would
+	// otherwise restore the upstream OCI chart_ref the canonical
+	// patch above just flipped.
+	blueprints, err := filepath.Glob(filepath.Join(destDir, "vars", "main-*.yml"))
+	if err != nil {
+		return nil, fmt.Errorf("globbing vars/main-*.yml: %w", err)
+	}
+	sort.Strings(blueprints)
+	for _, bp := range blueprints {
+		rel, err := filepath.Rel(destDir, bp)
+		if err != nil {
+			return nil, fmt.Errorf("relpath for %s: %w", bp, err)
+		}
+		actions = append(actions,
+			patch.SetYAMLField{
+				RelPath: rel,
+				KeyPath: []string{"airgapped", "enabled"},
+				Value:   true,
+				Upsert:  true,
+			},
+			patch.SetYAMLField{
+				RelPath: rel,
+				KeyPath: []string{"core", "helm", "local_charts"},
+				Value:   true,
+				Upsert:  true,
+			},
+			patch.SetYAMLField{
+				RelPath: rel,
+				KeyPath: []string{"core", "helm", "chart_ref"},
+				Value:   localSDCoreChartDir,
+				Upsert:  true,
+			},
+		)
+	}
+	return actions, nil
 }
 
 // BuildOnramp clones the aether-onramp repository into the bundle staging
@@ -72,7 +120,11 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir, specDir
 
 	// Apply onramp-specific patches to the cloned tree before
 	// hashing so the manifest reflects the on-disk state shipped.
-	for _, action := range onrampPatches() {
+	patches, err := onrampPatches(destDir)
+	if err != nil {
+		return nil, fmt.Errorf("computing onramp patches: %w", err)
+	}
+	for _, action := range patches {
 		if err := action.Apply(destDir); err != nil {
 			return nil, fmt.Errorf("patching onramp: %s: %w", action.Name(), err)
 		}
