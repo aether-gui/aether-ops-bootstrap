@@ -35,15 +35,133 @@ site:
       docs_url: https://aether-gui.github.io/docs/tools/patch-bundle
 
 releases:
+  - id: "2026-05-05-airgap-bringup-hardening"
+    published_at: "2026-05-05T23:23:22Z"
+    current: true
+
+    bootstrap:
+      version: "2026.05.05.5"
+      path: "2026.05.05.5"
+      filename: aether-ops-bootstrap
+      source: ../dist/aether-ops-bootstrap
+      commit: "141c4d8"
+      release_notes: |
+        Bootstrap rebuilt with airgap bring-up fixes uncovered during
+        gNB lab deployment. Adds a new dockerimages install step that
+        loads the bundle's container image tarballs into Docker's
+        image store after rke2 stages them into containerd, so OnRamp
+        roles that drive Docker directly (ocudu, gnbsim, oai, srsran,
+        n3iwf, oscric, plus the gNB Docker preflight) see the
+        pre-pulled images. The debs install step now skips packages
+        already on the host (queried via dpkg-query) to avoid the
+        half-upgrade ABI skew that wedged apt for future installs.
+        Bundle resolver groups noble / noble-updates / noble-security
+        as one merged index per arch so transitive system libs match
+        the host's point release.
+
+    bundle:
+      version: "2026.05.05.5"
+      path: "2026.05.05.5"
+      filename: bundle.tar.zst
+      source: ../dist/bundle.tar.zst
+      sha256_source: ../dist/bundle.tar.zst.sha256
+      build_commit: "141c4d8"
+      release_notes: |
+        Bundle rebuilt with the airgap-aligned versions OnRamp's
+        vars/main.yml expects: rke2 bumped to v1.35.3+rke2r3, helm to
+        v3.20.0. Ubuntu suite list now spans noble + noble-updates +
+        noble-security so transitive system libs resolve at the host
+        image's current point release. Image scanner gained
+        umbrella-aware partial resolution (Bitnami's bitnamilegacy
+        rename: umbrella overrides repository, subchart supplies
+        tag) and explicit images.extra entries for the bitnamilegacy
+        mongodb / kafka pair plus aetherproject/ocudu and
+        aetherproject/srsran-ue (latter two until the OnRamp role
+        scanner exists). aether-onramp pinned at fd2037f1d8 (no
+        change from 2026.05.05.2).
+      components:
+        - name: aether-ops
+          version: v0.1.50
+        - name: aether-onramp
+          commit: fd2037f1d89120ffcb0eab0e28e620fb8ca4882d
+        - name: rke2
+          version: v1.35.3+rke2r3
+        - name: helm
+          version: v3.20.0
+        - name: sdcore-helm-charts
+          version: main
+
+    patch_tool:
+      version: "2026.05.05.5"
+      path: "2026.05.05.5"
+      filename: patch-bundle
+      source: ../dist/patch-bundle
+      build_commit: "141c4d8"
+      release_notes: |
+        Patch tool rebuilt alongside the 2026.05.05.5 launcher and
+        bundle. No functional changes; tooling only ships current
+        with the rest of the release artifacts.
+
+  - id: "2026-05-05-onramp-upstream-fd2037f"
+    published_at: "2026-05-05T20:04:27Z"
+    external: true
+
+    bootstrap:
+      version: "2026.05.05.2"
+      path: "2026.05.05.2"
+      filename: aether-ops-bootstrap
+      sha256: "ddb8c8458cf12eb6405928d0e9b20e91488d843d99ed3e992275f4c69019378d"
+      commit: "90eda9b"
+      release_notes: |
+        Bootstrap rebuilt alongside the 2026.05.05.2 offline bundle.
+        Source unchanged from 2026.05.05.1
+        (aether-ops-bootstrap@90eda9b); the bundle is what differs
+        between the two releases.
+
+    bundle:
+      version: "2026.05.05.2"
+      path: "2026.05.05.2"
+      filename: bundle.tar.zst
+      sha256: "632f34c8d72ea503fc6d40c9a0d1b7b60bb725cf1095a906f15e83f779d83603"
+      build_commit: "90eda9b"
+      release_notes: |
+        Bundle rebuilt to bump aether-onramp from 25099664 to
+        fd2037f1d8 (current HEAD of opennetworkinglab/aether-onramp
+        main). Picks up upstream PR #206 (gNB: preflight Docker CPU
+        availability before container start). All other components
+        unchanged from 2026.05.05.1: aether-ops v0.1.50, rke2
+        v1.33.1+rke2r1, helm v3.17.3, sdcore-helm-charts main.
+      components:
+        - name: aether-ops
+          version: v0.1.50
+        - name: aether-onramp
+          commit: fd2037f1d89120ffcb0eab0e28e620fb8ca4882d
+        - name: rke2
+          version: v1.33.1+rke2r1
+        - name: helm
+          version: v3.17.3
+        - name: sdcore-helm-charts
+          version: main
+
+    patch_tool:
+      version: "2026.05.05.2"
+      path: "2026.05.05.2"
+      filename: patch-bundle
+      sha256: "ae1ac134f248c3f80957d8280010dbdaa3a91e62e95b7e425b30066189235101"
+      build_commit: "90eda9b"
+      release_notes: |
+        Patch tool rebuilt alongside the 2026.05.05.2 launcher and
+        bundle. No functional changes since 2026.05.05.1.
+
   - id: "2026-05-05-rke2-onramp-config-parity"
     published_at: "2026-05-05T14:53:09Z"
-    current: true
+    external: true
 
     bootstrap:
       version: "2026.05.05.1"
       path: "2026.05.05.1"
       filename: aether-ops-bootstrap
-      source: ../dist/aether-ops-bootstrap
+      sha256: "40e8f4f941de64a6184128a2d6f4e6f76deb7236978d810664c2252bf9ff4b7f"
       commit: "90eda9b"
       release_notes: |
         Bootstrap rebuilt with the RKE2 onramp-config parity changes
@@ -62,8 +180,7 @@ releases:
       version: "2026.05.05.1"
       path: "2026.05.05.1"
       filename: bundle.tar.zst
-      source: ../dist/bundle.tar.zst
-      sha256_source: ../dist/bundle.tar.zst.sha256
+      sha256: "306bb39e0d24a890453d0d580f7acc7a2461408effbe74297b664521efc2c1be"
       build_commit: "90eda9b"
       release_notes: |
         Bundle rebuilt to pair with the 2026.05.05.1 launcher.
@@ -89,7 +206,7 @@ releases:
       version: "2026.05.05.1"
       path: "2026.05.05.1"
       filename: patch-bundle
-      source: ../dist/patch-bundle
+      sha256: "f2c3335b75d9b5f829fa6ecf9f6286ad6ba0ef35a5f5fd142045b851974e7e1a"
       build_commit: "90eda9b"
       release_notes: |
         Patch tool rebuilt alongside the 2026.05.05.1 launcher and

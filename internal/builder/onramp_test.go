@@ -73,6 +73,33 @@ core:
     chart_version: 3.4.0
 `
 
+// upstreamBlueprintWithLocalCharts mirrors the typical
+// vars/main-<flavor>.yml shape: same shape as the canonical file,
+// just with flavor-specific content. local_charts is present.
+const upstreamBlueprintWithLocalCharts = `airgapped:
+  enabled: false
+
+core:
+  standalone: true
+  helm:
+    local_charts: false
+    chart_ref: oci://ghcr.io/omec-project/sd-core
+    chart_version: 3.5.0
+`
+
+// upstreamBlueprintWithoutLocalCharts mirrors blueprint variants
+// (e.g. main-eNB.yml) that omit local_charts entirely — the role
+// treats absent as false. The bundle patcher must Upsert here.
+const upstreamBlueprintWithoutLocalCharts = `airgapped:
+  enabled: false
+
+core:
+  standalone: true
+  helm:
+    chart_ref: oci://ghcr.io/omec-project/sd-core
+    chart_version: 3.5.0
+`
+
 func TestBuildOnramp(t *testing.T) {
 	url, sha := setupGitFixture(t, map[string]string{
 		"Makefile":      "all:\n\techo onramp\n",
@@ -141,6 +168,44 @@ func TestBuildOnramp(t *testing.T) {
 		if entry.Files[i-1].Path > entry.Files[i].Path {
 			t.Errorf("Files not sorted: %q before %q", entry.Files[i-1].Path, entry.Files[i].Path)
 			break
+		}
+	}
+}
+
+func TestBuildOnrampPatchesBlueprintVariants(t *testing.T) {
+	url, _ := setupGitFixture(t, map[string]string{
+		"vars/main.yml":            upstreamVarsMainYAML,
+		"vars/main-quickstart.yml": upstreamBlueprintWithLocalCharts,
+		"vars/main-eNB.yml":        upstreamBlueprintWithoutLocalCharts,
+	})
+
+	stageDir := t.TempDir()
+	entry, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{Repo: url}, stageDir, "")
+	if err != nil {
+		t.Fatalf("BuildOnramp: %v", err)
+	}
+
+	for _, bp := range []string{"vars/main-quickstart.yml", "vars/main-eNB.yml"} {
+		data, err := os.ReadFile(filepath.Join(stageDir, entry.Path, bp))
+		if err != nil {
+			t.Fatalf("reading %s: %v", bp, err)
+		}
+		got := string(data)
+
+		if !strings.Contains(got, "local_charts: true") {
+			t.Errorf("%s: expected local_charts=true (patched/upserted), got:\n%s", bp, got)
+		}
+		if !strings.Contains(got, "chart_ref: "+localSDCoreChartDir) {
+			t.Errorf("%s: expected chart_ref=%s, got:\n%s", bp, localSDCoreChartDir, got)
+		}
+		// airgapped already exists in both fixtures, so the patch
+		// flips it (no upsert path) — but the assertion is the same.
+		if !strings.Contains(got, "airgapped:\n  enabled: true") {
+			t.Errorf("%s: expected airgapped.enabled=true, got:\n%s", bp, got)
+		}
+		// Sanity: the upstream OCI ref must be gone.
+		if strings.Contains(got, "chart_ref: oci://ghcr.io/omec-project/sd-core") {
+			t.Errorf("%s: blueprint still points at upstream OCI ref:\n%s", bp, got)
 		}
 	}
 }

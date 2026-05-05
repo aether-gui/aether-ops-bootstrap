@@ -15,6 +15,11 @@ type Package struct {
 	Priority   string // "required", "important", "standard", "optional", "extra"
 	SourceName string
 	SourceURL  string
+	// Suite is the apt suite the package was fetched from (e.g.
+	// "noble" or "noble-updates"). Set by the index fetcher; used
+	// by callers that aggregate across multiple pockets to remember
+	// where the chosen version came from.
+	Suite string
 }
 
 // Dependency represents one dependency group from a Depends line.

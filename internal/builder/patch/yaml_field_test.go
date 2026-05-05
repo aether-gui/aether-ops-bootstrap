@@ -85,6 +85,93 @@ func TestSetYAMLFieldIdempotent(t *testing.T) {
 	}
 }
 
+func TestSetYAMLFieldUpsertAppendsLeaf(t *testing.T) {
+	rootDir := t.TempDir()
+	writeFile(t, rootDir, "vars/main.yml", ""+
+		"core:\n"+
+		"  helm:\n"+
+		"    chart_ref: oci://ghcr.io/omec-project/sd-core\n"+
+		"    chart_version: 3.5.0\n")
+
+	action := SetYAMLField{
+		RelPath: "vars/main.yml",
+		KeyPath: []string{"core", "helm", "local_charts"},
+		Value:   true,
+		Upsert:  true,
+	}
+	if err := action.Apply(rootDir); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	got := readFile(t, rootDir, "vars/main.yml")
+	if !strings.Contains(got, "local_charts: true") {
+		t.Errorf("expected appended local_charts=true:\n%s", got)
+	}
+	// Existing siblings must survive.
+	if !strings.Contains(got, "chart_ref: oci://ghcr.io/omec-project/sd-core") {
+		t.Errorf("sibling chart_ref was lost:\n%s", got)
+	}
+	if !strings.Contains(got, "chart_version: 3.5.0") {
+		t.Errorf("sibling chart_version was lost:\n%s", got)
+	}
+}
+
+func TestSetYAMLFieldUpsertIsIdempotent(t *testing.T) {
+	rootDir := t.TempDir()
+	writeFile(t, rootDir, "vars/main.yml", ""+
+		"core:\n"+
+		"  helm:\n"+
+		"    chart_ref: oci://example/chart\n")
+
+	action := SetYAMLField{
+		RelPath: "vars/main.yml",
+		KeyPath: []string{"core", "helm", "local_charts"},
+		Value:   true,
+		Upsert:  true,
+	}
+	if err := action.Apply(rootDir); err != nil {
+		t.Fatalf("first Apply: %v", err)
+	}
+	if err := action.Apply(rootDir); err != nil {
+		t.Fatalf("second Apply: %v", err)
+	}
+
+	got := readFile(t, rootDir, "vars/main.yml")
+	if n := strings.Count(got, "local_charts:"); n != 1 {
+		t.Errorf("expected exactly one local_charts entry after re-apply, got %d:\n%s", n, got)
+	}
+}
+
+func TestSetYAMLFieldUpsertStillErrorsOnMissingIntermediate(t *testing.T) {
+	rootDir := t.TempDir()
+	writeFile(t, rootDir, "vars/main.yml", "proxy:\n  enabled: false\n")
+
+	action := SetYAMLField{
+		RelPath: "vars/main.yml",
+		KeyPath: []string{"core", "helm", "local_charts"},
+		Value:   true,
+		Upsert:  true,
+	}
+	err := action.Apply(rootDir)
+	if err == nil {
+		t.Fatal("expected error when intermediate key is missing even with Upsert; got nil")
+	}
+	if !strings.Contains(err.Error(), "core") {
+		t.Errorf("error should mention the missing intermediate key; got %v", err)
+	}
+}
+
+func TestSetYAMLFieldUpsertNameDistinguishesOp(t *testing.T) {
+	a := SetYAMLField{RelPath: "f.yml", KeyPath: []string{"x"}, Value: 1}
+	b := SetYAMLField{RelPath: "f.yml", KeyPath: []string{"x"}, Value: 1, Upsert: true}
+	if !strings.HasPrefix(a.Name(), "set ") {
+		t.Errorf("strict Name should start with 'set ', got %q", a.Name())
+	}
+	if !strings.HasPrefix(b.Name(), "upsert ") {
+		t.Errorf("upsert Name should start with 'upsert ', got %q", b.Name())
+	}
+}
+
 func TestSetYAMLFieldErrorsOnMissingKey(t *testing.T) {
 	rootDir := t.TempDir()
 	writeFile(t, rootDir, "vars/main.yml", "proxy:\n  enabled: false\n")
