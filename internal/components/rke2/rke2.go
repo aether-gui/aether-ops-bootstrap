@@ -52,6 +52,7 @@ const (
 	rke2ConfigDir = "/etc/rancher/rke2"
 	rke2ImageDir  = "/var/lib/rancher/rke2/agent/images"
 	profileDir    = "/etc/profile.d"
+	sysctlDir     = "/etc/sysctl.d"
 )
 
 // Component installs RKE2 from vendored tarballs and manages its systemd service.
@@ -122,6 +123,10 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 		{
 			Description: "write RKE2 config",
 			Fn:          func(ctx context.Context) error { return c.writeConfig() },
+		},
+		{
+			Description: "apply sysctl tuning",
+			Fn:          func(ctx context.Context) error { return c.applySysctl(ctx) },
 		},
 		{
 			Description: fmt.Sprintf("extract RKE2 %s", desired),
@@ -216,8 +221,17 @@ func (c *Component) writeConfig() error {
 	if err != nil {
 		return fmt.Errorf("parsing RKE2 config template: %w", err)
 	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("resolving hostname for RKE2 node-name: %w", err)
+	}
+	data := struct {
+		Hostname string
+	}{Hostname: hostname}
+
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, nil); err != nil {
+	if err := tmpl.Execute(&buf, data); err != nil {
 		return err
 	}
 
@@ -391,6 +405,41 @@ func (c *Component) stageAppImages() error {
 			return closeErr
 		}
 	}
+	return nil
+}
+
+// applySysctl drops a /etc/sysctl.d/90-aether-ops.conf with the kernel
+// tunables sd-core needs (file-max, inotify limits) and reloads the sysctl
+// state so they take effect before rke2-server starts. Mirrors aether-onramp's
+// k8s/roles/rke2/tasks/install.yml lines 4–29; bootstrap short-circuits that
+// role and would otherwise leave kubelet running under the stock Ubuntu
+// limits, which sd-core exhausts under load.
+func (c *Component) applySysctl(ctx context.Context) error {
+	srcPath := filepath.Join(c.extractDir, "templates", "sysctl.d", "90-aether-ops.conf")
+	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
+		return nil
+	}
+
+	if err := os.MkdirAll(sysctlDir, 0755); err != nil {
+		return err
+	}
+
+	data, err := os.ReadFile(srcPath)
+	if err != nil {
+		return err
+	}
+
+	destPath := filepath.Join(sysctlDir, "90-aether-ops.conf")
+	if err := os.WriteFile(destPath, data, 0644); err != nil {
+		return err
+	}
+	log.Printf("  wrote %s", destPath)
+
+	cmd := exec.CommandContext(ctx, "sysctl", "--system")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("sysctl --system: %w\n%s", err, out)
+	}
+	log.Printf("  reloaded sysctl")
 	return nil
 }
 
