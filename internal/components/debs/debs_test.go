@@ -40,6 +40,51 @@ func TestNonInteractiveDpkgEnv(t *testing.T) {
 	}
 }
 
+func TestParseDpkgQuery(t *testing.T) {
+	// Real dpkg-query output mixes statuses. Only "install ok
+	// installed" should land in the set; "deinstall ok config-files"
+	// (purged minus configs), "install ok unpacked" (mid-install
+	// failure), and "install ok half-installed" must not.
+	input := []byte("" +
+		"ansible\tinstall ok installed\n" +
+		"git\tinstall ok installed\n" +
+		"old-pkg\tdeinstall ok config-files\n" +
+		"borked\tinstall ok half-installed\n" +
+		"unpacked\tinstall ok unpacked\n" +
+		"systemd\tinstall ok installed\n")
+
+	got := parseDpkgQuery(input)
+
+	for _, want := range []string{"ansible", "git", "systemd"} {
+		if !got[want] {
+			t.Errorf("expected %q in installed set: %v", want, got)
+		}
+	}
+	for _, dont := range []string{"old-pkg", "borked", "unpacked"} {
+		if got[dont] {
+			t.Errorf("did not expect %q in installed set (status was non-installed): %v", dont, got)
+		}
+	}
+	if len(got) != 3 {
+		t.Errorf("len(got) = %d, want 3 (extras present): %v", len(got), got)
+	}
+}
+
+func TestParseDpkgQueryHandlesMalformedLines(t *testing.T) {
+	input := []byte("" +
+		"\n" + // blank
+		"no-tab-here\n" + // missing tab separator
+		"\tjust-a-tab\n" + // empty name
+		"valid\tinstall ok installed\n")
+	got := parseDpkgQuery(input)
+	if !got["valid"] {
+		t.Errorf("valid line dropped; got %v", got)
+	}
+	if len(got) != 1 {
+		t.Errorf("malformed lines were not ignored; got %v", got)
+	}
+}
+
 var _ components.Component = (*Component)(nil)
 
 func TestName(t *testing.T) {
