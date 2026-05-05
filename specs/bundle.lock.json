@@ -413,12 +413,12 @@
         "sha256": "a35865b80cba2832ef6a914c00c3f25e9f2900034e43a223280a997317683c65"
       },
       "docker-ce": {
-        "version": "5:29.4.1-1~ubuntu.24.04~noble",
-        "sha256": "83ad90c504f775776cdec4bc2c107d30abea61f876aa6a40adcb524cfb9e1f2d"
+        "version": "5:29.4.2-2~ubuntu.24.04~noble",
+        "sha256": "e46f4887629b4573a256ddffc4afc1f60745ae908f3ac1ed374009df5cf1fe84"
       },
       "docker-ce-cli": {
-        "version": "5:29.4.1-1~ubuntu.24.04~noble",
-        "sha256": "732968212a2c66eb5755c5539faa411021fa51f67cdca6c1724394e0201a9415"
+        "version": "5:29.4.2-2~ubuntu.24.04~noble",
+        "sha256": "2f0367ca70f81d636e383f6399e223201735adbce4c839bc5305a230b05640cc"
       },
       "docker-compose-plugin": {
         "version": "5.1.3-1~ubuntu.24.04~noble",
