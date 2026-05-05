@@ -78,10 +78,10 @@ aether_ops:
 # defaults to the bundled-deployment model — notably flipping
 # `airgapped.enabled: true` so `apt: update_cache` calls are gated off.
 onramp:
-  repo: https://github.com/bengrewell/aether-onramp.git
+  repo: https://github.com/opennetworkinglab/aether-onramp.git
   # Pinned to a specific upstream commit for reproducibility; bump
   # after reviewing upstream changes. HEAD of main at time of pin.
-  ref: 7aad6b908c82f1631081224a870bea96bf43db6d
+  ref: 25099664b08a67f0f2b3c74f356aabfe71d50a8f
   recurse_submodules: false
 
   # `patches:` overrides files inside the cloned onramp tree before
