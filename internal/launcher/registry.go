@@ -5,6 +5,7 @@ import (
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/aetherops"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/debs"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/components/dockerimages"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/helm"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/onramp"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/rke2"
@@ -34,6 +35,11 @@ func BuildRegistry(extractDir string, manifest *bundle.Manifest, suite string) *
 	r.Register(svcComp)
 	r.Register(wheelhouse.New(extractDir, manifest))
 	r.Register(rke2.New(extractDir, manifest))
+	// dockerimages must run after rke2 has a chance to start the
+	// containerd-side image loader, but before onramp's roles try to
+	// `docker run` anything from the bundle. It's a no-op on hosts
+	// without a Docker daemon (Kubernetes-only nodes).
+	r.Register(dockerimages.New(extractDir, manifest))
 	r.Register(helm.New(extractDir, manifest))
 	// onramp extracts the bundled Ansible toolchain and helm charts so
 	// the aether-ops daemon has its content in place before it starts.
