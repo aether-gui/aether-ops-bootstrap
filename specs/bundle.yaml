@@ -1,8 +1,8 @@
 schema_version: 1
-bundle_version: "2026.04.28.1"
+bundle_version: "2026.05.06.1"
 
 ubuntu:
-  suites: [noble]
+  suites: [noble, noble-updates, noble-security]
   architectures: [amd64]
 
 # Top-level packages to vendor. The builder resolves transitive
@@ -28,7 +28,7 @@ debs:
   - name: python3-pip
 
 rke2:
-  version: "v1.33.1+rke2r1"
+  version: "v1.35.3+rke2r3"
   # sd-core needs multus (NetworkAttachmentDefinition CRD) alongside
   # canal (default pod network). all-in-one ships only canal, so use
   # core+variant with both variants to pull in multus images.
@@ -38,7 +38,7 @@ rke2:
   #   ↑ optional override; defaults to GitHub releases
 
 helm:
-  version: "v3.17.3"
+  version: "v3.20.0"
 
 aether_ops:
   version: "v0.1.50"
@@ -78,10 +78,10 @@ aether_ops:
 # defaults to the bundled-deployment model — notably flipping
 # `airgapped.enabled: true` so `apt: update_cache` calls are gated off.
 onramp:
-  repo: https://github.com/bengrewell/aether-onramp.git
+  repo: https://github.com/opennetworkinglab/aether-onramp.git
   # Pinned to a specific upstream commit for reproducibility; bump
   # after reviewing upstream changes. HEAD of main at time of pin.
-  ref: 7aad6b908c82f1631081224a870bea96bf43db6d
+  ref: 11a34c9675da7c58de08e31fe54e4e098c402ff2
   recurse_submodules: false
 
   # `patches:` overrides files inside the cloned onramp tree before
@@ -125,7 +125,23 @@ helm_charts:
 images:
   auto_extract: true
   # list: []             # used when auto_extract is false — must be complete
-  # extra:               # standalone images added to the auto-extracted set
+  extra:
+    # Stopgap for the Bitnami bitnamilegacy migration. The smarter
+    # umbrella-aware scanner now resolves these from sd-core's
+    # 5g-control-plane subchart values, but pinning explicitly here
+    # belts-and-suspenders the build in case upstream changes the
+    # pattern again. Drop this block once we're confident the
+    # umbrella resolver covers every Bitnami-style override.
+    - docker.io/bitnamilegacy/mongodb:8.0.13-debian-12-r0
+    - docker.io/bitnamilegacy/kafka:4.0.0-debian-12-r10
+    # OnRamp ocudu role's Docker images. The onramp scanner only
+    # extracts apt/pip deps today, not Docker image references in
+    # role vars (ocudu.docker.container.gnb_image / ue_image), so
+    # these are listed explicitly until that scanner exists.
+    # See aether-ops-bootstrap issue tracking the OnRamp role
+    # image-ref scan.
+    - docker.io/aetherproject/ocudu:rel-0.7.0
+    - docker.io/aetherproject/srsran-ue:rel-0.7.0
   exclude:
     # Legacy Docker v1 manifest; go-containerregistry cannot pull these.
     # Dependent services should be pointed at a newer image, or this entry

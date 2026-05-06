@@ -1,27 +1,63 @@
 # RKE2 server configuration
 # Rendered by aether-ops-bootstrap → /etc/rancher/rke2/config.yaml
+#
+# Mirrors aether-onramp's k8s/roles/rke2/templates/master-config.yaml so a
+# bootstrap-installed cluster is functionally identical to one installed by
+# the onramp k8s role. Bootstrap-only additions (kubeconfig group perms)
+# are flagged in their own block below.
 
-# Kubeconfig permissions: group-readable by the aether-ops service account.
-# RKE2 writes /etc/rancher/rke2/rke2.yaml as root:<group> with this mode,
-# allowing the service account to read it without world-readable permissions.
-write-kubeconfig-mode: "0640"
-write-kubeconfig-group: "aether-ops"
+# Cluster join token. Onramp pins this so subsequent agent joins can use a
+# known shared secret; matching the value keeps a future "join an onramp
+# agent to a bootstrap-installed cluster" path open.
+token: aether-k8s-rke2
+
+# Pin node-name to the actual hostname. RKE2 defaults to /etc/hostname, so
+# this is parity with onramp (which sets node-name from inventory_hostname)
+# rather than a behavior change.
+node-name: {{.Hostname}}
 
 # CNI stack. canal is the default pod network; multus sits on top so
 # sd-core pods can attach additional interfaces via
 # NetworkAttachmentDefinition (k8s.cni.cncf.io/v1). Without multus the
 # 5gc umbrella chart fails helm install with "no matches for kind
-# NetworkAttachmentDefinition". This matches the CNI list aether-onramp's
-# k8s role uses (deps/k8s/roles/rke2/templates/master-config.yaml).
+# NetworkAttachmentDefinition".
 cni:
   - multus
   - canal
 
+# Pod and service CIDRs. These match RKE2's current defaults, but pinning
+# them explicitly mirrors onramp and protects against upstream default
+# drift (and against onramp + bootstrap drifting apart).
+cluster-cidr: 10.42.0.0/16
+service-cidr: 10.43.0.0/16
+
+# kubelet args. sd-core pods set securityContext.sysctls with net.* keys;
+# kubelet rejects those as unsafe unless explicitly allowlisted here.
+kubelet-arg:
+  - --allowed-unsafe-sysctls=net.*
+
+# kube-proxy metrics endpoint. Default binds to 127.0.0.1, which prevents
+# off-host Prometheus scrapes. AMP/monitoring profiles need 0.0.0.0.
+kube-proxy-arg:
+  - --metrics-bind-address=0.0.0.0:10249
+
+# kube-apiserver args. sd-core helm releases pin NodePorts (e.g. 38412 for
+# SCTP, 29510 for NRF) outside the upstream 30000–32767 default; widening
+# the range is required for the chart to install.
+kube-apiserver-arg:
+  - --service-node-port-range=2000-36767
+
 # Node labels expected by aether-onramp's nodeSelector-based scheduling.
 # Bootstrap short-circuits onramp's k8s role, which would otherwise apply
-# these via its master-config template (deps/k8s/roles/rke2/templates/
-# master-config.yaml). Without them, sd-core helm releases that pin pods
-# to a labeled node have no eligible scheduling target.
+# these via its master-config template. Without them, sd-core helm releases
+# that pin pods to a labeled node have no eligible scheduling target.
 node-label:
   - "node-role.aetherproject.org/5gc=true"
   - "node-role.aetherproject.org/upf=true"
+
+# --- bootstrap-only additions (no onramp equivalent) -------------------
+# Kubeconfig permissions: group-readable by the aether-ops service account.
+# RKE2 writes /etc/rancher/rke2/rke2.yaml as root:<group> with this mode,
+# allowing the service account to read it without world-readable permissions.
+write-kubeconfig-mode: "0640"
+write-kubeconfig-group: "aether-ops"

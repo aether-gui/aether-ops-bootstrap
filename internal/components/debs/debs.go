@@ -1,12 +1,15 @@
 package debs
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/cmdutil"
@@ -59,11 +62,47 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 	}
 
 	// Filter debs for the host suite and amd64 arch.
-	var debsToInstall []bundle.DebEntry
+	var matching []bundle.DebEntry
 	for _, d := range c.manifest.Components.Debs {
 		if d.Suite == c.suite && (d.Arch == "amd64" || d.Arch == "all") {
-			debsToInstall = append(debsToInstall, d)
+			matching = append(matching, d)
 		}
+	}
+
+	if len(matching) == 0 {
+		return components.Plan{NoOp: true}, nil
+	}
+
+	// Skip packages already installed on the host. The bundle's
+	// resolver pulls transitive system libs (libpam-systemd,
+	// libnss-systemd, …) that ship on every vanilla Ubuntu base
+	// image. dpkg-installing newer point-release versions of those
+	// libs over the image-baked versions wedges apt: sibling
+	// systemd-family packages (systemd-resolved, systemd-timesyncd)
+	// aren't in the bundle, so they stay at the image's older point
+	// release and end up with mismatched ABI vs the just-installed
+	// libsystemd0 / libsystemd-shared. Future `apt install` then
+	// fails on unmet dependencies.
+	//
+	// Leaving image-baked packages alone lets the operator run a
+	// normal `apt full-upgrade` whenever they're online and have
+	// apt resolve everything coherently against current pockets.
+	installed, err := installedPackages(context.Background())
+	if err != nil {
+		log.Printf("  warning: dpkg-query failed (%v); installing all bundled debs", err)
+		installed = nil
+	}
+	var debsToInstall []bundle.DebEntry
+	skipped := 0
+	for _, d := range matching {
+		if installed[d.Name] {
+			skipped++
+			continue
+		}
+		debsToInstall = append(debsToInstall, d)
+	}
+	if skipped > 0 {
+		log.Printf("  skipping %d already-installed packages, %d to install", skipped, len(debsToInstall))
 	}
 
 	if len(debsToInstall) == 0 {
@@ -101,6 +140,42 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 
 func (c *Component) Apply(ctx context.Context, plan components.Plan) error {
 	return components.ApplyPlan(ctx, c.Name(), plan)
+}
+
+// installedPackages queries dpkg for packages currently in
+// "install ok installed" state on the host. A dpkg-query failure
+// (e.g. on a non-Debian test host) returns an error; callers fall
+// back to installing every bundled deb.
+func installedPackages(ctx context.Context) (map[string]bool, error) {
+	cmd := exec.CommandContext(ctx, "dpkg-query", "-W", "-f=${Package}\t${Status}\n")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("dpkg-query: %w", err)
+	}
+	return parseDpkgQuery(out), nil
+}
+
+// parseDpkgQuery extracts the names of packages whose Status third
+// word is "installed" (i.e. fully installed, not deconfigured /
+// half-installed / config-files-only). dpkg's Status field is three
+// space-separated tokens: <want> <eflag> <status> — only the third
+// matters for "is this package present and usable on the host".
+func parseDpkgQuery(out []byte) map[string]bool {
+	installed := make(map[string]bool)
+	s := bufio.NewScanner(bytes.NewReader(out))
+	for s.Scan() {
+		line := s.Text()
+		i := strings.IndexByte(line, '\t')
+		if i < 0 {
+			continue
+		}
+		name := line[:i]
+		fields := strings.Fields(line[i+1:])
+		if len(fields) >= 3 && fields[2] == "installed" {
+			installed[name] = true
+		}
+	}
+	return installed
 }
 
 // nonInteractiveDpkgEnv returns the environment dpkg should run under so
