@@ -12,6 +12,7 @@ import (
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/serviceaccount"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/ssh"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/sudoers"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/components/udev"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components/wheelhouse"
 )
 
@@ -33,6 +34,9 @@ func BuildRegistry(extractDir string, manifest *bundle.Manifest, suite string) *
 	svcComp := serviceaccount.New()
 	svcComp.SetManifest(manifest)
 	r.Register(svcComp)
+	// udev rules give the onramp/aether service account access to USRP
+	// USB nodes; safe no-op on hosts without those rule files.
+	r.Register(udev.New(extractDir))
 	r.Register(wheelhouse.New(extractDir, manifest))
 	r.Register(rke2.New(extractDir, manifest))
 	// dockerimages must run after rke2 has a chance to start the
