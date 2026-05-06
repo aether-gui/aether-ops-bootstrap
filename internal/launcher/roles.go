@@ -44,7 +44,7 @@ var roleAliases = map[string]Role{
 var roleComponents = map[Role][]string{
 	RoleMgmt: {"debs", "ssh", "sudoers", "service_account", "onramp", "aether_ops"},
 	RoleCore: {"debs", "ssh", "sudoers", "service_account", "rke2", "helm"},
-	RoleRan:  {"debs", "ssh", "sudoers", "service_account"},
+	RoleRan:  {"debs", "ssh", "sudoers", "service_account", "udev"},
 }
 
 // NormalizeRole converts a user-provided string to a canonical Role.

@@ -154,13 +154,13 @@ func TestComponentsForRoles_Core(t *testing.T) {
 
 func TestComponentsForRoles_Ran(t *testing.T) {
 	got := ComponentsForRoles([]Role{RoleRan})
-	for _, name := range []string{"debs", "ssh", "sudoers", "service_account"} {
+	for _, name := range []string{"debs", "ssh", "sudoers", "service_account", "udev"} {
 		if !got[name] {
 			t.Errorf("ran should include %q", name)
 		}
 	}
-	if len(got) != 4 {
-		t.Errorf("ran should have exactly 4 components, got %d", len(got))
+	if len(got) != 5 {
+		t.Errorf("ran should have exactly 5 components, got %d", len(got))
 	}
 }
 

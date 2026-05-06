@@ -35,15 +35,79 @@ site:
       docs_url: https://aether-gui.github.io/docs/tools/patch-bundle
 
 releases:
+  - id: "2026-05-06-udev-onramp-airgap-cache"
+    published_at: "2026-05-06T22:45:00Z"
+    current: true
+
+    bootstrap:
+      version: "2026.05.06.1"
+      path: "2026.05.06.1"
+      filename: aether-ops-bootstrap
+      source: ../dist/aether-ops-bootstrap
+      commit: "73c0703"
+      release_notes: |
+        Bootstrap rebuilt with a new udev component that installs
+        rule drop-ins from templates/udev.rules.d/ into
+        /etc/udev/rules.d and runs `udevadm control --reload-rules`
+        followed by `udevadm trigger`. Ships uhd-usrp.rules so USRP
+        B200/B210, USRP1, and B100 USB nodes come up world-writable
+        and the onramp/aether service account can open them; without
+        this, onramp's gNB role fails to acquire the radio after a
+        fresh install. The component is registered after
+        service_account in the launcher and added to the RAN role's
+        component set.
+
+    bundle:
+      version: "2026.05.06.1"
+      path: "2026.05.06.1"
+      filename: bundle.tar.zst
+      source: ../dist/bundle.tar.zst
+      sha256_source: ../dist/bundle.tar.zst.sha256
+      build_commit: "73c0703"
+      release_notes: |
+        Bundle rebuilt to re-pin aether-onramp at upstream
+        11a34c9 (current HEAD of opennetworkinglab/aether-onramp
+        main). Picks up upstream PR #210's airgap cache protection:
+        the new airgapped.allow_purge flag preserves cached
+        container images and bundled rke2/helm binaries across
+        stop/uninstall in airgap mode, docker-driven roles consume
+        locally-staged images instead of pulling, and network-only
+        install steps in ueransim, oscric, amp/roc, and amp/monitor
+        gate on airgapped.enabled. aether-ops v0.1.50, rke2
+        v1.35.3+rke2r3, and helm v3.20.0 are unchanged from
+        2026.05.05.5. Lockfile refreshed: docker-ce roll forward
+        to 5:29.4.3-1.
+      components:
+        - name: aether-ops
+          version: v0.1.50
+        - name: aether-onramp
+          commit: 11a34c9675da7c58de08e31fe54e4e098c402ff2
+        - name: rke2
+          version: v1.35.3+rke2r3
+        - name: helm
+          version: v3.20.0
+        - name: sdcore-helm-charts
+          version: main
+
+    patch_tool:
+      version: "2026.05.06.1"
+      path: "2026.05.06.1"
+      filename: patch-bundle
+      source: ../dist/patch-bundle
+      build_commit: "73c0703"
+      release_notes: |
+        Patch tool rebuilt alongside the 2026.05.06.1 launcher and
+        bundle. No functional changes.
+
   - id: "2026-05-05-airgap-bringup-hardening"
     published_at: "2026-05-05T23:23:22Z"
-    current: true
+    external: true
 
     bootstrap:
       version: "2026.05.05.5"
       path: "2026.05.05.5"
       filename: aether-ops-bootstrap
-      source: ../dist/aether-ops-bootstrap
+      sha256: "0be6d230b1b8b9aa1a3ce822553b96ccdc8b9dfdfa0459882c0e22ecf75049ab"
       commit: "141c4d8"
       release_notes: |
         Bootstrap rebuilt with airgap bring-up fixes uncovered during
@@ -63,8 +127,7 @@ releases:
       version: "2026.05.05.5"
       path: "2026.05.05.5"
       filename: bundle.tar.zst
-      source: ../dist/bundle.tar.zst
-      sha256_source: ../dist/bundle.tar.zst.sha256
+      sha256: "b69fdeca820fde60353c19b4dd0b78ee938fc8c543e526d7d8169c48764bd469"
       build_commit: "141c4d8"
       release_notes: |
         Bundle rebuilt with the airgap-aligned versions OnRamp's
@@ -95,7 +158,7 @@ releases:
       version: "2026.05.05.5"
       path: "2026.05.05.5"
       filename: patch-bundle
-      source: ../dist/patch-bundle
+      sha256: "88e0d79e8fd626fdb49421ddd5fc621a219627743a2b83c37e8a7b2a23b390e1"
       build_commit: "141c4d8"
       release_notes: |
         Patch tool rebuilt alongside the 2026.05.05.5 launcher and
