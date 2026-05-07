@@ -35,15 +35,82 @@ site:
       docs_url: https://aether-gui.github.io/docs/tools/patch-bundle
 
 releases:
+  - id: "2026-05-07-apt-repo-airgap-install"
+    published_at: "2026-05-07T21:45:00Z"
+    current: true
+
+    bootstrap:
+      version: "2026.05.07.1"
+      path: "2026.05.07.1"
+      filename: aether-ops-bootstrap
+      source: ../dist/aether-ops-bootstrap
+      commit: "9b2c821"
+      release_notes: |
+        Bootstrap rebuilt with the airgap deb install path migrated
+        from `dpkg -i --force-*` over a curated subset to `apt-get
+        install` against a self-contained file:// apt repository
+        shipped inside the bundle. The launcher stages the bundle's
+        apt-repo/ persistently at /var/lib/aether-ops/apt-repo and
+        drops a sources.list at /etc/apt/sources.list.d/aether-bundle.list
+        so post-bootstrap operator-driven `apt install` works for
+        anything the bundle shipped. Apt now owns dependency
+        resolution, conflict handling (ufw vs iptables-persistent
+        resolves cleanly), and dpkg's trigger orchestration —
+        `apt-get check` returns clean and `dpkg --audit` is empty
+        after install, fixing the broken-state symptom that the
+        2026.05.06.1 udev component was working around. Bundle
+        manifest schema bumped to v2; old launchers refuse new
+        bundles and vice-versa.
+
+    bundle:
+      version: "2026.05.07.1"
+      path: "2026.05.07.1"
+      filename: bundle.tar.zst
+      source: ../dist/bundle.tar.zst
+      sha256_source: ../dist/bundle.tar.zst.sha256
+      build_commit: "9b2c821"
+      release_notes: |
+        Bundle rebuilt with the apt-repo layout. apt-repo/dists/noble/
+        ships Release + per-arch Packages/Packages.gz with full
+        upstream control fields preserved (Breaks/Conflicts/Replaces
+        survive verbatim); apt-repo/pool/noble/{amd64,all}/ holds the
+        262 .deb files. Resolver no longer skips Essential /
+        Priority: required packages so apt has the closure it needs
+        to upgrade image-baked copies for strict-version Depends
+        edges (227 → 262 debs). aether-onramp pinned at upstream
+        11a34c9 (no change from 2026.05.06.1); aether-ops v0.1.50,
+        rke2 v1.35.3+rke2r3, helm v3.20.0 unchanged.
+      components:
+        - name: aether-ops
+          version: v0.1.50
+        - name: aether-onramp
+          commit: 11a34c9675da7c58de08e31fe54e4e098c402ff2
+        - name: rke2
+          version: v1.35.3+rke2r3
+        - name: helm
+          version: v3.20.0
+        - name: sdcore-helm-charts
+          version: main
+
+    patch_tool:
+      version: "2026.05.07.1"
+      path: "2026.05.07.1"
+      filename: patch-bundle
+      source: ../dist/patch-bundle
+      build_commit: "9b2c821"
+      release_notes: |
+        Patch tool rebuilt alongside the 2026.05.07.1 launcher and
+        bundle. No functional changes.
+
   - id: "2026-05-06-udev-onramp-airgap-cache"
     published_at: "2026-05-06T22:45:00Z"
-    current: true
+    external: true
 
     bootstrap:
       version: "2026.05.06.1"
       path: "2026.05.06.1"
       filename: aether-ops-bootstrap
-      source: ../dist/aether-ops-bootstrap
+      sha256: "34fb10e6fcd4e89ee41c5f48ceae3dc3bb2ea996c1771aff0daefe38e6e6d7f1"
       commit: "73c0703"
       release_notes: |
         Bootstrap rebuilt with a new udev component that installs
@@ -61,8 +128,7 @@ releases:
       version: "2026.05.06.1"
       path: "2026.05.06.1"
       filename: bundle.tar.zst
-      source: ../dist/bundle.tar.zst
-      sha256_source: ../dist/bundle.tar.zst.sha256
+      sha256: "653ca47b51b9ccb22e6cb2062c8829a905aa94b6b6e1339964ca9db756b0fa39"
       build_commit: "73c0703"
       release_notes: |
         Bundle rebuilt to re-pin aether-onramp at upstream
@@ -93,7 +159,7 @@ releases:
       version: "2026.05.06.1"
       path: "2026.05.06.1"
       filename: patch-bundle
-      source: ../dist/patch-bundle
+      sha256: "aa8a19d5cc3009bada8d035638521bf22d62a72ae1d50b3663b8e71656168d2a"
       build_commit: "73c0703"
       release_notes: |
         Patch tool rebuilt alongside the 2026.05.06.1 launcher and
