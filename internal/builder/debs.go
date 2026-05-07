@@ -25,16 +25,28 @@ type resolvedAptSource struct {
 	Architectures []string
 }
 
-// FetchDebs resolves transitive dependencies for the requested packages
-// and downloads all .deb files. Apt suites are grouped by their release
-// codename (the release pocket plus its -updates / -security pockets are
-// merged into a single index per arch), so the resolver picks the highest
-// available version across pockets — the same behaviour `apt install`
-// gives operators on a fresh Ubuntu host. Bundle entries record the base
-// release codename in Suite, regardless of which pocket the chosen
-// version came from, so the on-host installer's suite filter keeps
-// matching.
-func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir string) ([]bundle.DebEntry, error) {
+// DebsResult bundles everything FetchDebs produces. The on-host
+// installer needs the manifest entries; the apt-repo builder needs
+// the parsed packages (for their RawStanza); the launcher's
+// sources.list needs the codenames that ended up in the bundle.
+type DebsResult struct {
+	Entries   []bundle.DebEntry
+	Packages  []*deb.Package
+	Codenames []string
+}
+
+// FetchDebs resolves transitive dependencies for the requested packages,
+// downloads all .deb files into apt-repo/pool/<codename>/<arch>/, and
+// emits the dists/<codename>/* metadata that turns the staged tree into
+// a real file:// apt repository. Apt suites are grouped by their
+// release codename (the release pocket plus its -updates / -security
+// pockets are merged into a single index per arch), so the resolver
+// picks the highest available version across pockets — the same
+// behaviour `apt install` gives operators on a fresh Ubuntu host.
+// Bundle entries record the base release codename in Suite, regardless
+// of which pocket the chosen version came from, so the on-host
+// installer's suite filter keeps matching.
+func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir string) (*DebsResult, error) {
 	if len(spec.Debs) == 0 {
 		return nil, nil
 	}
@@ -54,11 +66,14 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 	}
 
 	var allEntries []bundle.DebEntry
+	var allResolved []*deb.Package
+	var codenames []string
 	sources := aptSourcesForSpec(spec)
 
 	groups := groupSuitesByBase(spec.Ubuntu.Suites)
 	for _, group := range groups {
 		baseSuite := group.base
+		codenames = append(codenames, baseSuite)
 		for _, arch := range spec.Ubuntu.Architectures {
 			log.Printf("resolving .deb dependencies for %s/%s (pockets: %v)", baseSuite, arch, group.suites)
 
@@ -85,19 +100,22 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 			}
 			log.Printf("resolved %d packages for %s/%s", len(resolved), baseSuite, arch)
 
-			// Download each .deb. Stage under the base suite so the
-			// on-host installer's suite filter (which compares
-			// against the host's release codename, not the pocket)
-			// continues to match.
-			debDir := filepath.Join(stageDir, "debs", baseSuite, arch)
-			if err := os.MkdirAll(debDir, 0755); err != nil {
-				return nil, err
-			}
-
+			// Stage each .deb under apt-repo/pool/<codename>/<pkg-arch>/.
+			// The on-host installer's apt-get points at the apt-repo/
+			// root via a sources.list entry; pool/ is the standard
+			// Debian archive layout for the actual .deb files. The
+			// resolved set contains both the requested arch and arch=all
+			// packages — each one lands in the directory matching its
+			// own Architecture: field so apt-repo's binary-amd64 and
+			// binary-all metadata can reference them correctly.
 			for _, pkg := range resolved {
 				url := fmt.Sprintf("%s/%s", pkg.SourceURL, pkg.Filename)
 				basename := filepath.Base(pkg.Filename)
-				destPath := filepath.Join(debDir, basename)
+				poolDir := filepath.Join(stageDir, "apt-repo", "pool", baseSuite, pkg.Arch)
+				if err := os.MkdirAll(poolDir, 0755); err != nil {
+					return nil, err
+				}
+				destPath := filepath.Join(poolDir, basename)
 
 				if pkg.SHA256 == "" {
 					return nil, fmt.Errorf("missing SHA256 for package %s %s in %s/%s", pkg.Name, pkg.Version, baseSuite, arch)
@@ -116,14 +134,33 @@ func FetchDebs(ctx context.Context, dl *Downloader, spec *bundle.Spec, stageDir 
 					Version:  pkg.Version,
 					Arch:     pkg.Arch,
 					Suite:    baseSuite,
-					Filename: filepath.Join("debs", baseSuite, arch, basename),
+					Filename: filepath.ToSlash(filepath.Join("apt-repo", "pool", baseSuite, pkg.Arch, basename)),
 					SHA256:   pkg.SHA256,
 				})
+				allResolved = append(allResolved, pkg)
 			}
 		}
 	}
 
-	return allEntries, nil
+	// Generate dists/<codename>/* metadata so the staged tree is a
+	// real apt repository the launcher can hand to apt-get install.
+	if err := BuildAptRepo(stageDir, allResolved, codenames); err != nil {
+		return nil, fmt.Errorf("building apt repo metadata: %w", err)
+	}
+
+	return &DebsResult{
+		Entries:   allEntries,
+		Packages:  allResolved,
+		Codenames: codenames,
+	}, nil
+}
+
+// BaseSuite strips a pocket suffix to yield the release codename
+// (e.g. "noble-updates" → "noble"). Already-bare codenames pass
+// through unchanged. Exported so cmd/build-bundle can compute the
+// distinct codename set for the manifest's AptRepoEntry.
+func BaseSuite(s string) string {
+	return baseSuite(s)
 }
 
 // suiteGroup is one release codename plus the pockets configured for

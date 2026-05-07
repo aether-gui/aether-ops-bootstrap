@@ -10,15 +10,17 @@ import (
 // ManifestInputs bundles the results of every builder step so BuildManifest
 // has a single structured argument. Nil / empty fields are omitted.
 type ManifestInputs struct {
-	RKE2       *bundle.RKE2Entry
-	Helm       *bundle.HelmEntry
-	Wheelhouse *bundle.WheelhouseEntry
-	AetherOps  *bundle.AetherOpsEntry
-	Debs       []bundle.DebEntry
-	Templates  *bundle.TemplatesEntry
-	Onramp     *bundle.OnrampEntry
-	HelmCharts []bundle.HelmChartsEntry
-	Images     *bundle.ImagesEntry
+	RKE2             *bundle.RKE2Entry
+	Helm             *bundle.HelmEntry
+	Wheelhouse       *bundle.WheelhouseEntry
+	AetherOps        *bundle.AetherOpsEntry
+	Debs             []bundle.DebEntry
+	AptRepoTopLevel  []string // top-level package names → apt-get install args
+	AptRepoCodenames []string // codenames the bundle's apt-repo declares
+	Templates        *bundle.TemplatesEntry
+	Onramp           *bundle.OnrampEntry
+	HelmCharts       []bundle.HelmChartsEntry
+	Images           *bundle.ImagesEntry
 }
 
 // BuildManifest constructs a manifest from the spec and the builder's
@@ -50,6 +52,13 @@ func BuildManifest(spec *bundle.Spec, gitSHA string, in ManifestInputs) *bundle.
 	}
 	if len(in.Debs) > 0 {
 		m.Components.Debs = in.Debs
+	}
+	if len(in.AptRepoTopLevel) > 0 {
+		m.Components.AptRepo = &bundle.AptRepoEntry{
+			Path:      "apt-repo",
+			Codenames: in.AptRepoCodenames,
+			TopLevel:  in.AptRepoTopLevel,
+		}
 	}
 	if in.Templates != nil {
 		m.Components.Templates = in.Templates

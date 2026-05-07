@@ -14,8 +14,8 @@ func TestParseSpec(t *testing.T) {
 		t.Fatalf("ParseSpec: %v", err)
 	}
 
-	if s.SchemaVersion != 1 {
-		t.Errorf("SchemaVersion = %d, want 1", s.SchemaVersion)
+	if s.SchemaVersion != SchemaVersion {
+		t.Errorf("SchemaVersion = %d, want %d", s.SchemaVersion, SchemaVersion)
 	}
 	if s.BundleVersion == "" {
 		t.Error("BundleVersion should not be empty")
@@ -101,7 +101,7 @@ func TestParseSpec(t *testing.T) {
 
 func TestParseSpecDefaults(t *testing.T) {
 	yaml := `
-schema_version: 1
+schema_version: 2
 bundle_version: "1.0.0"
 ubuntu:
   suites: [jammy]
@@ -166,7 +166,7 @@ func TestValidateSpecBadSchemaVersion(t *testing.T) {
 }
 
 func TestValidateSpecMissingBundleVersion(t *testing.T) {
-	s := &Spec{SchemaVersion: 1}
+	s := &Spec{SchemaVersion: 2}
 	if err := ValidateSpec(s); err == nil {
 		t.Fatal("should reject missing bundle_version")
 	}
@@ -174,7 +174,7 @@ func TestValidateSpecMissingBundleVersion(t *testing.T) {
 
 func TestValidateSpecBadSuite(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"bionic"}, Architectures: []string{"amd64"}},
 	}
@@ -185,7 +185,7 @@ func TestValidateSpecBadSuite(t *testing.T) {
 
 func TestValidateSpecBadArch(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"s390x"}},
 	}
@@ -196,7 +196,7 @@ func TestValidateSpecBadArch(t *testing.T) {
 
 func TestValidateSpecBadImageMode(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		RKE2:          &RKE2Spec{Version: "v1.33.1+rke2r1", ImageMode: "invalid"},
@@ -208,7 +208,7 @@ func TestValidateSpecBadImageMode(t *testing.T) {
 
 func TestValidateSpecCoreVariantRequiresVariants(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		RKE2:          &RKE2Spec{Version: "v1.33.1+rke2r1", ImageMode: ImageModeCoreVariant, Variants: nil},
@@ -220,7 +220,7 @@ func TestValidateSpecCoreVariantRequiresVariants(t *testing.T) {
 
 func TestValidateSpecRKE2MissingVersion(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		RKE2:          &RKE2Spec{ImageMode: ImageModeAllInOne},
@@ -232,7 +232,7 @@ func TestValidateSpecRKE2MissingVersion(t *testing.T) {
 
 func TestValidateSpecEmptyDebName(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		Debs:          []DebSpec{{Name: ""}},
@@ -244,7 +244,7 @@ func TestValidateSpecEmptyDebName(t *testing.T) {
 
 func TestValidateSpecNoDebs(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "./templates",
@@ -258,7 +258,7 @@ func TestValidateSpecNoDebs(t *testing.T) {
 
 func TestValidateSpecMissingTemplatesDir(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "",
@@ -270,7 +270,7 @@ func TestValidateSpecMissingTemplatesDir(t *testing.T) {
 
 func TestValidateSpecHelmValid(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "./templates",
@@ -283,7 +283,7 @@ func TestValidateSpecHelmValid(t *testing.T) {
 
 func TestValidateSpecHelmMissingVersion(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "./templates",
@@ -296,7 +296,7 @@ func TestValidateSpecHelmMissingVersion(t *testing.T) {
 
 func TestValidateSpecAetherOpsVersionOnly(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "./templates",
@@ -309,7 +309,7 @@ func TestValidateSpecAetherOpsVersionOnly(t *testing.T) {
 
 func TestValidateSpecAetherOpsRefWithVersion(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "./templates",
@@ -322,7 +322,7 @@ func TestValidateSpecAetherOpsRefWithVersion(t *testing.T) {
 
 func TestValidateSpecAetherOpsMissingVersion(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "./templates",
@@ -335,7 +335,7 @@ func TestValidateSpecAetherOpsMissingVersion(t *testing.T) {
 
 func TestValidateSpecAetherOpsRefAndSourceMutuallyExclusive(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "./templates",
@@ -348,7 +348,7 @@ func TestValidateSpecAetherOpsRefAndSourceMutuallyExclusive(t *testing.T) {
 
 func TestValidateSpecAetherOpsFrontendRefWithoutRef(t *testing.T) {
 	s := &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "./templates",
@@ -361,7 +361,7 @@ func TestValidateSpecAetherOpsFrontendRefWithoutRef(t *testing.T) {
 
 func baseValidSpec() *Spec {
 	return &Spec{
-		SchemaVersion: 1,
+		SchemaVersion: 2,
 		BundleVersion: "1.0.0",
 		Ubuntu:        UbuntuSpec{Suites: []string{"jammy"}, Architectures: []string{"amd64"}},
 		TemplatesDir:  "./templates",
