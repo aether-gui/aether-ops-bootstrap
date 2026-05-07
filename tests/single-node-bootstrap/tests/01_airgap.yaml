@@ -6,3 +6,31 @@
     evaluate:
       exit_code: 0
       contains: "airgap confirmed"
+
+# Regression net for the deb install pipeline. Before the apt-repo
+# migration, `dpkg -i --force-*` left the host with unmet dependencies
+# (python3.12-venv vs older python3.12, ssh meta vs older openssh, ufw
+# vs iptables-persistent) and unfired dpkg triggers (udev, apparmor,
+# systemd). These two assertions catch any regression to that state:
+# `apt-get check` fails on unmet deps, and `dpkg --audit` flags packages
+# stuck in iU/iF/iH states.
+- name: apt-get check passes after bootstrap (no unmet deps)
+  node: sn-vm
+  type: execute
+  options:
+    command: "sudo apt-get check"
+    evaluate:
+      exit_code: 0
+
+- name: dpkg has no half-configured packages
+  node: sn-vm
+  type: execute
+  options:
+    # `dpkg --audit` prints nothing on a healthy host but always exits 0,
+    # so wc -l is the actual signal — count the lines it emitted, then
+    # echo the count so the harness can match on it. A clean host
+    # produces "0".
+    command: "sudo dpkg --audit | wc -l | xargs echo audit_lines="
+    evaluate:
+      exit_code: 0
+      contains: "audit_lines=0"

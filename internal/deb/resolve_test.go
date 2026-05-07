@@ -82,9 +82,11 @@ func TestResolveDiamondDependency(t *testing.T) {
 		}
 	}
 
-	// dpkg should NOT be in the result (Essential/required).
+	// app does not depend on dpkg, so it shouldn't show up here even
+	// though dpkg is Essential — the resolver only walks Depends, it
+	// does not pull in arbitrary required packages.
 	if names["dpkg"] {
-		t.Error("dpkg (Essential) should be skipped")
+		t.Error("dpkg should not be in app's closure (no dependency edge)")
 	}
 }
 
@@ -113,7 +115,12 @@ func TestResolveAlternatives(t *testing.T) {
 	}
 }
 
-func TestResolveEssentialSkipped(t *testing.T) {
+// TestResolveIncludesEssentialDependency guards the post-apt-repo
+// behavior: required/Essential packages depended on by bundled packages
+// are now part of the closure so the local apt repo can serve them when
+// apt's solver wants to upgrade an image-baked copy to satisfy a
+// strict-version Depends.
+func TestResolveIncludesEssentialDependency(t *testing.T) {
 	idx := NewIndex(makeTestPackages())
 	result, err := Resolve([]string{"with-essential-dep"}, idx, nil)
 	if err != nil {
@@ -128,8 +135,8 @@ func TestResolveEssentialSkipped(t *testing.T) {
 	if !names["with-essential-dep"] {
 		t.Error("missing with-essential-dep")
 	}
-	if names["dpkg"] {
-		t.Error("dpkg should be skipped (Essential)")
+	if !names["dpkg"] {
+		t.Error("dpkg should be in closure (Essential dep is no longer skipped — apt may need it in the local repo)")
 	}
 }
 

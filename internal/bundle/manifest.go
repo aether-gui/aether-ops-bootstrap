@@ -11,7 +11,15 @@ import (
 
 // SchemaVersion is the current manifest schema version.
 // The launcher refuses to process manifests with unrecognized schema versions.
-const SchemaVersion = 1
+//
+// Bumped to 2 when the deb install pipeline switched from `dpkg -i` over a
+// curated set to `apt-get install` against a self-contained file:// apt
+// repository shipped under apt-repo/. v1 launchers cannot consume v2
+// bundles (the new component layout breaks dpkg paths) and v2 launchers
+// cannot consume v1 bundles (no AptRepoEntry, no apt-repo/), so the
+// schema check at Read() is the explicit failure point. Pair-shipping
+// (one git tag → one launcher + one bundle) makes that acceptable.
+const SchemaVersion = 2
 
 // Manifest is the top-level bundle manifest structure.
 // It is the contract between the launcher and the bundle: the launcher reads it
@@ -36,6 +44,7 @@ type BuildInfo struct {
 // ComponentList groups all component entries in the manifest.
 type ComponentList struct {
 	Debs       []DebEntry        `json:"debs,omitempty"`
+	AptRepo    *AptRepoEntry     `json:"apt_repo,omitempty"`
 	RKE2       *RKE2Entry        `json:"rke2,omitempty"`
 	Helm       *HelmEntry        `json:"helm,omitempty"`
 	Wheelhouse *WheelhouseEntry  `json:"wheelhouse,omitempty"`
@@ -46,7 +55,9 @@ type ComponentList struct {
 	Templates  *TemplatesEntry   `json:"templates,omitempty"`
 }
 
-// DebEntry describes a vendored .deb package in the bundle.
+// DebEntry describes a vendored .deb package in the bundle. Filename
+// is the path relative to the bundle root, e.g.
+// "apt-repo/pool/noble/amd64/git_2.43.0-1ubuntu7_amd64.deb".
 type DebEntry struct {
 	Name     string `json:"name"`
 	Version  string `json:"version"`
@@ -54,6 +65,29 @@ type DebEntry struct {
 	Suite    string `json:"suite"`
 	Filename string `json:"filename"`
 	SHA256   string `json:"sha256"`
+}
+
+// AptRepoEntry describes the local file:// apt repository the bundle
+// ships under apt-repo/. The on-host installer drops a sources.list
+// entry pointing at <extractDir>/apt-repo and runs `apt-get install`
+// for TopLevel — apt walks the closure (Depends, Conflicts, Breaks)
+// against the bundled metadata and resolves cleanly, mirroring the
+// behaviour of an online `apt install` on a networked host.
+type AptRepoEntry struct {
+	// Path is the bundle-relative directory containing the apt repo
+	// (always "apt-repo" today). The sources.list entry the launcher
+	// writes is `deb [trusted=yes] file://<extractDir>/<Path> <Codenames[0]> main`.
+	Path string `json:"path"`
+	// Codenames is the set of suite codenames the repo's dists/ tree
+	// declares. v1 supports a single codename per bundle; the field
+	// is a slice so multi-codename support is a layout-only future
+	// change.
+	Codenames []string `json:"codenames"`
+	// TopLevel is the list of package names the launcher passes to
+	// `apt-get install`. Apt walks the closure from there; the
+	// resolver populated the bundle with everything needed to
+	// satisfy that closure.
+	TopLevel []string `json:"top_level"`
 }
 
 // RKE2Entry describes the RKE2 artifacts in the bundle.

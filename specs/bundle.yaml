@@ -1,5 +1,5 @@
-schema_version: 1
-bundle_version: "2026.05.06.1"
+schema_version: 2
+bundle_version: "2026.05.07.1"
 
 ubuntu:
   suites: [noble, noble-updates, noble-security]
