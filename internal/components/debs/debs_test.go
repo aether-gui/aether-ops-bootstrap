@@ -1,6 +1,8 @@
 package debs
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -10,8 +12,8 @@ import (
 	"github.com/aether-gui/aether-ops-bootstrap/internal/state"
 )
 
-func TestNonInteractiveDpkgEnv(t *testing.T) {
-	env := nonInteractiveDpkgEnv()
+func TestNoninteractiveAptEnv(t *testing.T) {
+	env := noninteractiveAptEnv()
 
 	// Required variables that keep debconf silent. If any are dropped
 	// or renamed, the install hangs on maintainer-script prompts (see
@@ -40,48 +42,23 @@ func TestNonInteractiveDpkgEnv(t *testing.T) {
 	}
 }
 
-func TestParseDpkgQuery(t *testing.T) {
-	// Real dpkg-query output mixes statuses. Only "install ok
-	// installed" should land in the set; "deinstall ok config-files"
-	// (purged minus configs), "install ok unpacked" (mid-install
-	// failure), and "install ok half-installed" must not.
-	input := []byte("" +
-		"ansible\tinstall ok installed\n" +
-		"git\tinstall ok installed\n" +
-		"old-pkg\tdeinstall ok config-files\n" +
-		"borked\tinstall ok half-installed\n" +
-		"unpacked\tinstall ok unpacked\n" +
-		"systemd\tinstall ok installed\n")
+func TestWriteSourcesList(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sources.list")
+	repoPath := "/var/lib/aether-ops/extract/apt-repo"
+	suite := "noble"
 
-	got := parseDpkgQuery(input)
+	if err := writeSourcesList(path, repoPath, suite); err != nil {
+		t.Fatalf("writeSourcesList: %v", err)
+	}
 
-	for _, want := range []string{"ansible", "git", "systemd"} {
-		if !got[want] {
-			t.Errorf("expected %q in installed set: %v", want, got)
-		}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
 	}
-	for _, dont := range []string{"old-pkg", "borked", "unpacked"} {
-		if got[dont] {
-			t.Errorf("did not expect %q in installed set (status was non-installed): %v", dont, got)
-		}
-	}
-	if len(got) != 3 {
-		t.Errorf("len(got) = %d, want 3 (extras present): %v", len(got), got)
-	}
-}
-
-func TestParseDpkgQueryHandlesMalformedLines(t *testing.T) {
-	input := []byte("" +
-		"\n" + // blank
-		"no-tab-here\n" + // missing tab separator
-		"\tjust-a-tab\n" + // empty name
-		"valid\tinstall ok installed\n")
-	got := parseDpkgQuery(input)
-	if !got["valid"] {
-		t.Errorf("valid line dropped; got %v", got)
-	}
-	if len(got) != 1 {
-		t.Errorf("malformed lines were not ignored; got %v", got)
+	want := "deb [trusted=yes] file:///var/lib/aether-ops/extract/apt-repo noble main\n"
+	if string(got) != want {
+		t.Errorf("sources.list = %q, want %q", string(got), want)
 	}
 }
 
@@ -99,7 +76,11 @@ func TestDesiredVersion(t *testing.T) {
 	m := &bundle.Manifest{
 		BundleVersion: "2026.04.1",
 		Components: bundle.ComponentList{
-			Debs: []bundle.DebEntry{{Name: "git"}},
+			AptRepo: &bundle.AptRepoEntry{
+				Path:      "apt-repo",
+				Codenames: []string{"noble"},
+				TopLevel:  []string{"git"},
+			},
 		},
 	}
 	if v := c.DesiredVersion(m); v != "2026.04.1" {
@@ -107,11 +88,24 @@ func TestDesiredVersion(t *testing.T) {
 	}
 }
 
-func TestDesiredVersionEmpty(t *testing.T) {
+func TestDesiredVersionEmptyWhenAptRepoMissing(t *testing.T) {
 	c := New("", nil)
 	m := &bundle.Manifest{BundleVersion: "2026.04.1"}
 	if v := c.DesiredVersion(m); v != "" {
-		t.Errorf("DesiredVersion with no debs = %q, want empty", v)
+		t.Errorf("DesiredVersion with no AptRepo = %q, want empty", v)
+	}
+}
+
+func TestDesiredVersionEmptyWhenTopLevelEmpty(t *testing.T) {
+	c := New("", nil)
+	m := &bundle.Manifest{
+		BundleVersion: "2026.04.1",
+		Components: bundle.ComponentList{
+			AptRepo: &bundle.AptRepoEntry{Path: "apt-repo"}, // no TopLevel
+		},
+	}
+	if v := c.DesiredVersion(m); v != "" {
+		t.Errorf("DesiredVersion with empty TopLevel = %q, want empty", v)
 	}
 }
 
@@ -136,12 +130,76 @@ func TestCurrentVersionMissing(t *testing.T) {
 }
 
 func TestPlanNoOpWhenUpToDate(t *testing.T) {
-	c := New("", &bundle.Manifest{BundleVersion: "2026.04.1"})
+	m := &bundle.Manifest{
+		BundleVersion: "2026.04.1",
+		Components: bundle.ComponentList{
+			AptRepo: &bundle.AptRepoEntry{
+				Path:      "apt-repo",
+				Codenames: []string{"noble"},
+				TopLevel:  []string{"git"},
+			},
+		},
+	}
+	c := New("", m)
 	plan, err := c.Plan("2026.04.1", "2026.04.1")
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
 	if !plan.NoOp {
 		t.Error("Plan should be NoOp when current == desired")
+	}
+}
+
+func TestPlanNoOpWhenAptRepoMissing(t *testing.T) {
+	m := &bundle.Manifest{BundleVersion: "2026.04.1"}
+	c := New("", m)
+	plan, err := c.Plan("", "2026.04.1")
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if !plan.NoOp {
+		t.Error("Plan should be NoOp when manifest has no AptRepo")
+	}
+}
+
+func TestPlanProducesAptActions(t *testing.T) {
+	m := &bundle.Manifest{
+		BundleVersion: "2026.04.1",
+		Components: bundle.ComponentList{
+			AptRepo: &bundle.AptRepoEntry{
+				Path:      "apt-repo",
+				Codenames: []string{"noble"},
+				TopLevel:  []string{"ansible", "git", "ssh", "iptables-persistent"},
+			},
+		},
+	}
+	c := New("/tmp/extract", m)
+	c.SetSuite("noble")
+
+	plan, err := c.Plan("", "2026.04.1")
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if plan.NoOp {
+		t.Fatal("Plan should not be NoOp when AptRepo has top-level packages")
+	}
+	if len(plan.Actions) != 3 {
+		t.Fatalf("expected 3 actions (write sources.list, apt update, apt install); got %d", len(plan.Actions))
+	}
+
+	descriptions := []string{
+		plan.Actions[0].Description,
+		plan.Actions[1].Description,
+		plan.Actions[2].Description,
+	}
+	for i, want := range []string{"write bundle sources.list", "apt-get update", "apt-get install"} {
+		if !strings.Contains(descriptions[i], want) {
+			t.Errorf("action %d description %q does not contain %q", i, descriptions[i], want)
+		}
+	}
+	// Top-level count must surface in the install action so operator
+	// log output explains what apt is being asked to install.
+	if !strings.Contains(plan.Actions[2].Description, "4 top-level packages") {
+		t.Errorf("install action description should mention 4 top-level packages, got %q", plan.Actions[2].Description)
 	}
 }
