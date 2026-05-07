@@ -156,6 +156,43 @@ func TestWriteAndReadEmptyManifest(t *testing.T) {
 	}
 }
 
+func TestManifestAptRepoRoundTrip(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: SchemaVersion,
+		BundleVersion: "2026.05.07.1",
+		Components: ComponentList{
+			AptRepo: &AptRepoEntry{
+				Path:      "apt-repo",
+				Codenames: []string{"noble"},
+				TopLevel:  []string{"ansible", "git", "ssh", "iptables-persistent"},
+			},
+		},
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "manifest.json")
+	if err := Write(path, m); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	got, err := Read(path)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	if got.Components.AptRepo == nil {
+		t.Fatal("AptRepo round-tripped as nil")
+	}
+	if got.Components.AptRepo.Path != "apt-repo" {
+		t.Errorf("AptRepo.Path = %q, want %q", got.Components.AptRepo.Path, "apt-repo")
+	}
+	if len(got.Components.AptRepo.Codenames) != 1 || got.Components.AptRepo.Codenames[0] != "noble" {
+		t.Errorf("AptRepo.Codenames = %v, want [noble]", got.Components.AptRepo.Codenames)
+	}
+	if len(got.Components.AptRepo.TopLevel) != 4 {
+		t.Errorf("AptRepo.TopLevel = %v, want 4 entries", got.Components.AptRepo.TopLevel)
+	}
+}
+
 func TestManifestOnrampChartsImagesRoundTrip(t *testing.T) {
 	m := &Manifest{
 		SchemaVersion: SchemaVersion,

@@ -168,13 +168,15 @@ func buildOne(specPath, outputPath, lockPath string) error {
 
 	// Fetch .deb packages.
 	var debEntries []bundle.DebEntry
+	var aptRepoTopLevel []string
+	var aptRepoCodenames []string
 	effectiveDebs, discoveredDebs := mergeDebSpecs(spec.Debs, onrampScan)
 	if len(effectiveDebs) > 0 {
 		log.Printf("resolving and fetching .deb packages...")
 		specWithDiscoveredDebs := *spec
 		specWithDiscoveredDebs.Debs = effectiveDebs
 		specWithDiscoveredDebs.AptSources = effectiveAptSources
-		debEntries, err = builder.FetchDebs(ctx, dl, &specWithDiscoveredDebs, stageDir)
+		debsResult, err := builder.FetchDebs(ctx, dl, &specWithDiscoveredDebs, stageDir)
 		if err != nil {
 			var missingErr *deb.MissingPackagesError
 			if errors.As(err, &missingErr) {
@@ -182,7 +184,18 @@ func buildOne(specPath, outputPath, lockPath string) error {
 			}
 			return err
 		}
+		debEntries = debsResult.Entries
+		aptRepoCodenames = debsResult.Codenames
 		log.Printf("staged %d .deb packages", len(debEntries))
+
+		// Top-level package names drive `apt-get install` at install
+		// time. Apt walks Depends from there; the rest of the bundle's
+		// closure sits in the local repo for the solver to pull from.
+		aptRepoTopLevel = make([]string, 0, len(effectiveDebs))
+		for _, d := range effectiveDebs {
+			aptRepoTopLevel = append(aptRepoTopLevel, d.Name)
+		}
+		sort.Strings(aptRepoTopLevel)
 
 		// Lockfile: build current, verify against existing, write updated.
 		currentLock := builder.BuildLockfile(debEntries)
@@ -270,15 +283,17 @@ func buildOne(specPath, outputPath, lockPath string) error {
 
 	// Generate and write manifest.
 	manifest := builder.BuildManifest(spec, gitSHA, builder.ManifestInputs{
-		RKE2:       rke2Entry,
-		Helm:       helmEntry,
-		Wheelhouse: wheelhouseEntry,
-		AetherOps:  aetherOpsEntry,
-		Debs:       debEntries,
-		Templates:  templatesEntry,
-		Onramp:     onrampEntry,
-		HelmCharts: helmChartsEntries,
-		Images:     imagesEntry,
+		RKE2:             rke2Entry,
+		Helm:             helmEntry,
+		Wheelhouse:       wheelhouseEntry,
+		AetherOps:        aetherOpsEntry,
+		Debs:             debEntries,
+		AptRepoTopLevel:  aptRepoTopLevel,
+		AptRepoCodenames: aptRepoCodenames,
+		Templates:        templatesEntry,
+		Onramp:           onrampEntry,
+		HelmCharts:       helmChartsEntries,
+		Images:           imagesEntry,
 	})
 	manifestPath := filepath.Join(stageDir, "manifest.json")
 	if err := bundle.Write(manifestPath, manifest); err != nil {
