@@ -50,20 +50,20 @@ func (idx *Index) Lookup(name string) *Package {
 }
 
 // Resolve computes the transitive closure of dependencies for the
-// requested package names. Packages that are Essential or have
-// Priority "required" are treated as already satisfied and skipped.
+// requested package names. The closure is *complete* — it includes
+// Essential and Priority "required" packages too. Earlier versions of
+// this resolver skipped them on the assumption the host already had
+// them, but the launcher now drives apt-get against a local file://
+// repo built from this set, and apt's solver may need to upgrade an
+// image-baked required package to satisfy a strict-version Depends
+// declared by a bundled package (e.g. python3.12-venv depends on
+// python3.12 (= …)). Apt will only do that if the new version is in
+// the local repo, so the resolver returns the full closure regardless
+// of priority.
 //
 // The constraints map allows specifying version requirements for
 // top-level packages (from the bundle spec's DebSpec.Version field).
 func Resolve(wanted []string, idx *Index, constraints map[string]Constraint) ([]*Package, error) {
-	// Build the skip set from Essential/required packages.
-	skip := make(map[string]bool)
-	for name, p := range idx.byName {
-		if p.Essential || p.Priority == "required" {
-			skip[name] = true
-		}
-	}
-
 	if missing := MissingPackages(wanted, idx); len(missing) > 0 {
 		return nil, &MissingPackagesError{Names: missing}
 	}
@@ -77,7 +77,7 @@ func Resolve(wanted []string, idx *Index, constraints map[string]Constraint) ([]
 		name := queue[0]
 		queue = queue[1:]
 
-		if resolved[name] || skip[name] {
+		if resolved[name] {
 			continue
 		}
 
@@ -99,15 +99,14 @@ func Resolve(wanted []string, idx *Index, constraints map[string]Constraint) ([]
 
 		// Enqueue dependencies.
 		for _, dep := range append(pkg.Depends, pkg.PreDepends...) {
-			depName, depErr := resolveAlternative(dep, idx, skip)
+			depName, depErr := resolveAlternative(dep, idx)
 			if depErr != nil {
 				return nil, fmt.Errorf("resolving dependency of %s: %w", pkg.Name, depErr)
 			}
 			if depName == "" {
-				// Satisfied by skip set (Essential/required).
 				continue
 			}
-			if !resolved[depName] && !skip[depName] {
+			if !resolved[depName] {
 				queue = append(queue, depName)
 			}
 		}
@@ -148,15 +147,13 @@ func MissingPackages(wanted []string, idx *Index) []string {
 }
 
 // resolveAlternative picks the first alternative from a dependency group
-// that exists in the index. Returns ("", nil) if satisfied by the skip set.
-// Returns an error if alternatives exist but none can be satisfied.
-func resolveAlternative(dep Dependency, idx *Index, skip map[string]bool) (string, error) {
-	anyInSkip := false
+// that exists in the index. Returns ("", nil) when no alternative
+// resolves — typically because of versioned virtual packages whose
+// Provides entries include a version that our parser strips, in which
+// case the providing package is already in the resolution set via
+// another dependency path.
+func resolveAlternative(dep Dependency, idx *Index) (string, error) {
 	for _, alt := range dep.Alternatives {
-		if skip[alt.Name] {
-			anyInSkip = true
-			continue
-		}
 		if pkg := idx.Lookup(alt.Name); pkg != nil {
 			if alt.Constraint != nil && !alt.Constraint.Satisfied(pkg.Version) {
 				continue
@@ -164,13 +161,5 @@ func resolveAlternative(dep Dependency, idx *Index, skip map[string]bool) (strin
 			return pkg.Name, nil
 		}
 	}
-	if anyInSkip {
-		return "", nil // satisfied by Essential/required set
-	}
-	// Unresolvable dependency. This often happens with versioned virtual
-	// packages (e.g., python3-cffi-backend-api-max) where the Provides
-	// entry includes a version that our parser strips. The providing
-	// package is typically already in the resolution set via a different
-	// dependency path. Log and skip rather than fail.
 	return "", nil
 }

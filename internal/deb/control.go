@@ -2,6 +2,7 @@ package deb
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"strconv"
 	"strings"
@@ -9,11 +10,22 @@ import (
 
 // ParseControl parses a Debian Packages index (RFC 822 format) from r
 // and returns the package entries it contains. Packages are separated
-// by blank lines.
+// by blank lines. Each entry's RawStanza captures the original bytes of
+// its stanza for downstream re-emission.
 func ParseControl(r io.Reader) ([]Package, error) {
 	var packages []Package
 	fields := make(map[string]string)
 	var lastKey string
+	var stanza bytes.Buffer
+
+	emit := func() {
+		pkg := packageFromFields(fields)
+		// Copy stanza bytes — the buffer is reused for the next package.
+		raw := make([]byte, stanza.Len())
+		copy(raw, stanza.Bytes())
+		pkg.RawStanza = raw
+		packages = append(packages, pkg)
+	}
 
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024) // 1MB buffer for large fields
@@ -23,12 +35,17 @@ func ParseControl(r io.Reader) ([]Package, error) {
 		if line == "" {
 			// Blank line: emit package if we have fields.
 			if len(fields) > 0 {
-				packages = append(packages, packageFromFields(fields))
+				emit()
 				fields = make(map[string]string)
 				lastKey = ""
+				stanza.Reset()
 			}
 			continue
 		}
+
+		// Buffer the raw line for RawStanza preservation (with trailing \n).
+		stanza.WriteString(line)
+		stanza.WriteByte('\n')
 
 		// Continuation line (starts with space or tab).
 		if line[0] == ' ' || line[0] == '\t' {
@@ -50,7 +67,7 @@ func ParseControl(r io.Reader) ([]Package, error) {
 
 	// Emit the last package if the file doesn't end with a blank line.
 	if len(fields) > 0 {
-		packages = append(packages, packageFromFields(fields))
+		emit()
 	}
 
 	return packages, scanner.Err()

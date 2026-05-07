@@ -20,6 +20,14 @@ type Package struct {
 	// by callers that aggregate across multiple pockets to remember
 	// where the chosen version came from.
 	Suite string
+	// RawStanza is the original RFC 822 stanza bytes from the upstream
+	// Packages index, preserved verbatim (including continuation lines
+	// and the trailing newline). Consumers that re-emit Packages files
+	// — notably the local apt-repo builder — use this to carry across
+	// fields the parser does not extract (Breaks, Conflicts, Replaces,
+	// Description, …) without a fidelity-losing round-trip through
+	// the parsed struct.
+	RawStanza []byte
 }
 
 // Dependency represents one dependency group from a Depends line.
