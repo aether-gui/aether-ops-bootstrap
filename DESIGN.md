@@ -115,11 +115,16 @@ An opaque tarball. Contains everything the launcher needs to *deliver*, structur
 
 ```
 manifest.json
-debs/
-  ansible_*.deb
-  git_*.deb
-  make_*.deb
-  ... (transitive deps)
+apt-repo/                      # self-contained file:// apt repository
+  dists/
+    <codename>/
+      Release                  # unsigned in v1; consumer uses [trusted=yes]
+      main/binary-amd64/{Packages,Packages.gz}
+      main/binary-all/{Packages,Packages.gz}
+  pool/
+    <codename>/
+      amd64/<name>_<version>_amd64.deb
+      all/<name>_<version>_all.deb
 rke2/
   rke2.linux-<arch>.tar.gz
   rke2-images-<variant>.linux-<arch>.tar.zst
@@ -135,6 +140,8 @@ templates/
 ```
 
 Versioned with calver (e.g. `2026.04.1`). The `manifest.json` is the contract between launcher and bundle: it lists every component's version, source, and hash, plus a `schema_version` the launcher checks before using the bundle.
+
+The `apt-repo/` tree is a real apt-archive layout. At install time the launcher writes a single-line `sources.list` pointing `file://` at it and runs `apt-get install` for the spec's top-level packages — apt then walks the closure (Depends/Conflicts/Breaks/Replaces) against the bundled metadata, picks an install plan, and dpkg's trigger system fires correctly because the transaction looks like any other apt transaction. Bundle schema bumped to `2` when this layout took over from the previous `dpkg -i --force-*` path.
 
 ## Launcher design
 
@@ -256,7 +263,7 @@ Every operation is done in Go using libraries, not by invoking shell commands:
 | Wait for RKE2 ready | HTTP GET against `https://localhost:6443/readyz` with the kubeconfig cert |
 | Wait for aether-ops ready | HTTP GET against its health endpoint |
 
-The exception: **`dpkg` is invoked via `os/exec` to install .deb files**, and `useradd`/`groupadd` are invoked for user creation. These tools are part of Ubuntu's `Essential: yes` / `Priority: required` set, always present, and reimplementing them correctly (maintainer scripts, triggers, alternatives, PAM hooks) is out of scope. This exception is documented, not hidden.
+The exception: **`apt-get` is invoked via `os/exec` to install .deb files** (it consumes the bundled `apt-repo/` via a `file://` sources.list scoped to a single command), and `useradd`/`groupadd` are invoked for user creation. These tools are part of Ubuntu's `Essential: yes` / `Priority: required` set, always present, and reimplementing them correctly (dependency resolution, conflict handling, maintainer scripts, triggers, alternatives, PAM hooks) is out of scope — the whole point of the apt-repo bundle layout is to delegate that complexity to the system tool that already knows how to do it. The previous direct `dpkg -i --force-*` path is gone; dpkg still runs, but now apt drives it the same way it would on a networked host.
 
 ## Bundle build
 
