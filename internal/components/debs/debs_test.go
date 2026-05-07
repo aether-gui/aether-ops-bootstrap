@@ -45,7 +45,7 @@ func TestNoninteractiveAptEnv(t *testing.T) {
 func TestWriteSourcesList(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sources.list")
-	repoPath := "/var/lib/aether-ops/extract/apt-repo"
+	repoPath := "/var/lib/aether-ops/apt-repo"
 	suite := "noble"
 
 	if err := writeSourcesList(path, repoPath, suite); err != nil {
@@ -56,9 +56,115 @@ func TestWriteSourcesList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
-	want := "deb [trusted=yes] file:///var/lib/aether-ops/extract/apt-repo noble main\n"
-	if string(got) != want {
-		t.Errorf("sources.list = %q, want %q", string(got), want)
+	body := string(got)
+	wantLine := "deb [trusted=yes] file:///var/lib/aether-ops/apt-repo noble main\n"
+	if !strings.Contains(body, wantLine) {
+		t.Errorf("sources.list missing %q\n--- got ---\n%s", wantLine, body)
+	}
+	if !strings.Contains(body, "# Aether-ops bundle local apt repository.") {
+		t.Errorf("sources.list missing operator-facing header comment\n--- got ---\n%s", body)
+	}
+}
+
+func TestWriteSourcesListCreatesParent(t *testing.T) {
+	dir := t.TempDir()
+	// Nested path that does not yet exist — writeSourcesList should
+	// MkdirAll, since /etc/apt/sources.list.d/ exists on real hosts
+	// but tempdirs in tests start empty.
+	path := filepath.Join(dir, "etc", "apt", "sources.list.d", "aether-bundle.list")
+
+	if err := writeSourcesList(path, "/var/lib/aether-ops/apt-repo", "noble"); err != nil {
+		t.Fatalf("writeSourcesList: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("sources.list missing after write: %v", err)
+	}
+}
+
+func TestStageRepo_SameFilesystemRename(t *testing.T) {
+	root := t.TempDir()
+	src := filepath.Join(root, "extract", "apt-repo")
+	dst := filepath.Join(root, "var", "apt-repo")
+
+	// Populate src with a small fixture.
+	for _, p := range []string{
+		"dists/noble/Release",
+		"dists/noble/main/binary-amd64/Packages",
+		"pool/noble/amd64/foo.deb",
+	} {
+		full := filepath.Join(src, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(p), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := stageRepo(src, dst); err != nil {
+		t.Fatalf("stageRepo: %v", err)
+	}
+
+	// Files are now under dst; src is gone (rename) or empty (copy fallback).
+	for _, p := range []string{
+		"dists/noble/Release",
+		"dists/noble/main/binary-amd64/Packages",
+		"pool/noble/amd64/foo.deb",
+	} {
+		full := filepath.Join(dst, p)
+		got, err := os.ReadFile(full)
+		if err != nil {
+			t.Fatalf("missing %s after stage: %v", full, err)
+		}
+		if string(got) != p {
+			t.Errorf("staged %s contents = %q, want %q", full, got, p)
+		}
+	}
+}
+
+func TestStageRepo_ReplacesExistingDestination(t *testing.T) {
+	root := t.TempDir()
+	src := filepath.Join(root, "extract", "apt-repo")
+	dst := filepath.Join(root, "var", "apt-repo")
+
+	// Pre-populate dst with stale content from a prior install.
+	stale := filepath.Join(dst, "stale", "old.deb")
+	if err := os.MkdirAll(filepath.Dir(stale), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(stale, []byte("from-old-bundle"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Fresh src.
+	fresh := filepath.Join(src, "pool", "noble", "amd64", "new.deb")
+	if err := os.MkdirAll(filepath.Dir(fresh), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fresh, []byte("from-new-bundle"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := stageRepo(src, dst); err != nil {
+		t.Fatalf("stageRepo: %v", err)
+	}
+
+	// Stale file must be gone.
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Errorf("stale file still present after stageRepo; err=%v", err)
+	}
+	// Fresh file is in place.
+	got, err := os.ReadFile(filepath.Join(dst, "pool", "noble", "amd64", "new.deb"))
+	if err != nil || string(got) != "from-new-bundle" {
+		t.Errorf("fresh file missing or wrong: contents=%q err=%v", got, err)
+	}
+}
+
+func TestStageRepo_FailsWhenSrcMissing(t *testing.T) {
+	root := t.TempDir()
+	err := stageRepo(filepath.Join(root, "nope"), filepath.Join(root, "dst"))
+	if err == nil || !strings.Contains(err.Error(), "locating staged apt-repo") {
+		t.Fatalf("expected missing-src error, got %v", err)
 	}
 }
 
@@ -183,23 +289,29 @@ func TestPlanProducesAptActions(t *testing.T) {
 	if plan.NoOp {
 		t.Fatal("Plan should not be NoOp when AptRepo has top-level packages")
 	}
-	if len(plan.Actions) != 3 {
-		t.Fatalf("expected 3 actions (write sources.list, apt update, apt install); got %d", len(plan.Actions))
+	if len(plan.Actions) != 4 {
+		t.Fatalf("expected 4 actions (stage repo, write sources.list, apt update, apt install); got %d", len(plan.Actions))
 	}
 
 	descriptions := []string{
 		plan.Actions[0].Description,
 		plan.Actions[1].Description,
 		plan.Actions[2].Description,
+		plan.Actions[3].Description,
 	}
-	for i, want := range []string{"write bundle sources.list", "apt-get update", "apt-get install"} {
+	for i, want := range []string{
+		"stage apt-repo",
+		"/etc/apt/sources.list.d/aether-bundle.list",
+		"apt-get update",
+		"apt-get install",
+	} {
 		if !strings.Contains(descriptions[i], want) {
 			t.Errorf("action %d description %q does not contain %q", i, descriptions[i], want)
 		}
 	}
 	// Top-level count must surface in the install action so operator
 	// log output explains what apt is being asked to install.
-	if !strings.Contains(plan.Actions[2].Description, "4 top-level packages") {
-		t.Errorf("install action description should mention 4 top-level packages, got %q", plan.Actions[2].Description)
+	if !strings.Contains(plan.Actions[3].Description, "4 top-level packages") {
+		t.Errorf("install action description should mention 4 top-level packages, got %q", plan.Actions[3].Description)
 	}
 }
