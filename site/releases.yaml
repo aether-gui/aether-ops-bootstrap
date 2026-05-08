@@ -35,15 +35,74 @@ site:
       docs_url: https://aether-gui.github.io/docs/tools/patch-bundle
 
 releases:
+  - id: "2026-05-07-onramp-usb-bind-mount"
+    published_at: "2026-05-08T01:30:00Z"
+    current: true
+
+    bootstrap:
+      version: "2026.05.07.2"
+      path: "2026.05.07.2"
+      filename: aether-ops-bootstrap
+      source: ../dist/aether-ops-bootstrap
+      commit: "8669678"
+      release_notes: |
+        Bootstrap unchanged from 2026.05.07.1 source-wise; rebuilt
+        to ship alongside the new bundle. Same apt-repo airgap
+        install pipeline (apt-get install against
+        /var/lib/aether-ops/apt-repo, with the persistent
+        /etc/apt/sources.list.d/aether-bundle.list entry for
+        post-bootstrap operator-driven `apt install`).
+
+    bundle:
+      version: "2026.05.07.2"
+      path: "2026.05.07.2"
+      filename: bundle.tar.zst
+      source: ../dist/bundle.tar.zst
+      sha256_source: ../dist/bundle.tar.zst.sha256
+      build_commit: "8669678"
+      release_notes: |
+        Bundle rebuilt to re-pin aether-onramp at upstream 78f75c6a
+        (current HEAD of opennetworkinglab/aether-onramp main),
+        picking up PR #213 — ocudu/gNB now bind-mounts /dev/bus/usb
+        into the gNB docker container for USRP hot-plug visibility.
+        This is the upstream root-cause fix for the USRP USB access
+        symptom the local udev workaround in 2026.05.06.1 papered
+        over: with the bind-mount, libusb inside the container can
+        see the host's USB tree and any hot-plug device-add events
+        regardless of the host-side udev MODE on the device node.
+        aether-ops v0.1.50, rke2 v1.35.3+rke2r3, helm v3.20.0
+        unchanged.
+      components:
+        - name: aether-ops
+          version: v0.1.50
+        - name: aether-onramp
+          commit: 78f75c6a415c2e8567cd8c976a322e8be3d33da2
+        - name: rke2
+          version: v1.35.3+rke2r3
+        - name: helm
+          version: v3.20.0
+        - name: sdcore-helm-charts
+          version: main
+
+    patch_tool:
+      version: "2026.05.07.2"
+      path: "2026.05.07.2"
+      filename: patch-bundle
+      source: ../dist/patch-bundle
+      build_commit: "8669678"
+      release_notes: |
+        Patch tool rebuilt alongside the 2026.05.07.2 launcher and
+        bundle. No functional changes.
+
   - id: "2026-05-07-apt-repo-airgap-install"
     published_at: "2026-05-07T21:45:00Z"
-    current: true
+    external: true
 
     bootstrap:
       version: "2026.05.07.1"
       path: "2026.05.07.1"
       filename: aether-ops-bootstrap
-      source: ../dist/aether-ops-bootstrap
+      sha256: "f8b5c9cca0b8a2e27f41f1205a452c8cbb38832203c8365a8ade58845959b49f"
       commit: "9b2c821"
       release_notes: |
         Bootstrap rebuilt with the airgap deb install path migrated
@@ -66,8 +125,7 @@ releases:
       version: "2026.05.07.1"
       path: "2026.05.07.1"
       filename: bundle.tar.zst
-      source: ../dist/bundle.tar.zst
-      sha256_source: ../dist/bundle.tar.zst.sha256
+      sha256: "7e2d9af11fd85c7f000a51cb472ace22fe63a2dc96f634d033e23ed6df09e6ad"
       build_commit: "9b2c821"
       release_notes: |
         Bundle rebuilt with the apt-repo layout. apt-repo/dists/noble/
@@ -96,7 +154,7 @@ releases:
       version: "2026.05.07.1"
       path: "2026.05.07.1"
       filename: patch-bundle
-      source: ../dist/patch-bundle
+      sha256: "acabb78a9234f1ee58cb965c20f05fc7cac7553a07f3c0d5566725b889a18f84"
       build_commit: "9b2c821"
       release_notes: |
         Patch tool rebuilt alongside the 2026.05.07.1 launcher and
