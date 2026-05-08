@@ -1,5 +1,5 @@
 schema_version: 2
-bundle_version: "2026.05.07.1"
+bundle_version: "2026.05.07.2"
 
 ubuntu:
   suites: [noble, noble-updates, noble-security]
@@ -81,7 +81,7 @@ onramp:
   repo: https://github.com/opennetworkinglab/aether-onramp.git
   # Pinned to a specific upstream commit for reproducibility; bump
   # after reviewing upstream changes. HEAD of main at time of pin.
-  ref: 11a34c9675da7c58de08e31fe54e4e098c402ff2
+  ref: 78f75c6a415c2e8567cd8c976a322e8be3d33da2
   recurse_submodules: false
 
   # `patches:` overrides files inside the cloned onramp tree before
