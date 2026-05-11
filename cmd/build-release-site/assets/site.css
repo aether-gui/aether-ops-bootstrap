@@ -11,6 +11,11 @@
   --text:      #c8e0ec;
   --muted:     #6b8a9c;
   --warn:      #ffb454;
+  /* Amber/yellow for artifact titles. Distinct from cyan body
+     accents so the three card headings (Bootstrap Launcher, Bundle
+     Patch Tool, Offline Bundle) read as separate things at a glance
+     instead of blurring into the rest of the panel. */
+  --title:     #ffd166;
 }
 
 * { box-sizing: border-box; }
@@ -151,7 +156,8 @@ code, .mono, .hash {
   font-weight: 600;
   margin: 0;
   font-size: 1.05rem;
-  color: var(--text);
+  color: var(--title);
+  text-shadow: 0 0 12px rgba(255, 209, 102, 0.18);
 }
 .kicker {
   font-family: "IBM Plex Mono", monospace;
@@ -364,7 +370,8 @@ code, .mono, .hash {
   font-weight: 600;
   margin: 0 0 6px;
   font-size: 1.1rem;
-  color: var(--text);
+  color: var(--title);
+  text-shadow: 0 0 12px rgba(255, 209, 102, 0.18);
 }
 .release > h2 .current-flag {
   color: var(--accent);
