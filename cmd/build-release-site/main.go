@@ -207,6 +207,19 @@ func main() {
 	// "no pruning" so existing call sites keep their behaviour.
 	pruneKeep := -1
 	flag.IntVar(&pruneKeep, "prune-keep", -1, "after promotion, prune external release entries beyond the first N (e.g. --prune-keep=2 keeps current + 2 prior). Set to -1 (default) to disable.")
+
+	// --- rerender-only mode (optional) ---
+	// When --keep-existing-artifacts is set the renderer treats
+	// --output as the live published tree: it does NOT wipe the
+	// directory at startup, and for non-external releases it reads
+	// each artifact's SHA256 from the pre-existing .sha256 sidecar
+	// instead of copying the artifact from --source and rehashing.
+	// Use this to refresh the HTML pages, CSS, and metadata.json
+	// against an already-published artifact tree without re-uploading
+	// the (multi-GB) bundles.
+	var keepArtifacts bool
+	flag.BoolVar(&keepArtifacts, "keep-existing-artifacts", false, "skip artifact copy/hash and read SHA256 from the pre-existing <output>/<kind>/<path>/<filename>.sha256 sidecar; do not wipe --output. Used to re-render index pages against a live artifact tree.")
+
 	flag.Parse()
 
 	if metadataPath == "" || outputDir == "" {
@@ -247,8 +260,10 @@ func main() {
 	}
 
 	metadataDir := filepath.Dir(metadataPath)
-	if err := os.RemoveAll(outputDir); err != nil {
-		exitf("prepare output dir: %v", err)
+	if !keepArtifacts {
+		if err := os.RemoveAll(outputDir); err != nil {
+			exitf("prepare output dir: %v", err)
+		}
 	}
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		exitf("create output dir: %v", err)
@@ -270,7 +285,7 @@ func main() {
 	}
 
 	for _, rel := range meta.Releases {
-		renderedRelease, publicRelease, err := materializeRelease(metadataDir, outputDir, rendered.BaseURLPath, rel, meta.Site.ArtifactKinds)
+		renderedRelease, publicRelease, err := materializeRelease(metadataDir, outputDir, rendered.BaseURLPath, rel, meta.Site.ArtifactKinds, keepArtifacts)
 		if err != nil {
 			exitf("materialize release %q: %v", rel.ID, err)
 		}
@@ -448,12 +463,12 @@ var defaultArtifactLabel = map[string]string{
 	"patch_tool": "Bundle Patch Tool",
 }
 
-func materializeRelease(metadataDir, outputDir, baseURL string, rel releaseConfig, kinds map[string]artifactKindDefaults) (renderedRelease, publicRelease, error) {
-	bootstrapRA, bootstrapPA, err := materializeArtifact(metadataDir, outputDir, baseURL, "bootstrap", rel.Bootstrap, rel.External, kinds)
+func materializeRelease(metadataDir, outputDir, baseURL string, rel releaseConfig, kinds map[string]artifactKindDefaults, keepArtifacts bool) (renderedRelease, publicRelease, error) {
+	bootstrapRA, bootstrapPA, err := materializeArtifact(metadataDir, outputDir, baseURL, "bootstrap", rel.Bootstrap, rel.External, kinds, keepArtifacts)
 	if err != nil {
 		return renderedRelease{}, publicRelease{}, fmt.Errorf("bootstrap: %w", err)
 	}
-	bundleRA, bundlePA, err := materializeArtifact(metadataDir, outputDir, baseURL, "bundle", rel.Bundle, rel.External, kinds)
+	bundleRA, bundlePA, err := materializeArtifact(metadataDir, outputDir, baseURL, "bundle", rel.Bundle, rel.External, kinds, keepArtifacts)
 	if err != nil {
 		return renderedRelease{}, publicRelease{}, fmt.Errorf("bundle: %w", err)
 	}
@@ -476,7 +491,7 @@ func materializeRelease(metadataDir, outputDir, baseURL string, rel releaseConfi
 	}
 
 	if rel.PatchTool != nil {
-		patchRA, patchPA, err := materializeArtifact(metadataDir, outputDir, baseURL, "patch_tool", *rel.PatchTool, rel.External, kinds)
+		patchRA, patchPA, err := materializeArtifact(metadataDir, outputDir, baseURL, "patch_tool", *rel.PatchTool, rel.External, kinds, keepArtifacts)
 		if err != nil {
 			return renderedRelease{}, publicRelease{}, fmt.Errorf("patch_tool: %w", err)
 		}
@@ -492,7 +507,13 @@ func materializeRelease(metadataDir, outputDir, baseURL string, rel releaseConfi
 // builds the rendered + public views. Description and DocsURL fall back
 // to the matching kinds entry; per-release entries don't currently carry
 // those fields directly, but adding them later is a one-line change.
-func materializeArtifact(metadataDir, outputDir, baseURL, kind string, art artifactConfig, external bool, kinds map[string]artifactKindDefaults) (renderedArtifact, publicArtifact, error) {
+//
+// keepArtifacts switches the function to rerender-only mode for
+// non-external releases: instead of copying art.Source into the output
+// tree and hashing it, the SHA256 is read from the pre-existing
+// <outputDir>/<dir>/<path>/<filename>.sha256 sidecar. The artifact
+// file itself is left untouched.
+func materializeArtifact(metadataDir, outputDir, baseURL, kind string, art artifactConfig, external bool, kinds map[string]artifactKindDefaults, keepArtifacts bool) (renderedArtifact, publicArtifact, error) {
 	dir := artifactDir[kind]
 	if dir == "" {
 		return renderedArtifact{}, publicArtifact{}, fmt.Errorf("unknown artifact kind %q", kind)
@@ -503,9 +524,19 @@ func materializeArtifact(metadataDir, outputDir, baseURL, kind string, art artif
 	shaURL := joinURL(baseURL, dir, art.Path, art.Filename+".sha256")
 
 	var hash string
-	if external {
+	switch {
+	case external:
 		hash = art.SHA256
-	} else {
+	case keepArtifacts:
+		// Rerender-only path: read SHA from the existing sidecar that
+		// the previous full publish wrote next to the artifact.
+		sidecar := filepath.Join(outputDir, dir, art.Path, art.Filename+".sha256")
+		h, err := parseSHA256File(sidecar)
+		if err != nil {
+			return renderedArtifact{}, publicArtifact{}, fmt.Errorf("--keep-existing-artifacts: reading %s: %w", sidecar, err)
+		}
+		hash = h
+	default:
 		stageDir := filepath.Join(outputDir, dir, art.Path)
 		if err := os.MkdirAll(stageDir, 0o755); err != nil {
 			return renderedArtifact{}, publicArtifact{}, err

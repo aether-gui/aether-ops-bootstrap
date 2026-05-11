@@ -1,0 +1,92 @@
+# Republish the download site against the existing artifact tree.
+#
+# This workflow re-renders index.html, releases/index.html, the asset
+# bundle (CSS), and metadata.json from the current site/releases.yaml
+# WITHOUT cutting a new release: bootstrap, bundle, and patch_tool
+# artifacts already on the www server are left untouched, and their
+# SHA256 values are read from the existing .sha256 sidecars next to
+# them.
+#
+# Use this to push template / CSS / release-notes changes live without
+# waiting for the next release.
+name: Republish Download Site
+
+on:
+  workflow_dispatch:
+
+jobs:
+  republish:
+    name: re-render and publish
+    runs-on: [self-hosted, bundle-dist]
+    permissions:
+      contents: read
+    env:
+      WWW_ROOT: /var/www/tools.jointpathfinding.com/aether-ops-bootstrap
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Build build-release-site
+        run: make build-release-site
+
+      - name: Stage existing SHA256 sidecars
+        # Mirror just the directory structure + .sha256 sidecars from
+        # the live tree so --keep-existing-artifacts can resolve each
+        # release's hash. The artifacts themselves (~3.4 GB) stay on
+        # the server.
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release-site
+          rsync -a \
+            --include='*/' \
+            --include='*.sha256' \
+            --exclude='*' \
+            "$WWW_ROOT/" dist/release-site/
+          # Sanity check: at least one sidecar landed.
+          if ! find dist/release-site -name '*.sha256' -print -quit | grep -q .; then
+            echo "ERROR: no .sha256 sidecars staged from $WWW_ROOT — is the tree empty or unreadable?" >&2
+            exit 1
+          fi
+
+      - name: Re-render site pages
+        run: |
+          set -euo pipefail
+          ./dist/build-release-site \
+            --metadata site/releases.yaml \
+            --output dist/release-site \
+            --keep-existing-artifacts
+
+      - name: Publish to $WWW_ROOT
+        # Same sudoers shape distribute.yml uses. rsync without --delete
+        # so the staged artifact tree on the server (which we did NOT
+        # copy down) is untouched; only HTML / CSS / metadata.json /
+        # sidecars get rewritten in place.
+        run: |
+          set -euo pipefail
+          sudo rsync -a --chown=www-data:www-data dist/release-site/ "$WWW_ROOT/"
+
+      - name: Verify republished metadata
+        run: |
+          set -euo pipefail
+          # The republished metadata.json must still report a current
+          # release. We don't check version against a target — this
+          # workflow is intentionally version-agnostic.
+          CURRENT=$(jq -r '.releases[] | select(.current==true) | .bundle.version' "$WWW_ROOT/metadata.json")
+          if [ -z "$CURRENT" ] || [ "$CURRENT" = "null" ]; then
+            echo "ERROR: republished metadata.json has no current release" >&2
+            exit 1
+          fi
+          echo "Republished site, current release: $CURRENT"
+          # Re-check each artifact's sha256 against its sidecar to
+          # prove --keep-existing-artifacts read consistent values and
+          # the artifact tree on disk is intact.
+          for d in "$WWW_ROOT/bootstrap/$CURRENT" "$WWW_ROOT/bundles/$CURRENT" "$WWW_ROOT/tools/$CURRENT"; do
+            [ -d "$d" ] || continue
+            ( cd "$d" && for s in *.sha256; do sha256sum -c "$s"; done )
+          done
