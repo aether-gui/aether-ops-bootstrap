@@ -169,3 +169,9 @@ runner doesn't have read access to `$WWW_ROOT/metadata.json` — add
   three `release_summary:` headlines and replace the placeholder
   `release_notes:` bullet on each artifact, then merge through
   `dev → main` per the usual merge-train workflow.
+- `republish-site.yml` is a sibling `workflow_dispatch`-only workflow
+  that re-renders `index.html`, `releases/index.html`, the CSS bundle,
+  and `metadata.json` against the existing artifact tree under
+  `$WWW_ROOT`. Use it to push template, CSS, or release-notes-edit
+  changes live without cutting a new release. Sudoers requirements
+  are identical (only the `rsync -a --chown=...` shape is used).
