@@ -35,15 +35,82 @@ site:
       docs_url: https://aether-gui.github.io/docs/tools/patch-bundle
 
 releases:
+  - id: "2026-05-11-aether-ops-v0.2.0"
+    published_at: "2026-05-11T17:30:00Z"
+    current: true
+
+    bootstrap:
+      version: "2026.05.11.1"
+      path: "2026.05.11.1"
+      filename: aether-ops-bootstrap
+      source: ../dist/aether-ops-bootstrap
+      commit: "d64127f"
+      release_notes: |
+        Bootstrap unchanged source-wise from 2026.05.07.2; rebuilt
+        to ship alongside the new bundle. Same apt-repo airgap
+        install pipeline (apt-get install against
+        /var/lib/aether-ops/apt-repo, with the persistent
+        /etc/apt/sources.list.d/aether-bundle.list entry for
+        post-bootstrap operator-driven `apt install`).
+
+    bundle:
+      version: "2026.05.11.1"
+      path: "2026.05.11.1"
+      filename: bundle.tar.zst
+      source: ../dist/bundle.tar.zst
+      sha256_source: ../dist/bundle.tar.zst.sha256
+      build_commit: "d64127f"
+      release_notes: |
+        Bundle rebuilt with aether-ops bumped to v0.2.0. Two behavior
+        changes worth noting for bundle consumers:
+          - OnRamp component catalog now loads at runtime from
+            <OnRampDir>/catalog/ instead of an embedded snapshot. The
+            pinned onramp ref 78f75c6a has catalog/ present so the
+            daemon comes up fully — older onramp pins would land in
+            degraded mode.
+          - The aether-ops daemon stamps ansible_user/ansible_password
+            into hosts.ini on Start() if /etc/aether-ops/onramp-password
+            exists. The bootstrap launcher's existing
+            setInventoryCredentials pass already writes those fields,
+            so the daemon's pass is a no-op for bootstrap-installed
+            hosts. Idempotent overlap is intentional.
+        Breaking-change surface from v0.1.x → v0.2.0: "4gc" no longer
+        appears in GET /api/v1/onramp/components, and component
+        docs_url moves from /master/onramp/... to /onramp/... for the
+        12 remaining components. aether-onramp (78f75c6a), rke2
+        (v1.35.3+rke2r3), helm (v3.20.0), and sdcore-helm-charts
+        (main) unchanged from 2026.05.07.2.
+      components:
+        - name: aether-ops
+          version: v0.2.0
+        - name: aether-onramp
+          commit: 78f75c6a415c2e8567cd8c976a322e8be3d33da2
+        - name: rke2
+          version: v1.35.3+rke2r3
+        - name: helm
+          version: v3.20.0
+        - name: sdcore-helm-charts
+          version: main
+
+    patch_tool:
+      version: "2026.05.11.1"
+      path: "2026.05.11.1"
+      filename: patch-bundle
+      source: ../dist/patch-bundle
+      build_commit: "d64127f"
+      release_notes: |
+        Patch tool rebuilt alongside the 2026.05.11.1 launcher and
+        bundle. No functional changes.
+
   - id: "2026-05-07-onramp-usb-bind-mount"
     published_at: "2026-05-08T01:30:00Z"
-    current: true
+    external: true
 
     bootstrap:
       version: "2026.05.07.2"
       path: "2026.05.07.2"
       filename: aether-ops-bootstrap
-      source: ../dist/aether-ops-bootstrap
+      sha256: "03613545bc33a02fce1f84a5c83b1a79f89e2185e314b5b6205177f7ef4a5209"
       commit: "8669678"
       release_notes: |
         Bootstrap unchanged from 2026.05.07.1 source-wise; rebuilt
@@ -57,8 +124,7 @@ releases:
       version: "2026.05.07.2"
       path: "2026.05.07.2"
       filename: bundle.tar.zst
-      source: ../dist/bundle.tar.zst
-      sha256_source: ../dist/bundle.tar.zst.sha256
+      sha256: "7d9a0212ed655fdef245685084988df9c87a08b8df04c907b10f8cbbd9b9a25f"
       build_commit: "8669678"
       release_notes: |
         Bundle rebuilt to re-pin aether-onramp at upstream 78f75c6a
@@ -88,7 +154,7 @@ releases:
       version: "2026.05.07.2"
       path: "2026.05.07.2"
       filename: patch-bundle
-      source: ../dist/patch-bundle
+      sha256: "6ba45df841a7824673391b4ae21b70e070c27014788a7a3dd375a120e5c00368"
       build_commit: "8669678"
       release_notes: |
         Patch tool rebuilt alongside the 2026.05.07.2 launcher and
