@@ -11,7 +11,7 @@ instead of multi-minute LXD HTTPS API transfers.
 
 The runner is registered **org-wide** (under `aether-gui`) so other
 repositories in the org can opt into it by adding
-`runs-on: [self-hosted, aether-www]`. The label gates which jobs
+`runs-on: [self-hosted, bundle-dist]`. The label gates which jobs
 land here.
 
 ## Prerequisites on the `www` container
@@ -81,7 +81,7 @@ the runner does need to be able to extract a tarball, so verify
        --url https://github.com/aether-gui \
        --token <REGISTRATION_TOKEN> \
        --name www-aether \
-       --labels aether-www \
+       --labels bundle-dist \
        --work _work \
        --unattended \
        --replace
@@ -130,7 +130,7 @@ further change is needed once the drop-in lands.
 
 From the org's *Settings → Actions → Runners* page on GitHub, the
 new runner should appear as `www-aether` with status *Idle* and the
-`aether-www` label. Kick off the `release` workflow via *Run
+`bundle-dist` label. Kick off the `release` workflow via *Run
 workflow* with no inputs (it will default to today's UTC date with
 `N=1`) — or tag the repo with `git tag vYYYY.MM.DD.N && git push
 --tags` — and watch the run complete.
