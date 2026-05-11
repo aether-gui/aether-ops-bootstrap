@@ -252,14 +252,15 @@ jobs:
           \`https://tools.jointpathfinding.com/aether-ops-bootstrap/\` — this PR just keeps
           the repo's \`site/releases.yaml\` and the live site in lock-step.
 
-          The placeholder \`TODO\` lines in the new release entry's \`release_notes\`
-          blocks need to be filled in before merging.
+          The placeholder \`TODO\` bullets in the new release entry's \`release_notes\`
+          lists need to be filled in (along with a one-line \`release_summary\` headline
+          on each artifact) before merging.
 
           ## Test plan
 
           - [x] Workflow built every artifact and verified \`sha256sum -c\` on the www container.
           - [x] \`metadata.json\` reports \`$BUNDLE_VERSION\` as the current release.
-          - [ ] Fill in the three \`release_notes\` placeholders.
+          - [ ] Fill in \`release_summary\` and \`release_notes\` on bootstrap, bundle, and patch_tool.
           - [ ] Merge through dev → main per the usual merge-train workflow.
           EOF
           )"

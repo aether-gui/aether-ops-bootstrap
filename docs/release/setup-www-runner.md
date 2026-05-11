@@ -166,5 +166,6 @@ runner doesn't have read access to `$WWW_ROOT/metadata.json` — add
   `$RUNNER_TOOL_CACHE` (default `/opt/hostedtoolcache`); the runner
   owner needs write access to that path.
 - The workflow opens a PR but does not auto-merge. Fill in the
-  three `release_notes: |` placeholders, then merge through
+  three `release_summary:` headlines and replace the placeholder
+  `release_notes:` bullet on each artifact, then merge through
   `dev → main` per the usual merge-train workflow.

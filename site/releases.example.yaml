@@ -17,8 +17,18 @@ releases:
       filename: aether-ops-bootstrap
       source: ../dist/aether-ops-bootstrap
       commit: "341787b"
-      release_notes: |
-        Replace this with launcher-specific notes for the release.
+      # release_summary is the one- or two-sentence headline shown
+      # above the bullet list. Optional but recommended — without it
+      # the card renders only the bullet list (collapsed by default).
+      release_summary: >-
+        Replace this with a one- or two-sentence summary of the launcher change.
+      # release_notes is a YAML sequence — each entry renders as a
+      # bullet point under the "Show change details" disclosure on the
+      # download page. Wrap long bullets across multiple physical
+      # lines if needed (YAML folds them) or split into multiple
+      # bullets.
+      release_notes:
+        - Replace this with a launcher-specific note for the release.
 
     bundle:
       label: Offline Bundle
@@ -28,8 +38,10 @@ releases:
       source: ../dist/bundle.tar.zst
       sha256_source: ../dist/bundle.tar.zst.sha256
       build_commit: "341787b"
-      release_notes: |
-        Replace this with bundle-specific notes for the release.
+      release_summary: >-
+        Replace this with a one- or two-sentence summary of the bundle change.
+      release_notes:
+        - Replace this with a bundle-specific note for the release.
       # Bundled components rendered as a list under the bundle card.
       # Each entry is free-form: provide whichever of version/commit
       # are meaningful. Long commit hashes are auto-shortened to 7 chars.
