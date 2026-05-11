@@ -1,5 +1,4 @@
 schema_version: 1
-
 site:
   title: Aether Ops Bootstrap Downloads
   base_url_path: /aether-ops-bootstrap
@@ -12,33 +11,22 @@ site:
     bootstrap:
       label: Bootstrap Launcher
       description: >-
-        One-shot offline installer for the Aether platform layer. Reads an
-        offline bundle and brings up RKE2, aether-ops, and the prerequisites
-        on a freshly installed Ubuntu Server host without touching the
-        network.
+        One-shot offline installer for the Aether platform layer. Reads an offline bundle and brings up RKE2, aether-ops, and the prerequisites on a freshly installed Ubuntu Server host without touching the network.
       docs_url: https://aether-gui.github.io/docs/tools/aether-ops-bootstrap
     bundle:
       label: Offline Bundle
       description: >-
-        Opaque tarball containing every artifact the launcher needs to bring
-        a host up offline — `.deb` packages, RKE2, Helm, aether-ops, the
-        aether-onramp toolchain, container images, and a manifest pinning
-        every file's SHA256.
+        Opaque tarball containing every artifact the launcher needs to bring a host up offline — `.deb` packages, RKE2, Helm, aether-ops, the aether-onramp toolchain, container images, and a manifest pinning every file's SHA256.
       docs_url: https://aether-gui.github.io/docs/concepts/bundle-structure
     patch_tool:
       label: Bundle Patch Tool
       description: >-
-        Rewrites files inside an existing bundle without re-running a full
-        build — fast path for swapping aether-onramp configuration templates
-        (SDR parameters, ZMQ ports, SD-Core values) without re-pulling images
-        or APT packages.
+        Rewrites files inside an existing bundle without re-running a full build — fast path for swapping aether-onramp configuration templates (SDR parameters, ZMQ ports, SD-Core values) without re-pulling images or APT packages.
       docs_url: https://aether-gui.github.io/docs/tools/patch-bundle
-
 releases:
   - id: "2026-05-11-aether-ops-v0.2.0"
     published_at: "2026-05-11T17:30:00Z"
     current: true
-
     bootstrap:
       version: "2026.05.11.1"
       path: "2026.05.11.1"
@@ -52,7 +40,6 @@ releases:
         /var/lib/aether-ops/apt-repo, with the persistent
         /etc/apt/sources.list.d/aether-bundle.list entry for
         post-bootstrap operator-driven `apt install`).
-
     bundle:
       version: "2026.05.11.1"
       path: "2026.05.11.1"
@@ -91,7 +78,6 @@ releases:
           version: v3.20.0
         - name: sdcore-helm-charts
           version: main
-
     patch_tool:
       version: "2026.05.11.1"
       path: "2026.05.11.1"
@@ -101,11 +87,9 @@ releases:
       release_notes: |
         Patch tool rebuilt alongside the 2026.05.11.1 launcher and
         bundle. No functional changes.
-
   - id: "2026-05-07-onramp-usb-bind-mount"
     published_at: "2026-05-08T01:30:00Z"
     external: true
-
     bootstrap:
       version: "2026.05.07.2"
       path: "2026.05.07.2"
@@ -119,7 +103,6 @@ releases:
         /var/lib/aether-ops/apt-repo, with the persistent
         /etc/apt/sources.list.d/aether-bundle.list entry for
         post-bootstrap operator-driven `apt install`).
-
     bundle:
       version: "2026.05.07.2"
       path: "2026.05.07.2"
@@ -149,7 +132,6 @@ releases:
           version: v3.20.0
         - name: sdcore-helm-charts
           version: main
-
     patch_tool:
       version: "2026.05.07.2"
       path: "2026.05.07.2"
@@ -159,11 +141,9 @@ releases:
       release_notes: |
         Patch tool rebuilt alongside the 2026.05.07.2 launcher and
         bundle. No functional changes.
-
   - id: "2026-05-07-apt-repo-airgap-install"
     published_at: "2026-05-07T21:45:00Z"
     external: true
-
     bootstrap:
       version: "2026.05.07.1"
       path: "2026.05.07.1"
@@ -186,7 +166,6 @@ releases:
         2026.05.06.1 udev component was working around. Bundle
         manifest schema bumped to v2; old launchers refuse new
         bundles and vice-versa.
-
     bundle:
       version: "2026.05.07.1"
       path: "2026.05.07.1"
@@ -215,7 +194,6 @@ releases:
           version: v3.20.0
         - name: sdcore-helm-charts
           version: main
-
     patch_tool:
       version: "2026.05.07.1"
       path: "2026.05.07.1"
@@ -225,461 +203,3 @@ releases:
       release_notes: |
         Patch tool rebuilt alongside the 2026.05.07.1 launcher and
         bundle. No functional changes.
-
-  - id: "2026-05-06-udev-onramp-airgap-cache"
-    published_at: "2026-05-06T22:45:00Z"
-    external: true
-
-    bootstrap:
-      version: "2026.05.06.1"
-      path: "2026.05.06.1"
-      filename: aether-ops-bootstrap
-      sha256: "34fb10e6fcd4e89ee41c5f48ceae3dc3bb2ea996c1771aff0daefe38e6e6d7f1"
-      commit: "73c0703"
-      release_notes: |
-        Bootstrap rebuilt with a new udev component that installs
-        rule drop-ins from templates/udev.rules.d/ into
-        /etc/udev/rules.d and runs `udevadm control --reload-rules`
-        followed by `udevadm trigger`. Ships uhd-usrp.rules so USRP
-        B200/B210, USRP1, and B100 USB nodes come up world-writable
-        and the onramp/aether service account can open them; without
-        this, onramp's gNB role fails to acquire the radio after a
-        fresh install. The component is registered after
-        service_account in the launcher and added to the RAN role's
-        component set.
-
-    bundle:
-      version: "2026.05.06.1"
-      path: "2026.05.06.1"
-      filename: bundle.tar.zst
-      sha256: "653ca47b51b9ccb22e6cb2062c8829a905aa94b6b6e1339964ca9db756b0fa39"
-      build_commit: "73c0703"
-      release_notes: |
-        Bundle rebuilt to re-pin aether-onramp at upstream
-        11a34c9 (current HEAD of opennetworkinglab/aether-onramp
-        main). Picks up upstream PR #210's airgap cache protection:
-        the new airgapped.allow_purge flag preserves cached
-        container images and bundled rke2/helm binaries across
-        stop/uninstall in airgap mode, docker-driven roles consume
-        locally-staged images instead of pulling, and network-only
-        install steps in ueransim, oscric, amp/roc, and amp/monitor
-        gate on airgapped.enabled. aether-ops v0.1.50, rke2
-        v1.35.3+rke2r3, and helm v3.20.0 are unchanged from
-        2026.05.05.5. Lockfile refreshed: docker-ce roll forward
-        to 5:29.4.3-1.
-      components:
-        - name: aether-ops
-          version: v0.1.50
-        - name: aether-onramp
-          commit: 11a34c9675da7c58de08e31fe54e4e098c402ff2
-        - name: rke2
-          version: v1.35.3+rke2r3
-        - name: helm
-          version: v3.20.0
-        - name: sdcore-helm-charts
-          version: main
-
-    patch_tool:
-      version: "2026.05.06.1"
-      path: "2026.05.06.1"
-      filename: patch-bundle
-      sha256: "aa8a19d5cc3009bada8d035638521bf22d62a72ae1d50b3663b8e71656168d2a"
-      build_commit: "73c0703"
-      release_notes: |
-        Patch tool rebuilt alongside the 2026.05.06.1 launcher and
-        bundle. No functional changes.
-
-  - id: "2026-05-05-airgap-bringup-hardening"
-    published_at: "2026-05-05T23:23:22Z"
-    external: true
-
-    bootstrap:
-      version: "2026.05.05.5"
-      path: "2026.05.05.5"
-      filename: aether-ops-bootstrap
-      sha256: "0be6d230b1b8b9aa1a3ce822553b96ccdc8b9dfdfa0459882c0e22ecf75049ab"
-      commit: "141c4d8"
-      release_notes: |
-        Bootstrap rebuilt with airgap bring-up fixes uncovered during
-        gNB lab deployment. Adds a new dockerimages install step that
-        loads the bundle's container image tarballs into Docker's
-        image store after rke2 stages them into containerd, so OnRamp
-        roles that drive Docker directly (ocudu, gnbsim, oai, srsran,
-        n3iwf, oscric, plus the gNB Docker preflight) see the
-        pre-pulled images. The debs install step now skips packages
-        already on the host (queried via dpkg-query) to avoid the
-        half-upgrade ABI skew that wedged apt for future installs.
-        Bundle resolver groups noble / noble-updates / noble-security
-        as one merged index per arch so transitive system libs match
-        the host's point release.
-
-    bundle:
-      version: "2026.05.05.5"
-      path: "2026.05.05.5"
-      filename: bundle.tar.zst
-      sha256: "b69fdeca820fde60353c19b4dd0b78ee938fc8c543e526d7d8169c48764bd469"
-      build_commit: "141c4d8"
-      release_notes: |
-        Bundle rebuilt with the airgap-aligned versions OnRamp's
-        vars/main.yml expects: rke2 bumped to v1.35.3+rke2r3, helm to
-        v3.20.0. Ubuntu suite list now spans noble + noble-updates +
-        noble-security so transitive system libs resolve at the host
-        image's current point release. Image scanner gained
-        umbrella-aware partial resolution (Bitnami's bitnamilegacy
-        rename: umbrella overrides repository, subchart supplies
-        tag) and explicit images.extra entries for the bitnamilegacy
-        mongodb / kafka pair plus aetherproject/ocudu and
-        aetherproject/srsran-ue (latter two until the OnRamp role
-        scanner exists). aether-onramp pinned at fd2037f1d8 (no
-        change from 2026.05.05.2).
-      components:
-        - name: aether-ops
-          version: v0.1.50
-        - name: aether-onramp
-          commit: fd2037f1d89120ffcb0eab0e28e620fb8ca4882d
-        - name: rke2
-          version: v1.35.3+rke2r3
-        - name: helm
-          version: v3.20.0
-        - name: sdcore-helm-charts
-          version: main
-
-    patch_tool:
-      version: "2026.05.05.5"
-      path: "2026.05.05.5"
-      filename: patch-bundle
-      sha256: "88e0d79e8fd626fdb49421ddd5fc621a219627743a2b83c37e8a7b2a23b390e1"
-      build_commit: "141c4d8"
-      release_notes: |
-        Patch tool rebuilt alongside the 2026.05.05.5 launcher and
-        bundle. No functional changes; tooling only ships current
-        with the rest of the release artifacts.
-
-  - id: "2026-05-05-onramp-upstream-fd2037f"
-    published_at: "2026-05-05T20:04:27Z"
-    external: true
-
-    bootstrap:
-      version: "2026.05.05.2"
-      path: "2026.05.05.2"
-      filename: aether-ops-bootstrap
-      sha256: "ddb8c8458cf12eb6405928d0e9b20e91488d843d99ed3e992275f4c69019378d"
-      commit: "90eda9b"
-      release_notes: |
-        Bootstrap rebuilt alongside the 2026.05.05.2 offline bundle.
-        Source unchanged from 2026.05.05.1
-        (aether-ops-bootstrap@90eda9b); the bundle is what differs
-        between the two releases.
-
-    bundle:
-      version: "2026.05.05.2"
-      path: "2026.05.05.2"
-      filename: bundle.tar.zst
-      sha256: "632f34c8d72ea503fc6d40c9a0d1b7b60bb725cf1095a906f15e83f779d83603"
-      build_commit: "90eda9b"
-      release_notes: |
-        Bundle rebuilt to bump aether-onramp from 25099664 to
-        fd2037f1d8 (current HEAD of opennetworkinglab/aether-onramp
-        main). Picks up upstream PR #206 (gNB: preflight Docker CPU
-        availability before container start). All other components
-        unchanged from 2026.05.05.1: aether-ops v0.1.50, rke2
-        v1.33.1+rke2r1, helm v3.17.3, sdcore-helm-charts main.
-      components:
-        - name: aether-ops
-          version: v0.1.50
-        - name: aether-onramp
-          commit: fd2037f1d89120ffcb0eab0e28e620fb8ca4882d
-        - name: rke2
-          version: v1.33.1+rke2r1
-        - name: helm
-          version: v3.17.3
-        - name: sdcore-helm-charts
-          version: main
-
-    patch_tool:
-      version: "2026.05.05.2"
-      path: "2026.05.05.2"
-      filename: patch-bundle
-      sha256: "ae1ac134f248c3f80957d8280010dbdaa3a91e62e95b7e425b30066189235101"
-      build_commit: "90eda9b"
-      release_notes: |
-        Patch tool rebuilt alongside the 2026.05.05.2 launcher and
-        bundle. No functional changes since 2026.05.05.1.
-
-  - id: "2026-05-05-rke2-onramp-config-parity"
-    published_at: "2026-05-05T14:53:09Z"
-    external: true
-
-    bootstrap:
-      version: "2026.05.05.1"
-      path: "2026.05.05.1"
-      filename: aether-ops-bootstrap
-      sha256: "40e8f4f941de64a6184128a2d6f4e6f76deb7236978d810664c2252bf9ff4b7f"
-      commit: "90eda9b"
-      release_notes: |
-        Bootstrap rebuilt with the RKE2 onramp-config parity changes
-        from aether-ops-bootstrap#32. Adds the kubelet
-        `--allowed-unsafe-sysctls=net.*` and kube-apiserver
-        `--service-node-port-range=2000-36767` args sd-core depends
-        on, plus the kube-proxy metrics bind, explicit pod/service
-        CIDRs, cluster token, and node-name fields onramp's k8s role
-        would otherwise have applied. Drops a
-        `/etc/sysctl.d/90-aether-ops.conf` with `fs.file-max` and the
-        `fs.inotify.*` limits and runs `sysctl --system` before
-        rke2-server starts so kubelet boots under the tuned limits.
-        Pairs with the 2026.05.05.1 offline bundle.
-
-    bundle:
-      version: "2026.05.05.1"
-      path: "2026.05.05.1"
-      filename: bundle.tar.zst
-      sha256: "306bb39e0d24a890453d0d580f7acc7a2461408effbe74297b664521efc2c1be"
-      build_commit: "90eda9b"
-      release_notes: |
-        Bundle rebuilt to pair with the 2026.05.05.1 launcher.
-        aether-onramp moves off the bengrewell fork and pins
-        opennetworkinglab/aether-onramp at 25099664 (current HEAD of
-        upstream main). aether-ops v0.1.50, rke2 v1.33.1+rke2r1, and
-        helm v3.17.3 are unchanged. The launcher's new RKE2 config
-        template and pre-install sysctl drop-in ride along inside
-        the bundle.
-      components:
-        - name: aether-ops
-          version: v0.1.50
-        - name: aether-onramp
-          commit: 25099664b08a67f0f2b3c74f356aabfe71d50a8f
-        - name: rke2
-          version: v1.33.1+rke2r1
-        - name: helm
-          version: v3.17.3
-        - name: sdcore-helm-charts
-          version: main
-
-    patch_tool:
-      version: "2026.05.05.1"
-      path: "2026.05.05.1"
-      filename: patch-bundle
-      sha256: "f2c3335b75d9b5f829fa6ecf9f6286ad6ba0ef35a5f5fd142045b851974e7e1a"
-      build_commit: "90eda9b"
-      release_notes: |
-        Patch tool rebuilt alongside the 2026.05.05.1 launcher and
-        bundle. No functional changes since 2026.04.30.2.
-
-  - id: "2026-04-30-aether-ops-v0150"
-    published_at: "2026-04-30T20:00:00Z"
-    external: true
-
-    bootstrap:
-      version: "2026.04.30.2"
-      path: "2026.04.30.2"
-      filename: aether-ops-bootstrap
-      sha256: "c9ad39ed22bd0dbe857b1923a42771b3ec69a8a7973c7c5158ff9454339f929e"
-      commit: "fbfec6e"
-      release_notes: |
-        Bootstrap rebuilt to pair with the 2026.04.30.2 offline bundle.
-        Carries the same daemon sudoers-dropin fix introduced in
-        2026.04.30.1 (aether-ops#175); no launcher-side changes since.
-
-    bundle:
-      version: "2026.04.30.2"
-      path: "2026.04.30.2"
-      filename: bundle.tar.zst
-      sha256: "e8bf67e4629066a2e9955e69c3f7e15a854c36873cfc17f68027bb9498cdd4c6"
-      build_commit: "fbfec6e"
-      release_notes: |
-        Bundle rebuilt with the released aether-ops v0.1.50, replacing
-        the v0.1.48-SNAPSHOT-57840b5 build that shipped in 2026.04.30.1.
-        v0.1.50 lands the data-driven component manifest used to resolve
-        install/uninstall verbs for OnRamp integration, treats probe
-        execution failures as `unknown` (not `not_installed`), and pins
-        the frontend submodule to the beta channel with a refreshed
-        embedded dist. aether-onramp pin is unchanged
-        (bengrewell/aether-onramp at 7aad6b9).
-      components:
-        - name: aether-ops
-          version: v0.1.50
-        - name: aether-onramp
-          commit: 7aad6b908c82f1631081224a870bea96bf43db6d
-        - name: rke2
-          version: v1.33.1+rke2r1
-        - name: helm
-          version: v3.17.3
-        - name: sdcore-helm-charts
-          version: main
-
-    patch_tool:
-      version: "2026.04.30.2"
-      path: "2026.04.30.2"
-      filename: patch-bundle
-      sha256: "2f67c6f4966812911516f95f2056f8688c8c1e8c6f1a589ad00586a0a44d1b68"
-      build_commit: "fbfec6e"
-      release_notes: |
-        Patch tool rebuilt alongside the 2026.04.30.2 launcher and
-        bundle. No functional changes since 2026.04.30.1.
-
-  - id: "2026-04-30-daemon-sudoers-grant"
-    published_at: "2026-04-30T18:00:00Z"
-    external: true
-
-    bootstrap:
-      version: "2026.04.30.1"
-      path: "2026.04.30.1"
-      filename: aether-ops-bootstrap
-      sha256: "c9ad39ed22bd0dbe857b1923a42771b3ec69a8a7973c7c5158ff9454339f929e"
-      commit: "fbfec6e"
-      release_notes: |
-        Bootstrap installs a NOPASSWD sudoers dropin at
-        /etc/sudoers.d/aether-ops alongside the existing onramp-user
-        fragment, fixing component probes (kubectl, helm, docker) that
-        run as the daemon user via `sudo -n`. Without it, healthy
-        components flipped to not_installed about two minutes after each
-        install (see aether-ops#175). Pairs with the 2026.04.30.1
-        offline bundle.
-
-    bundle:
-      version: "2026.04.30.1"
-      path: "2026.04.30.1"
-      filename: bundle.tar.zst
-      sha256: "90e082955292e57db27f7296efb704b0dc2bdd6b8b8b53dc29db327e3dae0c62"
-      build_commit: "fbfec6e"
-      release_notes: |
-        Bundle rebuilt with aether-ops v0.1.48-SNAPSHOT-57840b5. Pairs
-        with the launcher fix that installs the daemon sudoers dropin —
-        see the bootstrap notes for context. aether-onramp pin is
-        unchanged from 2026.04.29.1 (bengrewell/aether-onramp at
-        7aad6b9).
-      components:
-        - name: aether-ops
-          version: v0.1.48-SNAPSHOT-57840b5
-        - name: aether-onramp
-          commit: 7aad6b908c82f1631081224a870bea96bf43db6d
-        - name: rke2
-          version: v1.33.1+rke2r1
-        - name: helm
-          version: v3.17.3
-        - name: sdcore-helm-charts
-          version: main
-
-    patch_tool:
-      version: "2026.04.30.1"
-      path: "2026.04.30.1"
-      filename: patch-bundle
-      sha256: "2f67c6f4966812911516f95f2056f8688c8c1e8c6f1a589ad00586a0a44d1b68"
-      build_commit: "fbfec6e"
-      release_notes: |
-        Patch tool rebuilt alongside the 2026.04.30.1 launcher and
-        bundle. No functional changes since the 2026.04.29.1 release.
-
-  - id: "2026-04-29-dynamic-discovery-ocudu"
-    published_at: "2026-04-29T18:15:00Z"
-    external: true
-
-    bootstrap:
-      version: "2026.04.29.1"
-      path: "2026.04.29.1"
-      filename: aether-ops-bootstrap
-      sha256: "4f7eefae843bfa08814e046178ee63832a1e7bc3ac2d36b9b94268d3a26fc00d"
-      commit: "ec4d6b8"
-      release_notes: |
-        Bootstrap rebuilt to pair with the 2026.04.29.1 offline bundle.
-        Inherits the dynamic component discovery and ocudu support
-        introduced by aether-ops v0.1.48-11.
-
-    bundle:
-      version: "2026.04.29.1"
-      path: "2026.04.29.1"
-      filename: bundle.tar.zst
-      sha256: "926b44d1ed32e529bbc7e5fec1ffd71c576a86554504468e82cd5a873afc7ac2"
-      build_commit: "ec4d6b8"
-      release_notes: |
-        Bundle rebuilt with aether-ops v0.1.48-11, which migrates internal
-        component discovery to a dynamic scheme and adds support for ocudu
-        (O-CU/O-DU) workloads. aether-onramp is pinned to
-        bengrewell/aether-onramp at 7aad6b9.
-      components:
-        - name: aether-ops
-          version: v0.1.48-11
-        - name: aether-onramp
-          commit: 7aad6b908c82f1631081224a870bea96bf43db6d
-        - name: rke2
-          version: v1.33.1+rke2r1
-        - name: helm
-          version: v3.17.3
-        - name: sdcore-helm-charts
-          version: main
-
-    patch_tool:
-      version: "2026.04.29.1"
-      path: "2026.04.29.1"
-      filename: patch-bundle
-      sha256: "4bf38cbd5ff7521dbfc57ae54c32b81b9536662a49e1ed1c8f39ce99f41cf772"
-      build_commit: "20a98e7"
-      release_notes: |
-        Initial release of the standalone bundle patch tool. Replaces files
-        inside an existing bundle.tar.zst (typically aether-onramp templates)
-        and re-archives without a full rebuild. Use with
-        `aether-ops-bootstrap install --bundle patched.tar.zst` for a fresh
-        install. Patched bundles carry a tree_sha256 in their manifest so
-        future launchers can detect the change and re-extract during upgrade.
-
-  - id: "2026-04-28-forked-onramp-offline-bundle"
-    published_at: "2026-04-28"
-    external: true
-
-    bootstrap:
-      label: Bootstrap Launcher
-      version: "2026.04.28.1"
-      path: "2026.04.28.1"
-      filename: aether-ops-bootstrap
-      sha256: "35c23354af5e8a204c53ac1754bf088837b068aaecb0aa4e42f2683f547f1711"
-      commit: "8a9b6a7"
-      release_notes: |
-        Bootstrap rebuilt with offline dependency discovery updates.
-        Pairs with the 2026.04.28.1 offline bundle below.
-
-    bundle:
-      label: Offline Bundle
-      version: "2026.04.28.1"
-      path: "2026.04.28.1"
-      filename: bundle.tar.zst
-      sha256: "0c9ca2c771e2bf0733be67e9a5308c90aeba238d0e8f5b866d10e59987bfc50a"
-      build_commit: "8a9b6a7"
-      release_notes: |
-        Pin aether-onramp to Ben Grewell's fork main at 10f95969 and
-        bundle the offline discovery fixes for downstream apt sources
-        and Python dependencies.
-      components:
-        - name: aether-ops
-          version: v0.1.49
-        - name: aether-onramp
-          commit: 10f95969fae1a281ffc09e3b042c4232b766c4be
-        - name: rke2
-          version: v1.33.1+rke2r1
-        - name: helm
-          version: v3.17.3
-        - name: sdcore-helm-charts
-          version: main
-
-  - id: "2026-04-21-legacy-migration"
-    published_at: "2026-04-21"
-    external: true
-
-    bootstrap:
-      label: Bootstrap Launcher
-      version: "75229ab"
-      path: "75229ab"
-      filename: aether-ops-bootstrap
-      sha256: "e090bf6561696063d002ddff2316101b7206b52b80748a16d929d1e872de3b1c"
-      commit: "75229ab"
-      release_notes: |
-        Current launcher artifact preserved during the migration from the legacy hash-based layout.
-
-    bundle:
-      label: Offline Bundle
-      version: "0.0.0-dev"
-      path: "0.0.0-dev-2760b8f"
-      filename: bundle.tar.zst
-      sha256: "80b576b97efacc7ea87c17747b90bfc0bc9d82c5cd9cb6ba897a0e29d06f6aa4"
-      build_commit: "2760b8f"
-      release_notes: |
-        Current offline bundle preserved during the migration from the legacy hash-based layout.
