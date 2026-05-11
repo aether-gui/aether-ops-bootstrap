@@ -59,15 +59,15 @@ type releaseConfig struct {
 }
 
 type artifactConfig struct {
-	Label        string            `yaml:"label"`
-	Version      string            `yaml:"version"`
-	Path         string            `yaml:"path"`
-	Filename     string            `yaml:"filename"`
-	Source       string            `yaml:"source"`
-	SHA256       string            `yaml:"sha256"`
-	SHA256Source string            `yaml:"sha256_source"`
-	Commit       string            `yaml:"commit"`
-	BuildCommit  string            `yaml:"build_commit"`
+	Label        string `yaml:"label"`
+	Version      string `yaml:"version"`
+	Path         string `yaml:"path"`
+	Filename     string `yaml:"filename"`
+	Source       string `yaml:"source"`
+	SHA256       string `yaml:"sha256"`
+	SHA256Source string `yaml:"sha256_source"`
+	Commit       string `yaml:"commit"`
+	BuildCommit  string `yaml:"build_commit"`
 	// ReleaseSummary is a one- or two-sentence headline shown above the
 	// (collapsible) bullet list. Optional — when empty the page shows
 	// the bullet list with no preamble. Authored as a YAML scalar so
@@ -100,21 +100,21 @@ type publicRelease struct {
 }
 
 type publicArtifact struct {
-	Kind         string            `json:"kind"` // "bootstrap" | "bundle" | "patch_tool"
-	Label        string            `json:"label"`
-	Description  string            `json:"description,omitempty"`
-	DocsURL      string            `json:"docs_url,omitempty"`
-	Version      string            `json:"version"`
-	Path         string            `json:"path"`
-	Filename     string            `json:"filename"`
-	SHA256       string            `json:"sha256"`
-	Commit       string            `json:"commit,omitempty"`
-	BuildCommit  string            `json:"build_commit,omitempty"`
+	Kind           string            `json:"kind"` // "bootstrap" | "bundle" | "patch_tool"
+	Label          string            `json:"label"`
+	Description    string            `json:"description,omitempty"`
+	DocsURL        string            `json:"docs_url,omitempty"`
+	Version        string            `json:"version"`
+	Path           string            `json:"path"`
+	Filename       string            `json:"filename"`
+	SHA256         string            `json:"sha256"`
+	Commit         string            `json:"commit,omitempty"`
+	BuildCommit    string            `json:"build_commit,omitempty"`
 	ReleaseSummary string            `json:"release_summary,omitempty"`
 	ReleaseNotes   []string          `json:"release_notes,omitempty"`
-	URL          string            `json:"url"`
-	SHA256URL    string            `json:"sha256_url,omitempty"`
-	Components   []publicComponent `json:"components,omitempty"`
+	URL            string            `json:"url"`
+	SHA256URL      string            `json:"sha256_url,omitempty"`
+	Components     []publicComponent `json:"components,omitempty"`
 }
 
 type publicComponent struct {
@@ -164,7 +164,6 @@ type renderedComponent struct {
 	Version string
 	Commit  string
 }
-
 
 func main() {
 	var metadataPath string
