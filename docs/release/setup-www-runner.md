@@ -1,6 +1,6 @@
 # Set up the self-hosted GitHub runner in the `www` container
 
-One-time setup so `.github/workflows/release.yml` can build, publish,
+One-time setup so `.github/workflows/distribute.yml` can build, publish,
 and open release PRs without an operator running the
 `deploy-dist-site.md` procedure by hand.
 
@@ -113,7 +113,7 @@ else, so a narrow sudoers drop-in is the right granularity:
 /snap/bin/lxc exec datacenter:www -- bash -c '
   cat >/etc/sudoers.d/aether-runner <<"EOF"
 # Allow the self-hosted runner to publish to /var/www without granting
-# full root. The two commands are exactly what .github/workflows/release.yml
+# full root. The two commands are exactly what .github/workflows/distribute.yml
 # needs in its "Publish to $WWW_ROOT" step.
 aether-runner ALL=(root) NOPASSWD: /usr/bin/install -d -m 755 -o www-data -g www-data *
 aether-runner ALL=(root) NOPASSWD: /usr/bin/rsync -a --chown=www-data\:www-data *
@@ -123,14 +123,14 @@ EOF
 '
 ```
 
-The release workflow already invokes both commands via `sudo`, so no
-further change is needed once the drop-in lands.
+The Distribute workflow already invokes both commands via `sudo`, so
+no further change is needed once the drop-in lands.
 
 ## Verify the runner is healthy
 
 From the org's *Settings → Actions → Runners* page on GitHub, the
 new runner should appear as `www-aether` with status *Idle* and the
-`bundle-dist` label. Kick off the `release` workflow via *Run
+`bundle-dist` label. Kick off the `Distribute` workflow via *Run
 workflow* with no inputs (it will default to today's UTC date with
 `N=1`) — or tag the repo with `git tag vYYYY.MM.DD.N && git push
 --tags` — and watch the run complete.

@@ -7,7 +7,7 @@ The site lives in the `www` container on LXD remote `datacenter`
 (host `services-01.dc.lan`), under
 `/var/www/tools.jointpathfinding.com/aether-ops-bootstrap/`.
 
-> **Prefer the automated path.** `.github/workflows/release.yml`
+> **Prefer the automated path.** `.github/workflows/distribute.yml`
 > rebuilds, rotates `site/releases.yaml`, publishes to the www
 > container, and opens a release PR — all on the self-hosted
 > runner that lives inside the container. Trigger it via
