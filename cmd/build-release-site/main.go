@@ -497,6 +497,15 @@ func main() {
 	flag.StringVar(&bootstrapNotesFile, "bootstrap-notes", "", "path to a markdown/text file used verbatim as the new bootstrap release_notes (default: placeholder text)")
 	flag.StringVar(&bundleNotesFile, "bundle-notes", "", "path to a markdown/text file used verbatim as the new bundle release_notes (default: placeholder text)")
 	flag.StringVar(&patchToolNotesFile, "patch-tool-notes", "", "path to a markdown/text file used verbatim as the new patch_tool release_notes (default: placeholder text)")
+
+	// Retention: when --prune-keep is set to a non-negative value,
+	// external release entries beyond the first N are dropped from
+	// releases.yaml after promotion. The list of pruned versions is
+	// printed to stdout so a wrapping shell/workflow can delete the
+	// matching on-disk artifact directories. Default of -1 means
+	// "no pruning" so existing call sites keep their behaviour.
+	pruneKeep := -1
+	flag.IntVar(&pruneKeep, "prune-keep", -1, "after promotion, prune external release entries beyond the first N (e.g. --prune-keep=2 keeps current + 2 prior). Set to -1 (default) to disable.")
 	flag.Parse()
 
 	if metadataPath == "" || outputDir == "" {
@@ -509,6 +518,22 @@ func main() {
 			priorBootstrapSHA, priorBundleSHA, priorPatchToolSHA,
 			bootstrapNotesFile, bundleNotesFile, patchToolNotesFile); err != nil {
 			exitf("promote: %v", err)
+		}
+	}
+
+	if pruneKeep >= 0 {
+		pruned, err := releaseyaml.Prune(metadataPath, pruneKeep)
+		if err != nil {
+			exitf("prune: %v", err)
+		}
+		// Print pruned versions, one per line, on stdout. The release
+		// workflow consumes this list to delete the matching artifact
+		// directories on the www container. An empty list is a valid
+		// outcome (no entries past keepN); print a header line so the
+		// caller can distinguish "no-op" from "error".
+		fmt.Fprintf(os.Stderr, "pruned %d external release entries (keep=%d)\n", len(pruned), pruneKeep)
+		for _, v := range pruned {
+			fmt.Println(v)
 		}
 	}
 

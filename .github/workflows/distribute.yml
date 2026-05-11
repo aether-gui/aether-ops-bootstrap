@@ -136,8 +136,14 @@ jobs:
         run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Rotate site/releases.yaml + render site
+        id: render
         run: |
           set -euo pipefail
+          # `--prune-keep=2` retains the new current + 2 most recent
+          # external releases in releases.yaml and prints the list of
+          # versions it dropped on stdout. The downstream cleanup step
+          # consumes that list to remove the matching artifact
+          # directories under $WWW_ROOT.
           ./dist/build-release-site \
             --metadata site/releases.yaml \
             --output dist/release-site \
@@ -147,7 +153,17 @@ jobs:
             --build-commit "${{ steps.commit.outputs.sha }}" \
             --prior-bootstrap-sha "${{ steps.prior.outputs.prior_bootstrap_sha }}" \
             --prior-bundle-sha "${{ steps.prior.outputs.prior_bundle_sha }}" \
-            --prior-patch-tool-sha "${{ steps.prior.outputs.prior_patch_tool_sha }}"
+            --prior-patch-tool-sha "${{ steps.prior.outputs.prior_patch_tool_sha }}" \
+            --prune-keep 2 \
+            > pruned-versions.txt
+          # Surface the pruned list as a step output for the cleanup
+          # step. GitHub Actions step outputs encode multi-line values
+          # via the `delimiter` form.
+          {
+            echo "versions<<__PRUNED__"
+            cat pruned-versions.txt
+            echo "__PRUNED__"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Publish to $WWW_ROOT
         run: |
@@ -179,6 +195,33 @@ jobs:
             echo "ERROR: live metadata.json reports current=$CURRENT, expected $BUNDLE_VERSION" >&2
             exit 1
           fi
+
+      - name: Prune retired release artifact directories
+        # The retention policy keeps current + 2 prior releases (set
+        # by --prune-keep=2 above). Anything no longer referenced in
+        # metadata.json is a candidate for deletion. We never delete
+        # by version list received from the step output alone — we
+        # cross-check against metadata.json so a typo or partial run
+        # can't unintentionally remove a still-referenced directory.
+        run: |
+          set -euo pipefail
+          KEPT=$(jq -r '.releases[] | (.bootstrap.version, .bundle.version, .patch_tool.version)' "$WWW_ROOT/metadata.json" | sort -u)
+          deleted=0
+          for kind in bootstrap bundles tools; do
+            base="$WWW_ROOT/$kind"
+            [ -d "$base" ] || continue
+            for dir in "$base"/*; do
+              [ -d "$dir" ] || continue
+              v=$(basename "$dir")
+              if echo "$KEPT" | grep -qFx "$v"; then
+                continue
+              fi
+              echo "Removing $dir"
+              sudo rm -rf -- "$dir"
+              deleted=$((deleted + 1))
+            done
+          done
+          echo "Pruned $deleted retired version directories."
 
       - name: Commit + push release branch
         id: branch
