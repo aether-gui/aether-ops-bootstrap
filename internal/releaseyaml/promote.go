@@ -22,7 +22,9 @@
 //     `current: true`, paths under `<version>/`, source-from-dist
 //     fields, the build commit, the components list pulled from
 //     `specs/bundle.yaml`, and the per-artifact release notes provided
-//     by the caller.
+//     by the caller. Notes are emitted as a YAML sequence of strings —
+//     one bullet per element — to match the rendering pipeline's
+//     bullet-list output.
 package releaseyaml
 
 import (
@@ -30,6 +32,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -68,14 +71,23 @@ type Options struct {
 	// is written to bootstrap.commit, bundle.build_commit, and
 	// patch_tool.build_commit on the new entry.
 	BuildCommit string
+	// BootstrapSummary / BundleSummary / PatchToolSummary are the
+	// one- or two-sentence headlines emitted as `release_summary:`
+	// scalars on each artifact block. Optional — empty strings cause
+	// the field to be omitted so the rendered page shows only the
+	// bullet list.
+	BootstrapSummary string
+	BundleSummary    string
+	PatchToolSummary string
+
 	// BootstrapNotes / BundleNotes / PatchToolNotes are the
-	// release_notes bodies written verbatim into the new entry. They
-	// may be multi-line; the YAML encoder emits them as literal
-	// blocks. Empty strings emit an empty release_notes: field, which
-	// is acceptable but operators normally want at least a sentence.
-	BootstrapNotes string
-	BundleNotes    string
-	PatchToolNotes string
+	// release_notes bullet lists written into the new entry. Each
+	// element becomes one item under a `release_notes:` YAML
+	// sequence; empty / nil lists emit a single placeholder bullet so
+	// the entry is always renderable but obviously incomplete.
+	BootstrapNotes []string
+	BundleNotes    []string
+	PatchToolNotes []string
 	// Prior captures the SHA256s of the previous-current release's
 	// three artifacts. Required.
 	Prior PriorSHAs
@@ -138,7 +150,10 @@ func Promote(opts Options) error {
 	}
 
 	newEntry, err := buildNewEntry(id, opts.NewVersion, publishedAt, opts.BuildCommit,
-		opts.BootstrapNotes, opts.BundleNotes, opts.PatchToolNotes, components)
+		opts.BootstrapSummary, opts.BootstrapNotes,
+		opts.BundleSummary, opts.BundleNotes,
+		opts.PatchToolSummary, opts.PatchToolNotes,
+		components)
 	if err != nil {
 		return err
 	}
@@ -389,13 +404,6 @@ func scalarBool(v bool) *yaml.Node {
 	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: "false"}
 }
 
-// scalarLiteralBlock returns a YAML scalar emitted with `|` literal
-// block style (newlines preserved). Used for release_notes bodies so
-// the YAML stays human-readable.
-func scalarLiteralBlock(value string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Style: yaml.LiteralStyle, Value: value}
-}
-
 // marshalDoc round-trips a yaml.Node through the v3 encoder with the
 // same 2-space indent the existing releases.yaml uses.
 func marshalDoc(root *yaml.Node) ([]byte, error) {
@@ -440,7 +448,7 @@ type helmChartRef struct {
 }
 
 // readComponents parses the relevant fields of specs/bundle.yaml.
-// Only the keys release notes care about are touched; the rest of
+// Only the keys release entries care about are touched; the rest of
 // the spec is ignored.
 func readComponents(path string) (specComponents, error) {
 	var s specComponents
@@ -495,7 +503,11 @@ func readComponents(path string) (specComponents, error) {
 // Order is fixed (id, published_at, current, bootstrap, bundle,
 // patch_tool) to match the hand-edited convention in
 // site/releases.yaml.
-func buildNewEntry(id, version string, publishedAt time.Time, buildCommit, bootstrapNotes, bundleNotes, patchToolNotes string, c specComponents) (*yaml.Node, error) {
+func buildNewEntry(id, version string, publishedAt time.Time, buildCommit string,
+	bootstrapSummary string, bootstrapNotes []string,
+	bundleSummary string, bundleNotes []string,
+	patchToolSummary string, patchToolNotes []string,
+	c specComponents) (*yaml.Node, error) {
 	entry := &yaml.Node{Kind: yaml.MappingNode}
 
 	setMapKey(entry, "id", scalarString(id))
@@ -508,6 +520,7 @@ func buildNewEntry(id, version string, publishedAt time.Time, buildCommit, boots
 		Source:      "../dist/aether-ops-bootstrap",
 		CommitKey:   "commit",
 		BuildCommit: buildCommit,
+		Summary:     bootstrapSummary,
 		Notes:       bootstrapNotes,
 	}))
 
@@ -518,6 +531,7 @@ func buildNewEntry(id, version string, publishedAt time.Time, buildCommit, boots
 		SHA256Source: "../dist/bundle.tar.zst.sha256",
 		CommitKey:    "build_commit",
 		BuildCommit:  buildCommit,
+		Summary:      bundleSummary,
 		Notes:        bundleNotes,
 	})
 	setMapKey(bundleBlock, "components", buildComponentsNode(c))
@@ -529,6 +543,7 @@ func buildNewEntry(id, version string, publishedAt time.Time, buildCommit, boots
 		Source:      "../dist/patch-bundle",
 		CommitKey:   "build_commit",
 		BuildCommit: buildCommit,
+		Summary:     patchToolSummary,
 		Notes:       patchToolNotes,
 	}))
 
@@ -542,7 +557,8 @@ type artifactInputs struct {
 	SHA256Source string // empty when the artifact has no .sha256 sidecar
 	CommitKey    string // "commit" for bootstrap, "build_commit" for bundle and patch_tool
 	BuildCommit  string
-	Notes        string
+	Summary      string
+	Notes        []string
 }
 
 func buildArtifactBlock(in artifactInputs) *yaml.Node {
@@ -555,12 +571,39 @@ func buildArtifactBlock(in artifactInputs) *yaml.Node {
 		setMapKey(m, "sha256_source", scalarNode(in.SHA256Source))
 	}
 	setMapKey(m, in.CommitKey, scalarString(in.BuildCommit))
-	if in.Notes != "" {
-		setMapKey(m, "release_notes", scalarLiteralBlock(in.Notes))
+	if s := strings.TrimSpace(in.Summary); s != "" {
+		setMapKey(m, "release_summary", scalarPlain(s))
+	}
+	if len(in.Notes) > 0 {
+		setMapKey(m, "release_notes", notesSequence(in.Notes))
 	} else {
-		setMapKey(m, "release_notes", scalarLiteralBlock("TODO: fill in release notes before merging.\n"))
+		setMapKey(m, "release_notes", notesSequence([]string{"TODO: fill in release notes before merging."}))
 	}
 	return m
+}
+
+// scalarPlain returns a YAML scalar in plain style. yaml.v3 will
+// auto-fold long plain scalars at the encoder's line-length boundary,
+// which keeps release_summary readable in releases.yaml without us
+// having to pick a style hint.
+func scalarPlain(value string) *yaml.Node {
+	return &yaml.Node{Kind: yaml.ScalarNode, Value: value}
+}
+
+// notesSequence builds a YAML sequence node for release_notes — one
+// scalar per bullet, emitted in block style (one bullet per line).
+// Bullet bodies are emitted plain when they're short and single-line,
+// otherwise folded so long paragraphs wrap in the source file without
+// fighting yaml.v3's line-length heuristics.
+func notesSequence(bullets []string) *yaml.Node {
+	seq := &yaml.Node{Kind: yaml.SequenceNode, Style: 0} // 0 == block style
+	for _, b := range bullets {
+		seq.Content = append(seq.Content, &yaml.Node{
+			Kind:  yaml.ScalarNode,
+			Value: b,
+		})
+	}
+	return seq
 }
 
 func buildComponentsNode(c specComponents) *yaml.Node {

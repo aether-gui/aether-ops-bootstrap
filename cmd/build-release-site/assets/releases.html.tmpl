@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ .Title }} · Release Archive</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ .BaseURLPath }}/assets/site.css">
+</head>
+<body>
+  <main>
+    <p class="back-link"><a href="{{ .BaseURLPath }}/">Back to Latest Release</a></p>
+    <header class="page-head">
+      <h1>Release Archive</h1>
+      <p class="lede">{{ .Description }}</p>
+      <div class="telemetry">
+        <span><span class="dot">●</span>RELEASES <strong>{{ len .Releases }}</strong></span>
+      </div>
+    </header>
+
+    {{ range .Releases }}
+    <section class="release">
+      <h2>{{ formatPublished .PublishedAt }}{{ if .Current }} <span class="current-flag">CURRENT</span>{{ end }}</h2>
+      <p class="release-meta">ID · {{ .ID }}</p>
+      <div class="artifacts">
+        {{ template "release-artifact" .Bootstrap }}
+        {{ if .PatchTool }}{{ template "release-artifact" .PatchTool }}{{ end }}
+        {{ template "release-artifact" .Bundle }}
+      </div>
+    </section>
+    {{ end }}
+  </main>
+</body>
+</html>

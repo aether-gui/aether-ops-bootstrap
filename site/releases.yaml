@@ -33,13 +33,11 @@ releases:
       filename: aether-ops-bootstrap
       source: ../dist/aether-ops-bootstrap
       commit: "d64127f"
-      release_notes: |
-        Bootstrap unchanged source-wise from 2026.05.07.2; rebuilt
-        to ship alongside the new bundle. Same apt-repo airgap
-        install pipeline (apt-get install against
-        /var/lib/aether-ops/apt-repo, with the persistent
-        /etc/apt/sources.list.d/aether-bundle.list entry for
-        post-bootstrap operator-driven `apt install`).
+      release_summary: >-
+        Source-identical rebuild of the 2026.05.07.2 launcher, repackaged to ship alongside the new bundle. No behavior changes.
+      release_notes:
+        - Bootstrap unchanged source-wise from 2026.05.07.2; rebuilt to ship alongside the new bundle.
+        - Same apt-repo airgap install pipeline — apt-get install against /var/lib/aether-ops/apt-repo, with the persistent /etc/apt/sources.list.d/aether-bundle.list entry preserved for post-bootstrap operator-driven `apt install`.
     bundle:
       version: "2026.05.11.1"
       path: "2026.05.11.1"
@@ -47,26 +45,14 @@ releases:
       source: ../dist/bundle.tar.zst
       sha256_source: ../dist/bundle.tar.zst.sha256
       build_commit: "d64127f"
-      release_notes: |
-        Bundle rebuilt with aether-ops bumped to v0.2.0. Two behavior
-        changes worth noting for bundle consumers:
-          - OnRamp component catalog now loads at runtime from
-            <OnRampDir>/catalog/ instead of an embedded snapshot. The
-            pinned onramp ref 78f75c6a has catalog/ present so the
-            daemon comes up fully — older onramp pins would land in
-            degraded mode.
-          - The aether-ops daemon stamps ansible_user/ansible_password
-            into hosts.ini on Start() if /etc/aether-ops/onramp-password
-            exists. The bootstrap launcher's existing
-            setInventoryCredentials pass already writes those fields,
-            so the daemon's pass is a no-op for bootstrap-installed
-            hosts. Idempotent overlap is intentional.
-        Breaking-change surface from v0.1.x → v0.2.0: "4gc" no longer
-        appears in GET /api/v1/onramp/components, and component
-        docs_url moves from /master/onramp/... to /onramp/... for the
-        12 remaining components. aether-onramp (78f75c6a), rke2
-        (v1.35.3+rke2r3), helm (v3.20.0), and sdcore-helm-charts
-        (main) unchanged from 2026.05.07.2.
+      release_summary: >-
+        aether-ops bumped to v0.2.0. Breaking surface in the OnRamp components API and docs URLs; runtime catalog loading from <OnRampDir>/catalog/.
+      release_notes:
+        - Bundle rebuilt with aether-ops bumped to v0.2.0.
+        - OnRamp component catalog now loads at runtime from <OnRampDir>/catalog/ instead of an embedded snapshot. The pinned onramp ref 78f75c6a has catalog/ present so the daemon comes up fully — older onramp pins land in degraded mode.
+        - The aether-ops daemon stamps ansible_user/ansible_password into hosts.ini on Start() when /etc/aether-ops/onramp-password exists. The bootstrap launcher's setInventoryCredentials pass already writes those fields, so the daemon's pass is a no-op for bootstrap-installed hosts. Idempotent overlap is intentional.
+        - Breaking-change surface v0.1.x → v0.2.0 — "4gc" no longer appears in GET /api/v1/onramp/components, and component docs_url moves from /master/onramp/... to /onramp/... for the 12 remaining components.
+        - aether-onramp (78f75c6a), rke2 (v1.35.3+rke2r3), helm (v3.20.0), and sdcore-helm-charts (main) unchanged from 2026.05.07.2.
       components:
         - name: aether-ops
           version: v0.2.0
@@ -84,9 +70,10 @@ releases:
       filename: patch-bundle
       source: ../dist/patch-bundle
       build_commit: "d64127f"
-      release_notes: |
-        Patch tool rebuilt alongside the 2026.05.11.1 launcher and
-        bundle. No functional changes.
+      release_summary: >-
+        Rebuilt alongside the 2026.05.11.1 launcher and bundle. No functional changes.
+      release_notes:
+        - Patch tool rebuilt alongside the 2026.05.11.1 launcher and bundle. No functional changes.
   - id: "2026-05-07-onramp-usb-bind-mount"
     published_at: "2026-05-08T01:30:00Z"
     external: true
@@ -96,31 +83,24 @@ releases:
       filename: aether-ops-bootstrap
       sha256: "03613545bc33a02fce1f84a5c83b1a79f89e2185e314b5b6205177f7ef4a5209"
       commit: "8669678"
-      release_notes: |
-        Bootstrap unchanged from 2026.05.07.1 source-wise; rebuilt
-        to ship alongside the new bundle. Same apt-repo airgap
-        install pipeline (apt-get install against
-        /var/lib/aether-ops/apt-repo, with the persistent
-        /etc/apt/sources.list.d/aether-bundle.list entry for
-        post-bootstrap operator-driven `apt install`).
+      release_summary: >-
+        Source-identical rebuild of the 2026.05.07.1 launcher, repackaged to ship alongside the new bundle.
+      release_notes:
+        - Bootstrap unchanged from 2026.05.07.1 source-wise; rebuilt to ship alongside the new bundle.
+        - Same apt-repo airgap install pipeline — apt-get install against /var/lib/aether-ops/apt-repo, with the persistent /etc/apt/sources.list.d/aether-bundle.list entry preserved for post-bootstrap operator-driven `apt install`.
     bundle:
       version: "2026.05.07.2"
       path: "2026.05.07.2"
       filename: bundle.tar.zst
       sha256: "7d9a0212ed655fdef245685084988df9c87a08b8df04c907b10f8cbbd9b9a25f"
       build_commit: "8669678"
-      release_notes: |
-        Bundle rebuilt to re-pin aether-onramp at upstream 78f75c6a
-        (current HEAD of opennetworkinglab/aether-onramp main),
-        picking up PR #213 — ocudu/gNB now bind-mounts /dev/bus/usb
-        into the gNB docker container for USRP hot-plug visibility.
-        This is the upstream root-cause fix for the USRP USB access
-        symptom the local udev workaround in 2026.05.06.1 papered
-        over: with the bind-mount, libusb inside the container can
-        see the host's USB tree and any hot-plug device-add events
-        regardless of the host-side udev MODE on the device node.
-        aether-ops v0.1.50, rke2 v1.35.3+rke2r3, helm v3.20.0
-        unchanged.
+      release_summary: >-
+        Re-pinned aether-onramp at upstream 78f75c6a to pick up PR #213's USRP USB bind-mount fix, replacing the local udev workaround from 2026.05.06.1.
+      release_notes:
+        - Re-pinned aether-onramp at upstream 78f75c6a (current HEAD of opennetworkinglab/aether-onramp main), picking up PR #213.
+        - ocudu/gNB now bind-mounts /dev/bus/usb into the gNB docker container for USRP hot-plug visibility — upstream root-cause fix for the USRP USB access symptom the local udev workaround in 2026.05.06.1 papered over.
+        - With the bind-mount, libusb inside the container can see the host's USB tree and any hot-plug device-add events regardless of the host-side udev MODE on the device node.
+        - aether-ops v0.1.50, rke2 v1.35.3+rke2r3, helm v3.20.0 unchanged.
       components:
         - name: aether-ops
           version: v0.1.50
@@ -138,9 +118,10 @@ releases:
       filename: patch-bundle
       sha256: "6ba45df841a7824673391b4ae21b70e070c27014788a7a3dd375a120e5c00368"
       build_commit: "8669678"
-      release_notes: |
-        Patch tool rebuilt alongside the 2026.05.07.2 launcher and
-        bundle. No functional changes.
+      release_summary: >-
+        Rebuilt alongside the 2026.05.07.2 launcher and bundle. No functional changes.
+      release_notes:
+        - Patch tool rebuilt alongside the 2026.05.07.2 launcher and bundle. No functional changes.
   - id: "2026-05-07-apt-repo-airgap-install"
     published_at: "2026-05-07T21:45:00Z"
     external: true
@@ -150,39 +131,25 @@ releases:
       filename: aether-ops-bootstrap
       sha256: "f8b5c9cca0b8a2e27f41f1205a452c8cbb38832203c8365a8ade58845959b49f"
       commit: "9b2c821"
-      release_notes: |
-        Bootstrap rebuilt with the airgap deb install path migrated
-        from `dpkg -i --force-*` over a curated subset to `apt-get
-        install` against a self-contained file:// apt repository
-        shipped inside the bundle. The launcher stages the bundle's
-        apt-repo/ persistently at /var/lib/aether-ops/apt-repo and
-        drops a sources.list at /etc/apt/sources.list.d/aether-bundle.list
-        so post-bootstrap operator-driven `apt install` works for
-        anything the bundle shipped. Apt now owns dependency
-        resolution, conflict handling (ufw vs iptables-persistent
-        resolves cleanly), and dpkg's trigger orchestration —
-        `apt-get check` returns clean and `dpkg --audit` is empty
-        after install, fixing the broken-state symptom that the
-        2026.05.06.1 udev component was working around. Bundle
-        manifest schema bumped to v2; old launchers refuse new
-        bundles and vice-versa.
+      release_summary: >-
+        Migrated the airgap deb install path off `dpkg -i --force-*` onto `apt-get install` against a bundle-shipped file:// apt repository. Apt now owns dependency resolution; bundle manifest schema bumped to v2 (not cross-compatible with v1 launchers).
+      release_notes:
+        - Bootstrap rebuilt with the airgap deb install path migrated from `dpkg -i --force-*` over a curated subset to `apt-get install` against a self-contained file:// apt repository shipped inside the bundle.
+        - Launcher stages the bundle's apt-repo/ persistently at /var/lib/aether-ops/apt-repo and drops a sources.list at /etc/apt/sources.list.d/aether-bundle.list so post-bootstrap operator-driven `apt install` works for anything the bundle shipped.
+        - Apt now owns dependency resolution, conflict handling (ufw vs iptables-persistent resolves cleanly), and dpkg's trigger orchestration — `apt-get check` returns clean and `dpkg --audit` is empty after install, fixing the broken-state symptom that the 2026.05.06.1 udev component was working around.
+        - Bundle manifest schema bumped to v2; old launchers refuse new bundles and vice-versa.
     bundle:
       version: "2026.05.07.1"
       path: "2026.05.07.1"
       filename: bundle.tar.zst
       sha256: "7e2d9af11fd85c7f000a51cb472ace22fe63a2dc96f634d033e23ed6df09e6ad"
       build_commit: "9b2c821"
-      release_notes: |
-        Bundle rebuilt with the apt-repo layout. apt-repo/dists/noble/
-        ships Release + per-arch Packages/Packages.gz with full
-        upstream control fields preserved (Breaks/Conflicts/Replaces
-        survive verbatim); apt-repo/pool/noble/{amd64,all}/ holds the
-        262 .deb files. Resolver no longer skips Essential /
-        Priority: required packages so apt has the closure it needs
-        to upgrade image-baked copies for strict-version Depends
-        edges (227 → 262 debs). aether-onramp pinned at upstream
-        11a34c9 (no change from 2026.05.06.1); aether-ops v0.1.50,
-        rke2 v1.35.3+rke2r3, helm v3.20.0 unchanged.
+      release_summary: >-
+        Bundle reorganized around an apt-repo layout so apt can own dependency resolution on the target. Resolver no longer drops Essential / Priority required packages; .deb count grows 227 → 262.
+      release_notes:
+        - Bundle rebuilt with the apt-repo layout. apt-repo/dists/noble/ ships Release + per-arch Packages/Packages.gz with full upstream control fields preserved (Breaks/Conflicts/Replaces survive verbatim); apt-repo/pool/noble/{amd64,all}/ holds the 262 .deb files.
+        - Resolver no longer skips Essential / Priority required packages, so apt has the closure it needs to upgrade image-baked copies for strict-version Depends edges (227 → 262 debs).
+        - aether-onramp pinned at upstream 11a34c9 (no change from 2026.05.06.1); aether-ops v0.1.50, rke2 v1.35.3+rke2r3, helm v3.20.0 unchanged.
       components:
         - name: aether-ops
           version: v0.1.50
@@ -200,6 +167,7 @@ releases:
       filename: patch-bundle
       sha256: "acabb78a9234f1ee58cb965c20f05fc7cac7553a07f3c0d5566725b889a18f84"
       build_commit: "9b2c821"
-      release_notes: |
-        Patch tool rebuilt alongside the 2026.05.07.1 launcher and
-        bundle. No functional changes.
+      release_summary: >-
+        Rebuilt alongside the 2026.05.07.1 launcher and bundle. No functional changes.
+      release_notes:
+        - Patch tool rebuilt alongside the 2026.05.07.1 launcher and bundle. No functional changes.

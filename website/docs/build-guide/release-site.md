@@ -85,8 +85,11 @@ releases:
       filename: aether-ops-bootstrap
       source: ../dist/aether-ops-bootstrap
       commit: "341787b"
-      release_notes: |
-        Replace this with launcher-specific notes for the release.
+      release_summary: >-                # one-sentence headline (optional)
+        Replace this with a one- or two-sentence summary of the launcher change.
+      release_notes:                      # bullet list rendered inside a
+        - First bullet.                   # collapsible "Show change details"
+        - Second bullet.                  # disclosure on the download page.
 
     bundle:
       label: Offline Bundle
@@ -96,8 +99,11 @@ releases:
       source: ../dist/bundle.tar.zst
       sha256_source: ../dist/bundle.tar.zst.sha256
       build_commit: "341787b"
-      release_notes: |
-        Replace this with bundle-specific notes for the release.
+      release_summary: >-
+        Replace this with a one- or two-sentence summary of the bundle change.
+      release_notes:
+        - First bullet.
+        - Second bullet.
       components:                       # rendered under the artifact card
         - name: aether-ops
           version: v0.1.49

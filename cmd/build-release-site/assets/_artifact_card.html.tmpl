@@ -1,0 +1,101 @@
+{{- /* card: artifact panel for the latest-release index page. */ -}}
+{{ define "card" }}
+<article class="card">
+  <header class="card-head">
+    <h2>{{ .Label }}</h2>
+    <span class="kicker">
+      <span class="ver">v{{ .Version }}</span>
+      {{- if .Commit }}<span class="sep">·</span><span class="hash">{{ shortHash .Commit }}</span>
+      {{- else if .BuildCommit }}<span class="sep">·</span><span class="hash">{{ shortHash .BuildCommit }}</span>
+      {{- end }}
+    </span>
+  </header>
+  {{ if .Description }}<p class="blurb">{{ .Description }}</p>{{ end }}
+  <div class="linklist">
+    <a class="primary" href="{{ .URL }}">Download {{ .Filename }}</a>
+    {{ if .SHA256URL }}<a href="{{ .SHA256URL }}">SHA256</a>{{ end }}
+    {{ if .DocsURL }}<a href="{{ .DocsURL }}" rel="noopener" target="_blank">Docs</a>{{ end }}
+  </div>
+
+  <div class="section-label">Checksum · SHA256</div>
+  <code class="sha256">{{ .SHA256 }}</code>
+
+  <div class="section-label">Release Notes</div>
+  {{ if .ReleaseSummary }}<p class="notes-summary">{{ .ReleaseSummary }}</p>{{ end }}
+  <details class="notes-details">
+    <summary class="notes-toggle">
+      <span class="notes-toggle-open">Show change details</span>
+      <span class="notes-toggle-close">Hide change details</span>
+    </summary>
+    <ul class="notes">
+      {{- range .ReleaseNotes }}
+      <li>{{ . }}</li>
+      {{- end }}
+    </ul>
+  </details>
+
+  {{ if .Components }}
+  <div class="section-label">Bundled Components</div>
+  <ul class="components">
+    {{ range .Components }}
+    <li>
+      <span class="name">{{ .Name }}</span>
+      {{ if .Version }}<span class="ver">{{ .Version }}</span>{{ else }}<span></span>{{ end }}
+      {{ if .Commit }}<span class="hash" title="{{ .Commit }}">{{ shortHash .Commit }}</span>{{ else }}<span></span>{{ end }}
+    </li>
+    {{ end }}
+  </ul>
+  {{ end }}
+</article>
+{{ end }}
+
+{{- /* release-artifact: compact artifact panel for the release archive page. */ -}}
+{{ define "release-artifact" }}
+<article class="artifact">
+  <header class="card-head">
+    <h3>{{ .Label }}</h3>
+    <span class="kicker">
+      <span class="ver">v{{ .Version }}</span>
+      {{- if .Commit }}<span class="sep">·</span><span class="hash">{{ shortHash .Commit }}</span>
+      {{- else if .BuildCommit }}<span class="sep">·</span><span class="hash">{{ shortHash .BuildCommit }}</span>
+      {{- end }}
+    </span>
+  </header>
+  {{ if .Description }}<p class="blurb">{{ .Description }}</p>{{ end }}
+  <div class="linklist">
+    <a class="primary" href="{{ .URL }}">Download {{ .Filename }}</a>
+    {{ if .SHA256URL }}<a href="{{ .SHA256URL }}">SHA256</a>{{ end }}
+    {{ if .DocsURL }}<a href="{{ .DocsURL }}" rel="noopener" target="_blank">Docs</a>{{ end }}
+  </div>
+
+  <div class="section-label">Checksum</div>
+  <code class="sha256">{{ .SHA256 }}</code>
+
+  <div class="section-label">Release Notes</div>
+  {{ if .ReleaseSummary }}<p class="notes-summary">{{ .ReleaseSummary }}</p>{{ end }}
+  <details class="notes-details">
+    <summary class="notes-toggle">
+      <span class="notes-toggle-open">Show change details</span>
+      <span class="notes-toggle-close">Hide change details</span>
+    </summary>
+    <ul class="notes">
+      {{- range .ReleaseNotes }}
+      <li>{{ . }}</li>
+      {{- end }}
+    </ul>
+  </details>
+
+  {{ if .Components }}
+  <div class="section-label">Bundled Components</div>
+  <ul class="components">
+    {{ range .Components }}
+    <li>
+      <span class="name">{{ .Name }}</span>
+      {{ if .Version }}<span class="ver">{{ .Version }}</span>{{ else }}<span></span>{{ end }}
+      {{ if .Commit }}<span class="hash" title="{{ .Commit }}">{{ shortHash .Commit }}</span>{{ else }}<span></span>{{ end }}
+    </li>
+    {{ end }}
+  </ul>
+  {{ end }}
+</article>
+{{ end }}

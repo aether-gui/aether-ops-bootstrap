@@ -139,9 +139,9 @@ func TestPromote_HappyPath(t *testing.T) {
 			Bundle:    "7d9a0212ed655fdef245685084988df9c87a08b8df04c907b10f8cbbd9b9a25f",
 			PatchTool: "6ba45df841a7824673391b4ae21b70e070c27014788a7a3dd375a120e5c00368",
 		},
-		BootstrapNotes: "new bootstrap notes.\n",
-		BundleNotes:    "new bundle notes.\n",
-		PatchToolNotes: "new patch_tool notes.\n",
+		BootstrapNotes: []string{"new bootstrap notes."},
+		BundleNotes:    []string{"new bundle notes."},
+		PatchToolNotes: []string{"new patch_tool notes."},
 	})
 	if err != nil {
 		t.Fatalf("Promote: %v", err)

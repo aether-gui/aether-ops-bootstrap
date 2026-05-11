@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ .Title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ .BaseURLPath }}/assets/site.css">
+</head>
+<body>
+  <main>
+    <header class="page-head">
+      <h1>{{ .Title }}</h1>
+      <p class="lede">{{ .Description }}</p>
+      <div class="telemetry">
+        <span><span class="dot">●</span>LATEST <strong>{{ formatPublished .Latest.PublishedAt }}</strong></span>
+        <span><span class="dot">●</span>CURRENT <strong>v{{ .Latest.Bootstrap.Version }}</strong></span>
+        {{- if .Latest.Bootstrap.Commit }}
+        <span><span class="dot">●</span>BUILD <strong class="hash">{{ shortHash .Latest.Bootstrap.Commit }}</strong></span>
+        {{- end }}
+      </div>
+    </header>
+
+    <section class="grid">
+      {{ template "card" .Latest.Bootstrap }}
+      {{ if .Latest.PatchTool }}{{ template "card" .Latest.PatchTool }}{{ end }}
+      {{ template "card" .Latest.Bundle }}
+    </section>
+
+    <p class="footer-link"><a href="{{ .BaseURLPath }}/releases/">View Release Archive</a></p>
+  </main>
+</body>
+</html>

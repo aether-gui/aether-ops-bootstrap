@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -19,6 +21,9 @@ import (
 	"github.com/aether-gui/aether-ops-bootstrap/internal/releaseyaml"
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed assets/*.css assets/*.tmpl
+var assetsFS embed.FS
 
 type siteMetadata struct {
 	SchemaVersion int             `yaml:"schema_version"`
@@ -63,8 +68,13 @@ type artifactConfig struct {
 	SHA256Source string            `yaml:"sha256_source"`
 	Commit       string            `yaml:"commit"`
 	BuildCommit  string            `yaml:"build_commit"`
-	ReleaseNotes string            `yaml:"release_notes"`
-	Components   []componentConfig `yaml:"components"`
+	// ReleaseSummary is a one- or two-sentence headline shown above the
+	// (collapsible) bullet list. Optional — when empty the page shows
+	// the bullet list with no preamble. Authored as a YAML scalar so
+	// long sentences wrap naturally in the source file.
+	ReleaseSummary string            `yaml:"release_summary,omitempty"`
+	ReleaseNotes   []string          `yaml:"release_notes"`
+	Components     []componentConfig `yaml:"components"`
 }
 
 type componentConfig struct {
@@ -100,7 +110,8 @@ type publicArtifact struct {
 	SHA256       string            `json:"sha256"`
 	Commit       string            `json:"commit,omitempty"`
 	BuildCommit  string            `json:"build_commit,omitempty"`
-	ReleaseNotes string            `json:"release_notes,omitempty"`
+	ReleaseSummary string            `json:"release_summary,omitempty"`
+	ReleaseNotes   []string          `json:"release_notes,omitempty"`
 	URL          string            `json:"url"`
 	SHA256URL    string            `json:"sha256_url,omitempty"`
 	Components   []publicComponent `json:"components,omitempty"`
@@ -131,20 +142,21 @@ type renderedRelease struct {
 }
 
 type renderedArtifact struct {
-	Kind         string // "bootstrap" | "bundle" | "patch_tool"
-	Label        string
-	Description  string
-	DocsURL      string
-	Version      string
-	Path         string
-	Filename     string
-	SHA256       string
-	Commit       string
-	BuildCommit  string
-	ReleaseNotes string
-	URL          string
-	SHA256URL    string
-	Components   []renderedComponent
+	Kind           string // "bootstrap" | "bundle" | "patch_tool"
+	Label          string
+	Description    string
+	DocsURL        string
+	Version        string
+	Path           string
+	Filename       string
+	SHA256         string
+	Commit         string
+	BuildCommit    string
+	ReleaseSummary string
+	ReleaseNotes   []string
+	URL            string
+	SHA256URL      string
+	Components     []renderedComponent
 }
 
 type renderedComponent struct {
@@ -153,316 +165,6 @@ type renderedComponent struct {
 	Commit  string
 }
 
-const indexTemplate = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ .Title }}</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #f6f8fb;
-      --panel: #ffffff;
-      --border: #d8e0ea;
-      --text: #102033;
-      --muted: #526173;
-      --link: #0a5bd8;
-      --code: #eef3f8;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eef4fb 0%, #f9fbfd 100%);
-      color: var(--text);
-    }
-    main {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 48px 20px 64px;
-    }
-    h1, h2, h3 { margin: 0 0 12px; }
-    p { line-height: 1.5; }
-    .lede { color: var(--muted); max-width: 70ch; }
-    .grid {
-      display: grid;
-      gap: 20px;
-      grid-template-columns: 1fr;
-      margin-top: 28px;
-    }
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 20px;
-      box-shadow: 0 10px 30px rgba(16, 32, 51, 0.06);
-    }
-    .blurb {
-      color: var(--text);
-      font-size: 0.95rem;
-      margin: 0 0 14px;
-    }
-    .meta {
-      color: var(--muted);
-      font-size: 0.95rem;
-      margin-bottom: 14px;
-    }
-    .linklist a {
-      display: inline-block;
-      margin-right: 14px;
-      margin-bottom: 10px;
-      color: var(--link);
-      text-decoration: none;
-      font-weight: 600;
-    }
-    code {
-      display: block;
-      overflow-wrap: anywhere;
-      background: var(--code);
-      border-radius: 10px;
-      padding: 12px;
-      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-      font-size: 0.9rem;
-    }
-    .notes {
-      white-space: pre-wrap;
-      background: #fbfcfe;
-      border-left: 4px solid #b8c8dd;
-      padding: 12px 14px;
-      border-radius: 8px;
-    }
-    .components {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-      border-top: 1px solid var(--border);
-    }
-    .components li {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: baseline;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.9rem;
-    }
-    .components .name {
-      font-weight: 600;
-      flex: 0 0 auto;
-    }
-    .components .ver {
-      color: var(--muted);
-      flex: 0 0 auto;
-    }
-    .components .hash {
-      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-      background: var(--code);
-      padding: 1px 6px;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      flex: 0 0 auto;
-    }
-    .footer-link {
-      margin-top: 32px;
-    }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>{{ .Title }}</h1>
-    <p class="lede">{{ .Description }}</p>
-    <p class="meta">Latest published release: {{ formatPublished .Latest.PublishedAt }}</p>
-
-    <section class="grid">
-      {{ template "card" .Latest.Bootstrap }}
-      {{ if .Latest.PatchTool }}{{ template "card" .Latest.PatchTool }}{{ end }}
-      {{ template "card" .Latest.Bundle }}
-    </section>
-
-    <p class="footer-link"><a href="{{ .BaseURLPath }}/releases/">See older versions</a></p>
-  </main>
-</body>
-</html>
-{{ define "card" }}
-<article class="card">
-  <h2>{{ .Label }}</h2>
-  {{ if .Description }}<p class="blurb">{{ .Description }}</p>{{ end }}
-  <p class="meta">Version {{ .Version }}{{ if .Commit }} · commit <span class="hash">{{ shortHash .Commit }}</span>{{ else if .BuildCommit }} · build <span class="hash">{{ shortHash .BuildCommit }}</span>{{ end }}</p>
-  <div class="linklist">
-    <a href="{{ .URL }}">Download {{ .Filename }}</a>
-    {{ if .SHA256URL }}<a href="{{ .SHA256URL }}">Download SHA256</a>{{ end }}
-    {{ if .DocsURL }}<a href="{{ .DocsURL }}" rel="noopener" target="_blank">Documentation</a>{{ end }}
-  </div>
-  <h3>SHA256</h3>
-  <code>{{ .SHA256 }}</code>
-  <h3>Release Notes</h3>
-  <div class="notes">{{ .ReleaseNotes }}</div>
-  {{ if .Components }}
-  <h3>Components</h3>
-  <ul class="components">
-    {{ range .Components }}
-    <li>
-      <span class="name">{{ .Name }}</span>
-      {{ if .Version }}<span class="ver">{{ .Version }}</span>{{ end }}
-      {{ if .Commit }}<span class="hash">{{ shortHash .Commit }}</span>{{ end }}
-    </li>
-    {{ end }}
-  </ul>
-  {{ end }}
-</article>
-{{ end }}
-`
-
-const releasesTemplate = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ .Title }} - Releases</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #f6f8fb;
-      --panel: #ffffff;
-      --border: #d8e0ea;
-      --text: #102033;
-      --muted: #526173;
-      --link: #0a5bd8;
-      --code: #eef3f8;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eef4fb 0%, #f9fbfd 100%);
-      color: var(--text);
-    }
-    main {
-      max-width: 1040px;
-      margin: 0 auto;
-      padding: 48px 20px 64px;
-    }
-    .release {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 20px;
-      margin-top: 20px;
-      box-shadow: 0 10px 30px rgba(16, 32, 51, 0.06);
-    }
-    .artifacts {
-      display: grid;
-      gap: 18px;
-      grid-template-columns: 1fr;
-    }
-    .artifact {
-      background: #fbfcfe;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-    }
-    .blurb {
-      color: var(--text);
-      font-size: 0.9rem;
-      margin: 0 0 10px;
-    }
-    .meta {
-      color: var(--muted);
-      font-size: 0.95rem;
-      margin-bottom: 10px;
-    }
-    .linklist a {
-      display: inline-block;
-      margin-right: 14px;
-      margin-bottom: 10px;
-      color: var(--link);
-      text-decoration: none;
-      font-weight: 600;
-    }
-    code {
-      display: block;
-      overflow-wrap: anywhere;
-      background: var(--code);
-      border-radius: 10px;
-      padding: 12px;
-      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-      font-size: 0.85rem;
-    }
-    .notes {
-      white-space: pre-wrap;
-      margin-top: 10px;
-    }
-    .components {
-      margin: 10px 0 0;
-      padding: 0;
-      list-style: none;
-      border-top: 1px solid var(--border);
-    }
-    .components li {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: baseline;
-      padding: 6px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.85rem;
-    }
-    .components .name { font-weight: 600; }
-    .components .ver { color: var(--muted); }
-    .components .hash {
-      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-      background: var(--code);
-      padding: 1px 6px;
-      border-radius: 6px;
-      font-size: 0.8rem;
-    }
-  </style>
-</head>
-<body>
-  <main>
-    <p><a href="{{ .BaseURLPath }}/">Back to latest release</a></p>
-    <h1>{{ .Title }} Release History</h1>
-    <p>{{ .Description }}</p>
-    {{ range .Releases }}
-    <section class="release">
-      <h2>{{ formatPublished .PublishedAt }}{{ if .Current }} · current{{ end }}</h2>
-      <div class="artifacts">
-        {{ template "release-artifact" .Bootstrap }}
-        {{ if .PatchTool }}{{ template "release-artifact" .PatchTool }}{{ end }}
-        {{ template "release-artifact" .Bundle }}
-      </div>
-    </section>
-    {{ end }}
-  </main>
-</body>
-</html>
-{{ define "release-artifact" }}
-<article class="artifact">
-  <h3>{{ .Label }}</h3>
-  {{ if .Description }}<p class="blurb">{{ .Description }}</p>{{ end }}
-  <p class="meta">Version {{ .Version }}{{ if .Commit }} · commit <span class="hash">{{ shortHash .Commit }}</span>{{ else if .BuildCommit }} · build <span class="hash">{{ shortHash .BuildCommit }}</span>{{ end }}</p>
-  <div class="linklist">
-    <a href="{{ .URL }}">Download {{ .Filename }}</a>
-    {{ if .SHA256URL }}<a href="{{ .SHA256URL }}">Download SHA256</a>{{ end }}
-    {{ if .DocsURL }}<a href="{{ .DocsURL }}" rel="noopener" target="_blank">Documentation</a>{{ end }}
-  </div>
-  <code>{{ .SHA256 }}</code>
-  <div class="notes">{{ .ReleaseNotes }}</div>
-  {{ if .Components }}
-  <ul class="components">
-    {{ range .Components }}
-    <li>
-      <span class="name">{{ .Name }}</span>
-      {{ if .Version }}<span class="ver">{{ .Version }}</span>{{ end }}
-      {{ if .Commit }}<span class="hash">{{ shortHash .Commit }}</span>{{ end }}
-    </li>
-    {{ end }}
-  </ul>
-  {{ end }}
-</article>
-{{ end }}
-`
 
 func main() {
 	var metadataPath string
@@ -592,18 +294,66 @@ func main() {
 
 	rendered.Latest = rendered.Releases[0]
 
-	if err := writeTemplate(filepath.Join(outputDir, "index.html"), indexTemplate, rendered); err != nil {
+	tmpl, err := parseTemplates()
+	if err != nil {
+		exitf("parse templates: %v", err)
+	}
+
+	if err := copyEmbeddedAssets(filepath.Join(outputDir, "assets")); err != nil {
+		exitf("copy site assets: %v", err)
+	}
+	if err := writeTemplate(filepath.Join(outputDir, "index.html"), tmpl, "index.html.tmpl", rendered); err != nil {
 		exitf("write index: %v", err)
 	}
 	if err := os.MkdirAll(filepath.Join(outputDir, "releases"), 0o755); err != nil {
 		exitf("create releases dir: %v", err)
 	}
-	if err := writeTemplate(filepath.Join(outputDir, "releases", "index.html"), releasesTemplate, rendered); err != nil {
+	if err := writeTemplate(filepath.Join(outputDir, "releases", "index.html"), tmpl, "releases.html.tmpl", rendered); err != nil {
 		exitf("write releases index: %v", err)
 	}
 	if err := writeJSON(filepath.Join(outputDir, "metadata.json"), public); err != nil {
 		exitf("write metadata json: %v", err)
 	}
+}
+
+// parseTemplates loads every *.tmpl file under the embedded assets
+// directory into a single template tree. Both the top-level pages
+// (index.html.tmpl, releases.html.tmpl) and the shared artifact
+// partials (_artifact_card.html.tmpl) share one FuncMap and one
+// definitions namespace so {{ template "card" . }} resolves from
+// either page.
+func parseTemplates() (*template.Template, error) {
+	funcs := template.FuncMap{
+		"shortHash":       shortHash,
+		"formatPublished": formatPublished,
+	}
+	return template.New("site").Funcs(funcs).ParseFS(assetsFS, "assets/*.tmpl")
+}
+
+// copyEmbeddedAssets writes every non-template static asset
+// (currently only site.css) to <outputDir>/assets/. The page
+// templates link to these via {{ .BaseURLPath }}/assets/site.css.
+func copyEmbeddedAssets(dstDir string) error {
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+		return err
+	}
+	entries, err := fs.ReadDir(assetsFS, "assets")
+	if err != nil {
+		return err
+	}
+	for _, ent := range entries {
+		if ent.IsDir() || strings.HasSuffix(ent.Name(), ".tmpl") {
+			continue
+		}
+		body, err := fs.ReadFile(assetsFS, "assets/"+ent.Name())
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(dstDir, ent.Name()), body, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func loadMetadata(path string) (siteMetadata, error) {
@@ -786,36 +536,38 @@ func materializeArtifact(metadataDir, outputDir, baseURL, kind string, art artif
 	label := defaultString(defaultString(art.Label, defaults.Label), defaultArtifactLabel[kind])
 
 	rendered := renderedArtifact{
-		Kind:         kind,
-		Label:        label,
-		Description:  defaults.Description,
-		DocsURL:      defaults.DocsURL,
-		Version:      art.Version,
-		Path:         art.Path,
-		Filename:     art.Filename,
-		SHA256:       hash,
-		Commit:       art.Commit,
-		BuildCommit:  art.BuildCommit,
-		ReleaseNotes: defaultNotes(art.ReleaseNotes),
-		URL:          url,
-		SHA256URL:    shaURL,
-		Components:   renderComponents(art.Components),
+		Kind:           kind,
+		Label:          label,
+		Description:    defaults.Description,
+		DocsURL:        defaults.DocsURL,
+		Version:        art.Version,
+		Path:           art.Path,
+		Filename:       art.Filename,
+		SHA256:         hash,
+		Commit:         art.Commit,
+		BuildCommit:    art.BuildCommit,
+		ReleaseSummary: strings.TrimSpace(art.ReleaseSummary),
+		ReleaseNotes:   defaultNotes(art.ReleaseNotes),
+		URL:            url,
+		SHA256URL:      shaURL,
+		Components:     renderComponents(art.Components),
 	}
 	public := publicArtifact{
-		Kind:         kind,
-		Label:        rendered.Label,
-		Description:  rendered.Description,
-		DocsURL:      rendered.DocsURL,
-		Version:      rendered.Version,
-		Path:         rendered.Path,
-		Filename:     rendered.Filename,
-		SHA256:       rendered.SHA256,
-		Commit:       rendered.Commit,
-		BuildCommit:  rendered.BuildCommit,
-		ReleaseNotes: rendered.ReleaseNotes,
-		URL:          rendered.URL,
-		SHA256URL:    rendered.SHA256URL,
-		Components:   publicComponents(rendered.Components),
+		Kind:           kind,
+		Label:          rendered.Label,
+		Description:    rendered.Description,
+		DocsURL:        rendered.DocsURL,
+		Version:        rendered.Version,
+		Path:           rendered.Path,
+		Filename:       rendered.Filename,
+		SHA256:         rendered.SHA256,
+		Commit:         rendered.Commit,
+		BuildCommit:    rendered.BuildCommit,
+		ReleaseSummary: rendered.ReleaseSummary,
+		ReleaseNotes:   rendered.ReleaseNotes,
+		URL:            rendered.URL,
+		SHA256URL:      rendered.SHA256URL,
+		Components:     publicComponents(rendered.Components),
 	}
 	return rendered, public, nil
 }
@@ -863,17 +615,9 @@ func writeSHA256File(path, filename, hash string) error {
 	return os.WriteFile(path, []byte(fmt.Sprintf("%s  %s\n", hash, filename)), 0o644)
 }
 
-func writeTemplate(path, tmpl string, data any) error {
-	funcs := template.FuncMap{
-		"shortHash":       shortHash,
-		"formatPublished": formatPublished,
-	}
-	t, err := template.New(filepath.Base(path)).Funcs(funcs).Parse(tmpl)
-	if err != nil {
-		return err
-	}
+func writeTemplate(path string, tmpl *template.Template, name string, data any) error {
 	var buf bytes.Buffer
-	if err := t.Execute(&buf, data); err != nil {
+	if err := tmpl.ExecuteTemplate(&buf, name, data); err != nil {
 		return err
 	}
 	return os.WriteFile(path, buf.Bytes(), 0o644)
@@ -977,12 +721,148 @@ func defaultString(value, fallback string) string {
 	return value
 }
 
-func defaultNotes(notes string) string {
-	trimmed := strings.TrimSpace(notes)
-	if trimmed == "" {
-		return "No release notes provided."
+// defaultNotes returns the rendering-ready bullet list for one
+// artifact's release notes. An empty list collapses to a single
+// placeholder bullet so the rendered card always has a Release Notes
+// section.
+func defaultNotes(notes []string) []string {
+	out := make([]string, 0, len(notes))
+	for _, n := range notes {
+		s := strings.TrimSpace(n)
+		if s == "" {
+			continue
+		}
+		out = append(out, s)
 	}
-	return trimmed
+	if len(out) == 0 {
+		return []string{"No release notes provided."}
+	}
+	return out
+}
+
+// parseNotesFile splits the free-form text supplied via the
+// --bootstrap-notes / --bundle-notes / --patch-tool-notes flag files
+// into a one-line summary and the bullet list stored in releases.yaml.
+//
+// Authoring conventions:
+//
+//   - Any leading lines BEFORE the first "- " / "* " bullet line form
+//     the summary. Multiple physical lines collapse into one paragraph
+//     joined by spaces; blank lines inside the summary mark its end.
+//   - Lines starting with "- " or "* " (after trimming whitespace)
+//     begin a new bullet. Subsequent non-empty, non-prefix lines are
+//     appended to the current bullet with a single space (so a bullet
+//     can wrap across multiple physical lines in the source file).
+//   - If no "- " / "* " prefix appears anywhere in the input, the first
+//     paragraph (text up to the first blank line) becomes the summary
+//     and remaining paragraphs each collapse into one bullet — useful
+//     when migrating older paragraph-style notes without touching the
+//     source format.
+//
+// Empty / whitespace-only input returns ("", nil).
+func parseNotesFile(text string) (summary string, bullets []string) {
+	if strings.TrimSpace(text) == "" {
+		return "", nil
+	}
+	lines := strings.Split(text, "\n")
+
+	hasBulletPrefix := false
+	for _, line := range lines {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "- ") || strings.HasPrefix(t, "* ") {
+			hasBulletPrefix = true
+			break
+		}
+	}
+
+	var sum strings.Builder
+	flushSummary := func() {
+		summary = strings.TrimSpace(sum.String())
+	}
+	appendSummary := func(t string) {
+		if sum.Len() > 0 {
+			sum.WriteByte(' ')
+		}
+		sum.WriteString(t)
+	}
+
+	if hasBulletPrefix {
+		var cur strings.Builder
+		flush := func() {
+			s := strings.TrimSpace(cur.String())
+			if s != "" {
+				bullets = append(bullets, s)
+			}
+			cur.Reset()
+		}
+		summaryDone := false
+		for _, line := range lines {
+			t := strings.TrimSpace(line)
+			isBullet := strings.HasPrefix(t, "- ") || strings.HasPrefix(t, "* ")
+			if !summaryDone && !isBullet {
+				if t == "" {
+					if sum.Len() > 0 {
+						summaryDone = true
+					}
+					continue
+				}
+				appendSummary(t)
+				continue
+			}
+			summaryDone = true
+			if isBullet {
+				flush()
+				cur.WriteString(strings.TrimSpace(t[2:]))
+				continue
+			}
+			if t == "" {
+				// Blank lines inside a bullet are ignored — bullets
+				// are delimited by the next "- " marker.
+				continue
+			}
+			if cur.Len() > 0 {
+				cur.WriteByte(' ')
+			}
+			cur.WriteString(t)
+		}
+		flush()
+		flushSummary()
+		return summary, bullets
+	}
+
+	// Paragraph mode: first paragraph → summary, remaining paragraphs → bullets.
+	var cur strings.Builder
+	flushPara := func(first bool) {
+		s := strings.TrimSpace(cur.String())
+		cur.Reset()
+		if s == "" {
+			return
+		}
+		if first {
+			summary = s
+			return
+		}
+		bullets = append(bullets, s)
+	}
+	paraIdx := 0
+	for _, line := range lines {
+		t := strings.TrimSpace(line)
+		if t == "" {
+			if cur.Len() > 0 {
+				flushPara(paraIdx == 0)
+				paraIdx++
+			}
+			continue
+		}
+		if cur.Len() > 0 {
+			cur.WriteByte(' ')
+		}
+		cur.WriteString(t)
+	}
+	if cur.Len() > 0 {
+		flushPara(paraIdx == 0)
+	}
+	return summary, bullets
 }
 
 func exitf(format string, args ...any) {
@@ -1004,15 +884,15 @@ func promoteRelease(metadataPath, specPath, version, id, buildCommit,
 		return errors.New("--prior-bootstrap-sha, --prior-bundle-sha, and --prior-patch-tool-sha are all required with --promote-current")
 	}
 
-	bootstrapNotes, err := readNotesFile(bootstrapNotesFile)
+	bootstrapSummary, bootstrapNotes, err := readNotesFile(bootstrapNotesFile)
 	if err != nil {
 		return fmt.Errorf("reading --bootstrap-notes: %w", err)
 	}
-	bundleNotes, err := readNotesFile(bundleNotesFile)
+	bundleSummary, bundleNotes, err := readNotesFile(bundleNotesFile)
 	if err != nil {
 		return fmt.Errorf("reading --bundle-notes: %w", err)
 	}
-	patchToolNotes, err := readNotesFile(patchToolNotesFile)
+	patchToolSummary, patchToolNotes, err := readNotesFile(patchToolNotesFile)
 	if err != nil {
 		return fmt.Errorf("reading --patch-tool-notes: %w", err)
 	}
@@ -1036,14 +916,17 @@ func promoteRelease(metadataPath, specPath, version, id, buildCommit,
 	}
 
 	return releaseyaml.Promote(releaseyaml.Options{
-		YAMLPath:       metadataPath,
-		SpecPath:       specPath,
-		NewVersion:     version,
-		ID:             id,
-		BuildCommit:    buildCommit,
-		BootstrapNotes: bootstrapNotes,
-		BundleNotes:    bundleNotes,
-		PatchToolNotes: patchToolNotes,
+		YAMLPath:         metadataPath,
+		SpecPath:         specPath,
+		NewVersion:       version,
+		ID:               id,
+		BuildCommit:      buildCommit,
+		BootstrapSummary: bootstrapSummary,
+		BootstrapNotes:   bootstrapNotes,
+		BundleSummary:    bundleSummary,
+		BundleNotes:      bundleNotes,
+		PatchToolSummary: patchToolSummary,
+		PatchToolNotes:   patchToolNotes,
 		Prior: releaseyaml.PriorSHAs{
 			Bootstrap: priorBootstrapSHA,
 			Bundle:    priorBundleSHA,
@@ -1052,17 +935,18 @@ func promoteRelease(metadataPath, specPath, version, id, buildCommit,
 	})
 }
 
-func readNotesFile(path string) (string, error) {
+// readNotesFile reads a notes file off disk and returns the summary
+// + bullet list that should be embedded into the new release entry.
+// Empty path yields ("", nil, nil) so the caller can let the
+// placeholder kick in.
+func readNotesFile(path string) (string, []string, error) {
 	if path == "" {
-		return "", nil
+		return "", nil, nil
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	body := string(data)
-	// Ensure the literal block ends with exactly one newline so the
-	// yaml encoder doesn't add a trailing chomp indicator.
-	body = strings.TrimRight(body, "\n") + "\n"
-	return body, nil
+	summary, bullets := parseNotesFile(string(data))
+	return summary, bullets, nil
 }
