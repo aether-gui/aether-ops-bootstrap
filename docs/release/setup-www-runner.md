@@ -113,10 +113,18 @@ else, so a narrow sudoers drop-in is the right granularity:
 /snap/bin/lxc exec datacenter:www -- bash -c '
   cat >/etc/sudoers.d/aether-runner <<"EOF"
 # Allow the self-hosted runner to publish to /var/www without granting
-# full root. The two commands are exactly what .github/workflows/distribute.yml
-# needs in its "Publish to $WWW_ROOT" step.
+# full root. The three commands are exactly what
+# .github/workflows/distribute.yml needs:
+#   - install -d ...           : creates the per-version directory
+#   - rsync -a --chown=... ... : copies the rendered site in
+#   - rm -rf <version-dir>     : prunes retired release directories
+# The rm rule is tightly scoped to the publish tree so a typo can't
+# wander outside aether-ops-bootstrap/.
 aether-runner ALL=(root) NOPASSWD: /usr/bin/install -d -m 755 -o www-data -g www-data *
 aether-runner ALL=(root) NOPASSWD: /usr/bin/rsync -a --chown=www-data\:www-data *
+aether-runner ALL=(root) NOPASSWD: /usr/bin/rm -rf -- /var/www/tools.jointpathfinding.com/aether-ops-bootstrap/bootstrap/*
+aether-runner ALL=(root) NOPASSWD: /usr/bin/rm -rf -- /var/www/tools.jointpathfinding.com/aether-ops-bootstrap/bundles/*
+aether-runner ALL=(root) NOPASSWD: /usr/bin/rm -rf -- /var/www/tools.jointpathfinding.com/aether-ops-bootstrap/tools/*
 EOF
   chmod 0440 /etc/sudoers.d/aether-runner
   visudo -c -f /etc/sudoers.d/aether-runner

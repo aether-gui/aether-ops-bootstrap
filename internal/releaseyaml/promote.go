@@ -157,6 +157,103 @@ func Promote(opts Options) error {
 	return nil
 }
 
+// Prune drops external release entries beyond keepExternal from
+// site/releases.yaml. The current release is always preserved; only
+// external entries are subject to retention. The kept set is the
+// first keepExternal external entries encountered in sequence order
+// — which, given the convention of inserting new entries at the top
+// of `releases:`, is the most recently demoted ones.
+//
+// Returns the list of versions that were pruned (drawn from the
+// dropped entries' bundle.version field, or their id when that is
+// missing) so the caller can purge the matching on-disk artifact
+// directories.
+func Prune(yamlPath string, keepExternal int) ([]string, error) {
+	if yamlPath == "" {
+		return nil, errors.New("releaseyaml: yamlPath is required")
+	}
+	if keepExternal < 0 {
+		return nil, errors.New("releaseyaml: keepExternal must be >= 0")
+	}
+
+	data, err := os.ReadFile(yamlPath)
+	if err != nil {
+		return nil, fmt.Errorf("releaseyaml: reading %s: %w", yamlPath, err)
+	}
+
+	var root yaml.Node
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return nil, fmt.Errorf("releaseyaml: parsing %s: %w", yamlPath, err)
+	}
+
+	doc := documentRoot(&root)
+	if doc == nil || doc.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("releaseyaml: %s does not have a mapping at the root", yamlPath)
+	}
+
+	releasesNode := lookupMapValue(doc, "releases")
+	if releasesNode == nil || releasesNode.Kind != yaml.SequenceNode {
+		return nil, fmt.Errorf("releaseyaml: %s missing or invalid `releases:` sequence", yamlPath)
+	}
+
+	var pruned []string
+	keptExternal := 0
+	kept := releasesNode.Content[:0]
+	for _, entry := range releasesNode.Content {
+		if entry.Kind != yaml.MappingNode {
+			kept = append(kept, entry)
+			continue
+		}
+		ext := lookupMapValue(entry, "external")
+		isExternal := ext != nil && ext.Kind == yaml.ScalarNode &&
+			(ext.Value == "true" || ext.Value == "True" || ext.Value == "TRUE")
+		if !isExternal {
+			kept = append(kept, entry)
+			continue
+		}
+		if keptExternal < keepExternal {
+			keptExternal++
+			kept = append(kept, entry)
+			continue
+		}
+		// Dropping this entry — record its version for the caller.
+		pruned = append(pruned, releaseVersion(entry))
+	}
+
+	if len(pruned) == 0 {
+		// Nothing to write; return early so we don't touch the file's
+		// mtime on no-op runs.
+		return nil, nil
+	}
+
+	releasesNode.Content = kept
+
+	out, err := marshalDoc(&root)
+	if err != nil {
+		return nil, fmt.Errorf("releaseyaml: marshaling pruned YAML: %w", err)
+	}
+	if err := os.WriteFile(yamlPath, out, 0o644); err != nil {
+		return nil, fmt.Errorf("releaseyaml: writing %s: %w", yamlPath, err)
+	}
+	return pruned, nil
+}
+
+// releaseVersion returns a human-meaningful identifier for a release
+// entry: the bundle.version when present, falling back to id, falling
+// back to a `<unknown>` placeholder so the caller's log line still
+// has something to render.
+func releaseVersion(entry *yaml.Node) string {
+	if bundle := lookupMapValue(entry, "bundle"); bundle != nil && bundle.Kind == yaml.MappingNode {
+		if v := lookupMapValue(bundle, "version"); v != nil && v.Value != "" {
+			return v.Value
+		}
+	}
+	if id := lookupMapValue(entry, "id"); id != nil && id.Value != "" {
+		return id.Value
+	}
+	return "<unknown>"
+}
+
 // documentRoot returns the mapping node nested under a yaml.Node tree
 // returned by yaml.Unmarshal. A "top-level" Node from Unmarshal is a
 // DocumentNode wrapping the real root; tests sometimes pass the
