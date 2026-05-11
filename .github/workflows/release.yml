@@ -10,7 +10,7 @@
 # merging.
 #
 # Runs on a self-hosted runner registered inside the LXD `www`
-# container (label `aether-www`) so the bundle's .deb staging + the
+# container (label `bundle-dist`) so the bundle's .deb staging + the
 # ~3.4 GB upload are local filesystem operations instead of multi-
 # minute LXD HTTPS API transfers. See
 # .claude/procedures/setup-www-runner.md for one-time runner
@@ -48,7 +48,7 @@ on:
 jobs:
   release:
     name: build + publish + open PR
-    runs-on: [self-hosted, aether-www]
+    runs-on: [self-hosted, bundle-dist]
     permissions:
       contents: write
       pull-requests: write
