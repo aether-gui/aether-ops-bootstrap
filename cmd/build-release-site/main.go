@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aether-gui/aether-ops-bootstrap/internal/releaseyaml"
 	"gopkg.in/yaml.v3"
 )
 
@@ -466,14 +467,49 @@ const releasesTemplate = `<!doctype html>
 func main() {
 	var metadataPath string
 	var outputDir string
+	var promoteVersion string
+	var promoteID string
+	var promoteSpec string
+	var promoteCommit string
+	var priorBootstrapSHA string
+	var priorBundleSHA string
+	var priorPatchToolSHA string
+	var bootstrapNotesFile string
+	var bundleNotesFile string
+	var patchToolNotesFile string
 
 	flag.StringVar(&metadataPath, "metadata", "", "path to release metadata YAML")
 	flag.StringVar(&outputDir, "output", "", "output directory for generated site")
+
+	// --- release rotation (optional) ---
+	// When --promote-current is set, the metadata YAML is rewritten in
+	// place BEFORE the site is rendered: the existing current release
+	// is demoted to external with SHAs from the --prior-*-sha flags,
+	// and a new release entry is inserted at the top using
+	// --build-commit and components from --spec.
+	flag.StringVar(&promoteVersion, "promote-current", "", "new release version to promote to current (e.g. 2026.05.11.1); when set, releases.yaml is rotated before rendering")
+	flag.StringVar(&promoteID, "promote-id", "", "human-readable slug for the new release entry's id field (default: release-<version>)")
+	flag.StringVar(&promoteSpec, "spec", "specs/bundle.yaml", "path to specs/bundle.yaml (components list source) when promoting")
+	flag.StringVar(&promoteCommit, "build-commit", "", "short git SHA the artifacts were built from (required with --promote-current)")
+	flag.StringVar(&priorBootstrapSHA, "prior-bootstrap-sha", "", "SHA256 of the outgoing current release's bootstrap, inlined when demoting it (required with --promote-current)")
+	flag.StringVar(&priorBundleSHA, "prior-bundle-sha", "", "SHA256 of the outgoing current release's bundle (required with --promote-current)")
+	flag.StringVar(&priorPatchToolSHA, "prior-patch-tool-sha", "", "SHA256 of the outgoing current release's patch_tool (required with --promote-current)")
+	flag.StringVar(&bootstrapNotesFile, "bootstrap-notes", "", "path to a markdown/text file used verbatim as the new bootstrap release_notes (default: placeholder text)")
+	flag.StringVar(&bundleNotesFile, "bundle-notes", "", "path to a markdown/text file used verbatim as the new bundle release_notes (default: placeholder text)")
+	flag.StringVar(&patchToolNotesFile, "patch-tool-notes", "", "path to a markdown/text file used verbatim as the new patch_tool release_notes (default: placeholder text)")
 	flag.Parse()
 
 	if metadataPath == "" || outputDir == "" {
 		flag.Usage()
 		os.Exit(2)
+	}
+
+	if promoteVersion != "" {
+		if err := promoteRelease(metadataPath, promoteSpec, promoteVersion, promoteID, promoteCommit,
+			priorBootstrapSHA, priorBundleSHA, priorPatchToolSHA,
+			bootstrapNotesFile, bundleNotesFile, patchToolNotesFile); err != nil {
+			exitf("promote: %v", err)
+		}
 	}
 
 	meta, err := loadMetadata(metadataPath)
@@ -927,4 +963,81 @@ func defaultNotes(notes string) string {
 func exitf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
 	os.Exit(1)
+}
+
+// promoteRelease wraps internal/releaseyaml.Promote with the CLI's
+// flag conventions: required flags are validated up front, release-
+// notes files (when set) are read off disk verbatim, and the spec
+// path is resolved against the metadata directory when relative.
+func promoteRelease(metadataPath, specPath, version, id, buildCommit,
+	priorBootstrapSHA, priorBundleSHA, priorPatchToolSHA,
+	bootstrapNotesFile, bundleNotesFile, patchToolNotesFile string) error {
+	if buildCommit == "" {
+		return errors.New("--build-commit is required with --promote-current")
+	}
+	if priorBootstrapSHA == "" || priorBundleSHA == "" || priorPatchToolSHA == "" {
+		return errors.New("--prior-bootstrap-sha, --prior-bundle-sha, and --prior-patch-tool-sha are all required with --promote-current")
+	}
+
+	bootstrapNotes, err := readNotesFile(bootstrapNotesFile)
+	if err != nil {
+		return fmt.Errorf("reading --bootstrap-notes: %w", err)
+	}
+	bundleNotes, err := readNotesFile(bundleNotesFile)
+	if err != nil {
+		return fmt.Errorf("reading --bundle-notes: %w", err)
+	}
+	patchToolNotes, err := readNotesFile(patchToolNotesFile)
+	if err != nil {
+		return fmt.Errorf("reading --patch-tool-notes: %w", err)
+	}
+
+	// Resolve the spec path relative to the metadata file's directory
+	// when it isn't already absolute. The metadata file lives at
+	// site/releases.yaml and the spec at specs/bundle.yaml, so the
+	// default relative path "specs/bundle.yaml" needs the repo root
+	// in front of it. Use metadata's parent's parent as the repo
+	// root anchor.
+	if !filepath.IsAbs(specPath) {
+		// Walk up from the metadata file to the repo root (its
+		// grandparent in the common layout: <repo>/site/releases.yaml).
+		// If the directory doesn't match expectations, fall back to
+		// the CWD-relative spec path the caller passed in.
+		if abs, err := filepath.Abs(filepath.Join(filepath.Dir(metadataPath), "..", specPath)); err == nil {
+			if _, statErr := os.Stat(abs); statErr == nil {
+				specPath = abs
+			}
+		}
+	}
+
+	return releaseyaml.Promote(releaseyaml.Options{
+		YAMLPath:       metadataPath,
+		SpecPath:       specPath,
+		NewVersion:     version,
+		ID:             id,
+		BuildCommit:    buildCommit,
+		BootstrapNotes: bootstrapNotes,
+		BundleNotes:    bundleNotes,
+		PatchToolNotes: patchToolNotes,
+		Prior: releaseyaml.PriorSHAs{
+			Bootstrap: priorBootstrapSHA,
+			Bundle:    priorBundleSHA,
+			PatchTool: priorPatchToolSHA,
+		},
+	})
+}
+
+func readNotesFile(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	body := string(data)
+	// Ensure the literal block ends with exactly one newline so the
+	// yaml encoder doesn't add a trailing chomp indicator.
+	body = strings.TrimRight(body, "\n") + "\n"
+	return body, nil
 }

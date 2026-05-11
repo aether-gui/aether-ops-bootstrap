@@ -1,0 +1,218 @@
+# Release pipeline.
+#
+# Cuts a new bundle + bootstrap + patch-tool release: rebuilds every
+# artifact against the current spec, rotates site/releases.yaml in
+# place (demotes the prior current to external, inserts a new current
+# entry at the top), publishes the rendered site to
+# /var/www/tools.jointpathfinding.com/aether-ops-bootstrap on the www
+# container, commits the release-notes update on a feature branch,
+# and opens a PR against `dev` for human review of the notes before
+# merging.
+#
+# Runs on a self-hosted runner registered inside the LXD `www`
+# container (label `aether-www`) so the bundle's .deb staging + the
+# ~3.4 GB upload are local filesystem operations instead of multi-
+# minute LXD HTTPS API transfers. See
+# .claude/procedures/setup-www-runner.md for one-time runner
+# registration.
+#
+# Triggers:
+#   - workflow_dispatch (manual): operator picks the version + commit
+#     message. Use this when the spec change has already merged to
+#     `main` and you want to cut artifacts against it without tagging.
+#   - push of tags matching v<YYYY>.<MM>.<DD>.<N>: the canonical
+#     release trigger. `git tag v2026.05.12.1 && git push --tags` cuts
+#     a release whose bundle_version is the tag's calver portion (the
+#     leading `v` is stripped). The tag itself becomes the immutable
+#     pointer to the source revision the bundle was built from.
+
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bundle_version:
+        description: "Bundle version (YYYY.MM.DD.N). Defaults to today's UTC date with N=1."
+        required: false
+      release_id:
+        description: 'Human-readable slug for the release entry id (default: release-<version>).'
+        required: false
+  push:
+    tags:
+      # Calver tags (e.g. v2026.05.12.1) trigger the full release
+      # pipeline. Restrict the regex tightly so tags like `v0.2.0`
+      # (used for the aether-ops daemon, which we vendor separately)
+      # never fire this workflow against the wrong source of truth.
+      - 'v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9].*'
+
+jobs:
+  release:
+    name: build + publish + open PR
+    runs-on: [self-hosted, aether-www]
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      WWW_ROOT: /var/www/tools.jointpathfinding.com/aether-ops-bootstrap
+    steps:
+      - name: Checkout (full history for git rev-parse + tag context)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Resolve target bundle version
+        id: version
+        run: |
+          set -euo pipefail
+          # Resolution priority:
+          #   1. workflow_dispatch input bundle_version (operator override)
+          #   2. tag-push: the calver portion of the tag (vYYYY.MM.DD.N → YYYY.MM.DD.N)
+          #   3. fallback: today's UTC date with N=1
+          V="${{ inputs.bundle_version }}"
+          if [ -z "$V" ] && [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            # GITHUB_REF_NAME is the tag name without refs/tags/.
+            V="${GITHUB_REF_NAME#v}"
+          fi
+          if [ -z "$V" ]; then
+            V="$(date -u +%Y.%m.%d).1"
+          fi
+          echo "BUNDLE_VERSION=$V" >> "$GITHUB_ENV"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          # The release entry's `id:` slug, free-form. Falls back to
+          # `release-<version>` if the caller didn't supply one.
+          ID="${{ inputs.release_id }}"
+          [ -z "$ID" ] && ID="release-$V"
+          echo "RELEASE_ID=$ID" >> "$GITHUB_ENV"
+
+      - name: Pin bundle_version in specs/bundle.yaml
+        run: |
+          set -euo pipefail
+          # The spec already validates schema_version, so we only
+          # touch bundle_version. Use a literal pattern match so the
+          # regex doesn't drift.
+          sed -i -E 's/^bundle_version: ".*"$/bundle_version: "'"$BUNDLE_VERSION"'"/' specs/bundle.yaml
+          grep -q "bundle_version: \"$BUNDLE_VERSION\"" specs/bundle.yaml
+
+      - name: Build CLI tools (bootstrap, build-bundle, patch-bundle, build-release-site)
+        run: make build build-bundle build-patch-bundle build-release-site
+
+      - name: Capture prior current-release SHAs from live metadata.json
+        id: prior
+        run: |
+          set -euo pipefail
+          META="$WWW_ROOT/metadata.json"
+          if [ ! -f "$META" ]; then
+            echo "ERROR: live metadata.json not found at $META" >&2
+            exit 1
+          fi
+          PB=$(jq -r '.releases[] | select(.current==true) | .bootstrap.sha256' "$META")
+          PD=$(jq -r '.releases[] | select(.current==true) | .bundle.sha256' "$META")
+          PP=$(jq -r '.releases[] | select(.current==true) | .patch_tool.sha256' "$META")
+          for v in "$PB" "$PD" "$PP"; do
+            if [ -z "$v" ] || [ "$v" = "null" ]; then
+              echo "ERROR: prior current-release SHA missing in metadata.json" >&2
+              exit 1
+            fi
+          done
+          echo "prior_bootstrap_sha=$PB" >> "$GITHUB_OUTPUT"
+          echo "prior_bundle_sha=$PD" >> "$GITHUB_OUTPUT"
+          echo "prior_patch_tool_sha=$PP" >> "$GITHUB_OUTPUT"
+
+      - name: Build the offline bundle
+        run: ./dist/build-bundle --spec specs/bundle.yaml --output dist/bundle.tar.zst
+
+      - name: Compute build commit
+        id: commit
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Rotate site/releases.yaml + render site
+        run: |
+          set -euo pipefail
+          ./dist/build-release-site \
+            --metadata site/releases.yaml \
+            --output dist/release-site \
+            --spec specs/bundle.yaml \
+            --promote-current "$BUNDLE_VERSION" \
+            --promote-id "$RELEASE_ID" \
+            --build-commit "${{ steps.commit.outputs.sha }}" \
+            --prior-bootstrap-sha "${{ steps.prior.outputs.prior_bootstrap_sha }}" \
+            --prior-bundle-sha "${{ steps.prior.outputs.prior_bundle_sha }}" \
+            --prior-patch-tool-sha "${{ steps.prior.outputs.prior_patch_tool_sha }}"
+
+      - name: Publish to $WWW_ROOT
+        run: |
+          set -euo pipefail
+          # The runner runs as `aether-runner`, not root. A narrow
+          # sudoers drop-in (see docs/release/setup-www-runner.md)
+          # allows exactly these two argv shapes:
+          #   sudo install -d -m 755 -o www-data -g www-data <path>...
+          #   sudo rsync -a --chown=www-data:www-data <src> <dst>
+          # Anything else needs ad-hoc operator action.
+          sudo install -d -m 755 -o www-data -g www-data \
+            "$WWW_ROOT/bootstrap/$BUNDLE_VERSION" \
+            "$WWW_ROOT/bundles/$BUNDLE_VERSION" \
+            "$WWW_ROOT/tools/$BUNDLE_VERSION"
+          # Top-level files (index.html, metadata.json, releases/) +
+          # per-version artifact dirs. `rsync -a` preserves modes and
+          # `--chown` flips ownership to www-data:www-data so nginx
+          # can read.
+          sudo rsync -a --chown=www-data:www-data dist/release-site/ "$WWW_ROOT/"
+
+      - name: Verify published artifacts
+        run: |
+          set -euo pipefail
+          cd "$WWW_ROOT/bootstrap/$BUNDLE_VERSION"   && sha256sum -c aether-ops-bootstrap.sha256
+          cd "$WWW_ROOT/bundles/$BUNDLE_VERSION"     && sha256sum -c bundle.tar.zst.sha256
+          cd "$WWW_ROOT/tools/$BUNDLE_VERSION"       && sha256sum -c patch-bundle.sha256
+          CURRENT=$(jq -r '.releases[] | select(.current==true) | .bundle.version' "$WWW_ROOT/metadata.json")
+          if [ "$CURRENT" != "$BUNDLE_VERSION" ]; then
+            echo "ERROR: live metadata.json reports current=$CURRENT, expected $BUNDLE_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Commit + push release branch
+        id: branch
+        run: |
+          set -euo pipefail
+          BRANCH="feature/release-site-$BUNDLE_VERSION"
+          git config user.name  "aether-ops-release-bot"
+          git config user.email "aether-ops-release-bot@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add specs/bundle.yaml site/releases.yaml
+          git commit -m "site: publish $BUNDLE_VERSION release"
+          git push -u origin "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Open release PR (feature → dev)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr create \
+            --base dev \
+            --head "${{ steps.branch.outputs.branch }}" \
+            --title "Publish $BUNDLE_VERSION release notes" \
+            --body "$(cat <<EOF
+          ## Summary
+
+          Automated release publish for \`$BUNDLE_VERSION\`. Artifacts are already live at
+          \`https://tools.jointpathfinding.com/aether-ops-bootstrap/\` — this PR just keeps
+          the repo's \`site/releases.yaml\` and the live site in lock-step.
+
+          The placeholder \`TODO\` lines in the new release entry's \`release_notes\`
+          blocks need to be filled in before merging.
+
+          ## Test plan
+
+          - [x] Workflow built every artifact and verified \`sha256sum -c\` on the www container.
+          - [x] \`metadata.json\` reports \`$BUNDLE_VERSION\` as the current release.
+          - [ ] Fill in the three \`release_notes\` placeholders.
+          - [ ] Merge through dev → main per the usual merge-train workflow.
+          EOF
+          )"
