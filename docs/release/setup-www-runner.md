@@ -9,6 +9,11 @@ The runner lives inside the LXD `www` container so the bundle's
 operations against `/var/www/tools.jointpathfinding.com/...`
 instead of multi-minute LXD HTTPS API transfers.
 
+The runner is registered **org-wide** (under `aether-gui`) so other
+repositories in the org can opt into it by adding
+`runs-on: [self-hosted, aether-www]`. The label gates which jobs
+land here.
+
 ## Prerequisites on the `www` container
 
 The container needs Go, `make`, `rsync`, `git`, `jq`, `curl`, and
@@ -38,8 +43,9 @@ the runner does need to be able to extract a tarball, so verify
 
 ## Register the runner
 
-1. Visit https://github.com/aether-gui/aether-ops-bootstrap/settings/actions/runners/new
-   and copy the registration token (single-use, expires in an hour).
+1. Visit https://github.com/organizations/aether-gui/settings/actions/runners/new
+   (org-level Actions settings, "New self-hosted runner") and copy
+   the registration token (single-use, expires in an hour).
    *Do not commit the token anywhere.*
 
 2. Drop the runner into the container under `/opt/actions-runner`:
@@ -56,22 +62,29 @@ the runner does need to be able to extract a tarball, so verify
    ```
 
 3. Download and configure the runner. Substitute `<REGISTRATION_TOKEN>`
-   with the token from step 1:
+   with the token from step 1. Note the org URL — without the
+   repo path — so the runner is registered against the org and
+   shared across `aether-gui/*`:
 
    ```bash
-   /snap/bin/lxc exec datacenter:www --user $(id -u aether-runner) -- bash -c '
+   /snap/bin/lxc exec datacenter:www -- bash -c '
+     RUNNER_VERSION=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | jq -r .tag_name | sed s/^v//)
      cd /opt/actions-runner
-     RUNNER_VERSION=2.319.1
-     curl -fsSL -o actions-runner.tar.gz \
-       https://github.com/actions/runner/releases/download/v$RUNNER_VERSION/actions-runner-linux-x64-$RUNNER_VERSION.tar.gz
-     tar xzf actions-runner.tar.gz
+     sudo -u aether-runner curl -fsSL -o actions-runner.tar.gz \
+       "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
+     sudo -u aether-runner tar xzf actions-runner.tar.gz
+     rm -f actions-runner.tar.gz
+   '
+   /snap/bin/lxc exec datacenter:www -- sudo -u aether-runner bash -c '
+     cd /opt/actions-runner
      ./config.sh \
-       --url https://github.com/aether-gui/aether-ops-bootstrap \
+       --url https://github.com/aether-gui \
        --token <REGISTRATION_TOKEN> \
        --name www-aether \
        --labels aether-www \
        --work _work \
-       --unattended
+       --unattended \
+       --replace
    '
    ```
 
@@ -92,13 +105,16 @@ the runner does need to be able to extract a tarball, so verify
 ## Grant write access to the publish target
 
 The workflow runs `install -d -m 755 -o www-data -g www-data ...`
-inside `$WWW_ROOT`. `aether-runner` needs write access there but
-should not run as root. The simplest approach is a narrow sudoers
-drop-in:
+inside `$WWW_ROOT` and then `rsync -a --chown=www-data:www-data ...`.
+`aether-runner` needs root for those two argv shapes but nothing
+else, so a narrow sudoers drop-in is the right granularity:
 
 ```bash
 /snap/bin/lxc exec datacenter:www -- bash -c '
-  cat >/etc/sudoers.d/aether-runner <<EOF
+  cat >/etc/sudoers.d/aether-runner <<"EOF"
+# Allow the self-hosted runner to publish to /var/www without granting
+# full root. The two commands are exactly what .github/workflows/release.yml
+# needs in its "Publish to $WWW_ROOT" step.
 aether-runner ALL=(root) NOPASSWD: /usr/bin/install -d -m 755 -o www-data -g www-data *
 aether-runner ALL=(root) NOPASSWD: /usr/bin/rsync -a --chown=www-data\:www-data *
 EOF
@@ -107,17 +123,17 @@ EOF
 '
 ```
 
-Then in the workflow, switch the two `Publish to $WWW_ROOT` commands
-to `sudo install -d ...` and `sudo rsync ...`. (Alternative: make
-`aether-runner` a member of `www-data` and set the directories
-group-writable; that's looser but avoids the sudo dance.)
+The release workflow already invokes both commands via `sudo`, so no
+further change is needed once the drop-in lands.
 
 ## Verify the runner is healthy
 
-From the repo's *Actions* tab on GitHub, the new runner should appear
-as `www-aether` with status *Idle* and the `aether-www` label. Kick
-off the `release` workflow via *Run workflow* with no inputs (it will
-default to today's UTC date with `N=1`) and watch the run complete.
+From the org's *Settings → Actions → Runners* page on GitHub, the
+new runner should appear as `www-aether` with status *Idle* and the
+`aether-www` label. Kick off the `release` workflow via *Run
+workflow* with no inputs (it will default to today's UTC date with
+`N=1`) — or tag the repo with `git tag vYYYY.MM.DD.N && git push
+--tags` — and watch the run complete.
 
 If the workflow fails on `Capture prior current-release SHAs`, the
 runner doesn't have read access to `$WWW_ROOT/metadata.json` — add

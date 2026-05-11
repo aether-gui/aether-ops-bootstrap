@@ -19,9 +19,12 @@
 # Triggers:
 #   - workflow_dispatch (manual): operator picks the version + commit
 #     message. Use this when the spec change has already merged to
-#     `main` and you want to cut artifacts against it.
-#   - push of tags matching v*: future-proofing — not wired into the
-#     downstream merge train yet, but harmless to leave armed.
+#     `main` and you want to cut artifacts against it without tagging.
+#   - push of tags matching v<YYYY>.<MM>.<DD>.<N>: the canonical
+#     release trigger. `git tag v2026.05.12.1 && git push --tags` cuts
+#     a release whose bundle_version is the tag's calver portion (the
+#     leading `v` is stripped). The tag itself becomes the immutable
+#     pointer to the source revision the bundle was built from.
 
 name: release
 
@@ -36,7 +39,11 @@ on:
         required: false
   push:
     tags:
-      - 'v*'
+      # Calver tags (e.g. v2026.05.12.1) trigger the full release
+      # pipeline. Restrict the regex tightly so tags like `v0.2.0`
+      # (used for the aether-ops daemon, which we vendor separately)
+      # never fire this workflow against the wrong source of truth.
+      - 'v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9].*'
 
 jobs:
   release:
@@ -63,7 +70,15 @@ jobs:
         id: version
         run: |
           set -euo pipefail
+          # Resolution priority:
+          #   1. workflow_dispatch input bundle_version (operator override)
+          #   2. tag-push: the calver portion of the tag (vYYYY.MM.DD.N → YYYY.MM.DD.N)
+          #   3. fallback: today's UTC date with N=1
           V="${{ inputs.bundle_version }}"
+          if [ -z "$V" ] && [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            # GITHUB_REF_NAME is the tag name without refs/tags/.
+            V="${GITHUB_REF_NAME#v}"
+          fi
           if [ -z "$V" ]; then
             V="$(date -u +%Y.%m.%d).1"
           fi
@@ -133,7 +148,13 @@ jobs:
       - name: Publish to $WWW_ROOT
         run: |
           set -euo pipefail
-          install -d -m 755 -o www-data -g www-data \
+          # The runner runs as `aether-runner`, not root. A narrow
+          # sudoers drop-in (see docs/release/setup-www-runner.md)
+          # allows exactly these two argv shapes:
+          #   sudo install -d -m 755 -o www-data -g www-data <path>...
+          #   sudo rsync -a --chown=www-data:www-data <src> <dst>
+          # Anything else needs ad-hoc operator action.
+          sudo install -d -m 755 -o www-data -g www-data \
             "$WWW_ROOT/bootstrap/$BUNDLE_VERSION" \
             "$WWW_ROOT/bundles/$BUNDLE_VERSION" \
             "$WWW_ROOT/tools/$BUNDLE_VERSION"
@@ -141,7 +162,7 @@ jobs:
           # per-version artifact dirs. `rsync -a` preserves modes and
           # `--chown` flips ownership to www-data:www-data so nginx
           # can read.
-          rsync -a --chown=www-data:www-data dist/release-site/ "$WWW_ROOT/"
+          sudo rsync -a --chown=www-data:www-data dist/release-site/ "$WWW_ROOT/"
 
       - name: Verify published artifacts
         run: |
