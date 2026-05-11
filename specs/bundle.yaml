@@ -1,5 +1,5 @@
 schema_version: 2
-bundle_version: "2026.05.07.2"
+bundle_version: "2026.05.11.1"
 
 ubuntu:
   suites: [noble, noble-updates, noble-security]
@@ -41,8 +41,8 @@ helm:
   version: "v3.20.0"
 
 aether_ops:
-  version: "v0.1.50"
-  source: ./artifacts/aether-ops_0.1.50_linux_amd64.tar.gz # local pre-built binary
+  version: "v0.2.0"
+  source: ./artifacts/aether-ops_0.2.0_linux_amd64.tar.gz # local pre-built binary
   # ref: "main"           # build from source at this git ref (mutually exclusive with source)
   # repo: aether-gui/aether-ops
   # frontend_ref: ""      # override frontend submodule (source build only)
