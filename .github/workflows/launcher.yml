@@ -54,8 +54,11 @@ jobs:
           SYFT_SOURCE_VERSION: ${{ github.sha }}
         run: |
           set -euo pipefail
-          grype dir:. -o table
-          grype dir:. -o json --file grype-source.json
+          # --vex consumes security/vex/openvex.json so any CVE flagged
+          # not_affected or fixed there drops out of the table view.
+          # The same doc is shipped per-release for downstream auditing.
+          grype dir:. --vex security/vex/openvex.json -o table
+          grype dir:. --vex security/vex/openvex.json -o json --file grype-source.json
 
       - name: Upload vulnerability report
         if: always()

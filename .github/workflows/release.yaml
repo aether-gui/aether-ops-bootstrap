@@ -72,20 +72,33 @@ jobs:
           syft dist/bundle.tar.zst \
             -o spdx-json=dist/sbom-bundle-${{ github.ref_name }}.spdx.json
 
+      - name: Stage OpenVEX document for release upload
+        run: |
+          set -euo pipefail
+          # Copy the checked-in VEX doc into dist/ so it ships alongside
+          # the SBOM and Grype JSON. Grype consumes the original path
+          # via --vex below; the dist/ copy is the public artifact.
+          cp security/vex/openvex.json \
+            dist/openvex-${{ github.ref_name }}.json
+
       - name: Scan launcher SBOM with Grype
         run: |
           set -euo pipefail
           grype sbom:dist/sbom-aether-ops-bootstrap-${{ github.ref_name }}.spdx.json \
+            --vex security/vex/openvex.json \
             -o json --file dist/grype-launcher.json
           grype sbom:dist/sbom-aether-ops-bootstrap-${{ github.ref_name }}.spdx.json \
+            --vex security/vex/openvex.json \
             -o table
 
       - name: Scan bundle SBOM with Grype
         run: |
           set -euo pipefail
           grype sbom:dist/sbom-bundle-${{ github.ref_name }}.spdx.json \
+            --vex security/vex/openvex.json \
             -o json --file dist/grype-bundle.json
           grype sbom:dist/sbom-bundle-${{ github.ref_name }}.spdx.json \
+            --vex security/vex/openvex.json \
             -o table
 
       - name: Upload bundle and scan artifacts to release
@@ -98,4 +111,5 @@ jobs:
             dist/sbom-aether-ops-bootstrap-${{ github.ref_name }}.spdx.json \
             dist/sbom-bundle-${{ github.ref_name }}.spdx.json \
             dist/grype-launcher.json \
-            dist/grype-bundle.json
+            dist/grype-bundle.json \
+            dist/openvex-${{ github.ref_name }}.json

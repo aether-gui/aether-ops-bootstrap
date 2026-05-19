@@ -46,6 +46,21 @@
     {{ end }}
   </ul>
   {{ end }}
+
+  {{ if .SecurityArtifacts }}
+  <div class="section-label">Supply-chain artifacts</div>
+  <ul class="security">
+    {{ range .SecurityArtifacts }}
+    <li class="security-row sec-{{ .Kind }}">
+      <span class="kind">{{ .Label }}</span>
+      <span class="links">
+        <a href="{{ .URL }}">{{ .Filename }}</a>
+        <a href="{{ .SHA256URL }}">SHA256</a>
+      </span>
+    </li>
+    {{ end }}
+  </ul>
+  {{ end }}
 </article>
 {{ end }}
 
@@ -93,6 +108,21 @@
       <span class="name">{{ .Name }}</span>
       {{ if .Version }}<span class="ver">{{ .Version }}</span>{{ else }}<span></span>{{ end }}
       {{ if .Commit }}<span class="hash" title="{{ .Commit }}">{{ shortHash .Commit }}</span>{{ else }}<span></span>{{ end }}
+    </li>
+    {{ end }}
+  </ul>
+  {{ end }}
+
+  {{ if .SecurityArtifacts }}
+  <div class="section-label">Supply-chain artifacts</div>
+  <ul class="security">
+    {{ range .SecurityArtifacts }}
+    <li class="security-row sec-{{ .Kind }}">
+      <span class="kind">{{ .Label }}</span>
+      <span class="links">
+        <a href="{{ .URL }}">{{ .Filename }}</a>
+        <a href="{{ .SHA256URL }}">SHA256</a>
+      </span>
     </li>
     {{ end }}
   </ul>

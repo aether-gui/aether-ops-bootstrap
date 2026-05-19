@@ -75,6 +75,26 @@ type artifactConfig struct {
 	ReleaseSummary string            `yaml:"release_summary,omitempty"`
 	ReleaseNotes   []string          `yaml:"release_notes"`
 	Components     []componentConfig `yaml:"components"`
+	// SecurityArtifacts are the supply-chain sidecars (SBOM, Grype
+	// scan, OpenVEX doc) published next to the primary artifact under
+	// the same per-version path. Optional — releases that predate the
+	// SBOM/Grype/VEX pipeline omit this list. When present, each entry
+	// is materialised exactly like the primary artifact: copied into
+	// the output tree, hashed, with a .sha256 sidecar written next to
+	// it.
+	SecurityArtifacts []securityArtifactConfig `yaml:"security_artifacts,omitempty"`
+}
+
+// securityArtifactConfig is one supply-chain sidecar attached to an
+// artifact block. Kind is free-form ("sbom", "grype", "vex") and only
+// drives the label fallback and link styling; the renderer treats the
+// list as opaque downloads otherwise.
+type securityArtifactConfig struct {
+	Kind     string `yaml:"kind"`
+	Label    string `yaml:"label,omitempty"`
+	Filename string `yaml:"filename"`
+	Source   string `yaml:"source,omitempty"`
+	SHA256   string `yaml:"sha256,omitempty"`
 }
 
 type componentConfig struct {
@@ -100,21 +120,31 @@ type publicRelease struct {
 }
 
 type publicArtifact struct {
-	Kind           string            `json:"kind"` // "bootstrap" | "bundle" | "patch_tool"
-	Label          string            `json:"label"`
-	Description    string            `json:"description,omitempty"`
-	DocsURL        string            `json:"docs_url,omitempty"`
-	Version        string            `json:"version"`
-	Path           string            `json:"path"`
-	Filename       string            `json:"filename"`
-	SHA256         string            `json:"sha256"`
-	Commit         string            `json:"commit,omitempty"`
-	BuildCommit    string            `json:"build_commit,omitempty"`
-	ReleaseSummary string            `json:"release_summary,omitempty"`
-	ReleaseNotes   []string          `json:"release_notes,omitempty"`
-	URL            string            `json:"url"`
-	SHA256URL      string            `json:"sha256_url,omitempty"`
-	Components     []publicComponent `json:"components,omitempty"`
+	Kind              string                   `json:"kind"` // "bootstrap" | "bundle" | "patch_tool"
+	Label             string                   `json:"label"`
+	Description       string                   `json:"description,omitempty"`
+	DocsURL           string                   `json:"docs_url,omitempty"`
+	Version           string                   `json:"version"`
+	Path              string                   `json:"path"`
+	Filename          string                   `json:"filename"`
+	SHA256            string                   `json:"sha256"`
+	Commit            string                   `json:"commit,omitempty"`
+	BuildCommit       string                   `json:"build_commit,omitempty"`
+	ReleaseSummary    string                   `json:"release_summary,omitempty"`
+	ReleaseNotes      []string                 `json:"release_notes,omitempty"`
+	URL               string                   `json:"url"`
+	SHA256URL         string                   `json:"sha256_url,omitempty"`
+	Components        []publicComponent        `json:"components,omitempty"`
+	SecurityArtifacts []publicSecurityArtifact `json:"security_artifacts,omitempty"`
+}
+
+type publicSecurityArtifact struct {
+	Kind      string `json:"kind"`
+	Label     string `json:"label"`
+	Filename  string `json:"filename"`
+	SHA256    string `json:"sha256"`
+	URL       string `json:"url"`
+	SHA256URL string `json:"sha256_url"`
 }
 
 type publicComponent struct {
@@ -142,21 +172,31 @@ type renderedRelease struct {
 }
 
 type renderedArtifact struct {
-	Kind           string // "bootstrap" | "bundle" | "patch_tool"
-	Label          string
-	Description    string
-	DocsURL        string
-	Version        string
-	Path           string
-	Filename       string
-	SHA256         string
-	Commit         string
-	BuildCommit    string
-	ReleaseSummary string
-	ReleaseNotes   []string
-	URL            string
-	SHA256URL      string
-	Components     []renderedComponent
+	Kind              string // "bootstrap" | "bundle" | "patch_tool"
+	Label             string
+	Description       string
+	DocsURL           string
+	Version           string
+	Path              string
+	Filename          string
+	SHA256            string
+	Commit            string
+	BuildCommit       string
+	ReleaseSummary    string
+	ReleaseNotes      []string
+	URL               string
+	SHA256URL         string
+	Components        []renderedComponent
+	SecurityArtifacts []renderedSecurityArtifact
+}
+
+type renderedSecurityArtifact struct {
+	Kind      string
+	Label     string
+	Filename  string
+	SHA256    string
+	URL       string
+	SHA256URL string
 }
 
 type renderedComponent struct {
@@ -220,6 +260,14 @@ func main() {
 	var keepArtifacts bool
 	flag.BoolVar(&keepArtifacts, "keep-existing-artifacts", false, "skip artifact copy/hash and read SHA256 from the pre-existing <output>/<kind>/<path>/<filename>.sha256 sidecar; do not wipe --output. Used to re-render index pages against a live artifact tree.")
 
+	// Repeatable: --prior-security-sha=<parent_kind>:<filename>=<hex>
+	// e.g. --prior-security-sha=bundle:openvex.json=abc123…
+	// One flag per supply-chain sidecar present on the outgoing
+	// current release's security_artifacts list. Demotion fails loudly
+	// when a present entry is missing a SHA here.
+	var priorSecuritySHAs priorSecuritySHAFlag
+	flag.Var(&priorSecuritySHAs, "prior-security-sha", "repeatable SHA256 for one supply-chain sidecar on the outgoing current release, formatted as <parent_kind>:<filename>=<hex> (parent_kind is bootstrap, bundle, or patch_tool)")
+
 	flag.Parse()
 
 	if metadataPath == "" || outputDir == "" {
@@ -230,7 +278,8 @@ func main() {
 	if promoteVersion != "" {
 		if err := promoteRelease(metadataPath, promoteSpec, promoteVersion, promoteID, promoteCommit,
 			priorBootstrapSHA, priorBundleSHA, priorPatchToolSHA,
-			bootstrapNotesFile, bundleNotesFile, patchToolNotesFile); err != nil {
+			bootstrapNotesFile, bundleNotesFile, patchToolNotesFile,
+			priorSecuritySHAs.values); err != nil {
 			exitf("promote: %v", err)
 		}
 	}
@@ -433,6 +482,34 @@ func validateArtifact(kind string, artifact artifactConfig, external bool) error
 	if artifact.Filename == "" {
 		return fmt.Errorf("%s filename is required", kind)
 	}
+	seen := map[string]struct{}{}
+	for i, sa := range artifact.SecurityArtifacts {
+		if sa.Kind == "" {
+			return fmt.Errorf("%s security_artifacts[%d]: kind is required", kind, i)
+		}
+		if sa.Filename == "" {
+			return fmt.Errorf("%s security_artifacts[%d] (%s): filename is required", kind, i, sa.Kind)
+		}
+		if strings.ContainsAny(sa.Filename, "/\\") {
+			return fmt.Errorf("%s security_artifacts[%d] (%s): filename must not contain a path separator", kind, i, sa.Kind)
+		}
+		if _, dup := seen[sa.Filename]; dup {
+			return fmt.Errorf("%s security_artifacts: duplicate filename %q", kind, sa.Filename)
+		}
+		seen[sa.Filename] = struct{}{}
+		if sa.Filename == artifact.Filename {
+			return fmt.Errorf("%s security_artifacts[%d] (%s): filename collides with the primary artifact", kind, i, sa.Kind)
+		}
+		if external {
+			if sa.SHA256 == "" {
+				return fmt.Errorf("%s security_artifacts[%d] (%s): sha256 is required for external releases", kind, i, sa.Kind)
+			}
+			continue
+		}
+		if sa.Source == "" {
+			return fmt.Errorf("%s security_artifacts[%d] (%s): source is required", kind, i, sa.Kind)
+		}
+	}
 	if external {
 		if artifact.SHA256 == "" {
 			return fmt.Errorf("%s sha256 is required for external releases", kind)
@@ -563,41 +640,126 @@ func materializeArtifact(metadataDir, outputDir, baseURL, kind string, art artif
 		}
 	}
 
+	renderedSecurity, publicSecurity, err := materializeSecurityArtifacts(metadataDir, outputDir, baseURL, kind, art, external, keepArtifacts)
+	if err != nil {
+		return renderedArtifact{}, publicArtifact{}, err
+	}
+
 	label := defaultString(defaultString(art.Label, defaults.Label), defaultArtifactLabel[kind])
 
 	rendered := renderedArtifact{
-		Kind:           kind,
-		Label:          label,
-		Description:    defaults.Description,
-		DocsURL:        defaults.DocsURL,
-		Version:        art.Version,
-		Path:           art.Path,
-		Filename:       art.Filename,
-		SHA256:         hash,
-		Commit:         art.Commit,
-		BuildCommit:    art.BuildCommit,
-		ReleaseSummary: strings.TrimSpace(art.ReleaseSummary),
-		ReleaseNotes:   defaultNotes(art.ReleaseNotes),
-		URL:            url,
-		SHA256URL:      shaURL,
-		Components:     renderComponents(art.Components),
+		Kind:              kind,
+		Label:             label,
+		Description:       defaults.Description,
+		DocsURL:           defaults.DocsURL,
+		Version:           art.Version,
+		Path:              art.Path,
+		Filename:          art.Filename,
+		SHA256:            hash,
+		Commit:            art.Commit,
+		BuildCommit:       art.BuildCommit,
+		ReleaseSummary:    strings.TrimSpace(art.ReleaseSummary),
+		ReleaseNotes:      defaultNotes(art.ReleaseNotes),
+		URL:               url,
+		SHA256URL:         shaURL,
+		Components:        renderComponents(art.Components),
+		SecurityArtifacts: renderedSecurity,
 	}
 	public := publicArtifact{
-		Kind:           kind,
-		Label:          rendered.Label,
-		Description:    rendered.Description,
-		DocsURL:        rendered.DocsURL,
-		Version:        rendered.Version,
-		Path:           rendered.Path,
-		Filename:       rendered.Filename,
-		SHA256:         rendered.SHA256,
-		Commit:         rendered.Commit,
-		BuildCommit:    rendered.BuildCommit,
-		ReleaseSummary: rendered.ReleaseSummary,
-		ReleaseNotes:   rendered.ReleaseNotes,
-		URL:            rendered.URL,
-		SHA256URL:      rendered.SHA256URL,
-		Components:     publicComponents(rendered.Components),
+		Kind:              kind,
+		Label:             rendered.Label,
+		Description:       rendered.Description,
+		DocsURL:           rendered.DocsURL,
+		Version:           rendered.Version,
+		Path:              rendered.Path,
+		Filename:          rendered.Filename,
+		SHA256:            rendered.SHA256,
+		Commit:            rendered.Commit,
+		BuildCommit:       rendered.BuildCommit,
+		ReleaseSummary:    rendered.ReleaseSummary,
+		ReleaseNotes:      rendered.ReleaseNotes,
+		URL:               rendered.URL,
+		SHA256URL:         rendered.SHA256URL,
+		Components:        publicComponents(rendered.Components),
+		SecurityArtifacts: publicSecurity,
+	}
+	return rendered, public, nil
+}
+
+// defaultSecurityArtifactLabel covers the well-known supply-chain kinds.
+// Unknown kinds fall back to a Title-Case version of the kind string so
+// new entries are renderable without a schema change.
+var defaultSecurityArtifactLabel = map[string]string{
+	"sbom":  "SBOM (SPDX-JSON)",
+	"grype": "Grype scan",
+	"vex":   "OpenVEX statements",
+}
+
+// materializeSecurityArtifacts handles the SBOM / Grype / VEX sidecars
+// attached to one artifact block. Each entry is staged under the same
+// per-version directory as the primary artifact (so URLs stay tidy and
+// nginx serves them with the same caching), hashed, and given a
+// .sha256 sidecar. external releases trust the inlined SHA256 and skip
+// the file copy; keepArtifacts mode reads each SHA from the existing
+// sidecar without touching the artifact.
+func materializeSecurityArtifacts(metadataDir, outputDir, baseURL, kind string, art artifactConfig, external, keepArtifacts bool) ([]renderedSecurityArtifact, []publicSecurityArtifact, error) {
+	if len(art.SecurityArtifacts) == 0 {
+		return nil, nil, nil
+	}
+	dir := artifactDir[kind]
+	rendered := make([]renderedSecurityArtifact, 0, len(art.SecurityArtifacts))
+	public := make([]publicSecurityArtifact, 0, len(art.SecurityArtifacts))
+	for _, sa := range art.SecurityArtifacts {
+		var hash string
+		switch {
+		case external:
+			hash = sa.SHA256
+		case keepArtifacts:
+			sidecar := filepath.Join(outputDir, dir, art.Path, sa.Filename+".sha256")
+			h, err := parseSHA256File(sidecar)
+			if err != nil {
+				return nil, nil, fmt.Errorf("%s security_artifacts (%s) --keep-existing-artifacts: reading %s: %w", kind, sa.Kind, sidecar, err)
+			}
+			hash = h
+		default:
+			stageDir := filepath.Join(outputDir, dir, art.Path)
+			if err := os.MkdirAll(stageDir, 0o755); err != nil {
+				return nil, nil, err
+			}
+			h, err := copyArtifact(resolvePath(metadataDir, sa.Source), filepath.Join(stageDir, sa.Filename))
+			if err != nil {
+				return nil, nil, fmt.Errorf("%s security_artifacts (%s): %w", kind, sa.Kind, err)
+			}
+			if sa.SHA256 != "" && sa.SHA256 != h {
+				return nil, nil, fmt.Errorf("%s security_artifacts (%s): sha256 mismatch: metadata=%s computed=%s", kind, sa.Kind, sa.SHA256, h)
+			}
+			if err := writeSHA256File(filepath.Join(stageDir, sa.Filename+".sha256"), sa.Filename, h); err != nil {
+				return nil, nil, err
+			}
+			hash = h
+		}
+		label := defaultString(sa.Label, defaultSecurityArtifactLabel[sa.Kind])
+		if label == "" {
+			label = strings.ToUpper(sa.Kind[:1]) + sa.Kind[1:]
+		}
+		url := joinURL(baseURL, dir, art.Path, sa.Filename)
+		shaURL := joinURL(baseURL, dir, art.Path, sa.Filename+".sha256")
+		rendered = append(rendered, renderedSecurityArtifact{
+			Kind:      sa.Kind,
+			Label:     label,
+			Filename:  sa.Filename,
+			SHA256:    hash,
+			URL:       url,
+			SHA256URL: shaURL,
+		})
+		public = append(public, publicSecurityArtifact{
+			Kind:      sa.Kind,
+			Label:     label,
+			Filename:  sa.Filename,
+			SHA256:    hash,
+			URL:       url,
+			SHA256URL: shaURL,
+		})
 	}
 	return rendered, public, nil
 }
@@ -900,13 +1062,52 @@ func exitf(format string, args ...any) {
 	os.Exit(1)
 }
 
+// priorSecuritySHAFlag implements flag.Value to collect repeatable
+// --prior-security-sha=<parent_kind>:<filename>=<hex> entries.
+type priorSecuritySHAFlag struct {
+	values []releaseyaml.PriorSecuritySHA
+}
+
+func (f *priorSecuritySHAFlag) String() string {
+	parts := make([]string, 0, len(f.values))
+	for _, v := range f.values {
+		parts = append(parts, fmt.Sprintf("%s:%s=%s", v.ParentKind, v.Filename, v.SHA256))
+	}
+	return strings.Join(parts, ",")
+}
+
+func (f *priorSecuritySHAFlag) Set(raw string) error {
+	eq := strings.IndexByte(raw, '=')
+	if eq <= 0 || eq == len(raw)-1 {
+		return fmt.Errorf("expected <parent_kind>:<filename>=<sha>, got %q", raw)
+	}
+	lhs, sha := raw[:eq], raw[eq+1:]
+	colon := strings.IndexByte(lhs, ':')
+	if colon <= 0 || colon == len(lhs)-1 {
+		return fmt.Errorf("expected <parent_kind>:<filename> on the left of '=', got %q", lhs)
+	}
+	parent, filename := lhs[:colon], lhs[colon+1:]
+	switch parent {
+	case "bootstrap", "bundle", "patch_tool":
+	default:
+		return fmt.Errorf("parent_kind must be bootstrap, bundle, or patch_tool (got %q)", parent)
+	}
+	f.values = append(f.values, releaseyaml.PriorSecuritySHA{
+		ParentKind: parent,
+		Filename:   filename,
+		SHA256:     sha,
+	})
+	return nil
+}
+
 // promoteRelease wraps internal/releaseyaml.Promote with the CLI's
 // flag conventions: required flags are validated up front, release-
 // notes files (when set) are read off disk verbatim, and the spec
 // path is resolved against the metadata directory when relative.
 func promoteRelease(metadataPath, specPath, version, id, buildCommit,
 	priorBootstrapSHA, priorBundleSHA, priorPatchToolSHA,
-	bootstrapNotesFile, bundleNotesFile, patchToolNotesFile string) error {
+	bootstrapNotesFile, bundleNotesFile, patchToolNotesFile string,
+	priorSecurity []releaseyaml.PriorSecuritySHA) error {
 	if buildCommit == "" {
 		return errors.New("--build-commit is required with --promote-current")
 	}
@@ -962,6 +1163,7 @@ func promoteRelease(metadataPath, specPath, version, id, buildCommit,
 			Bundle:    priorBundleSHA,
 			PatchTool: priorPatchToolSHA,
 		},
+		PriorSecurity: priorSecurity,
 	})
 }
 

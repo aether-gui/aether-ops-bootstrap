@@ -48,6 +48,22 @@ type PriorSHAs struct {
 	PatchTool string
 }
 
+// PriorSecuritySHA names one supply-chain sidecar on the outgoing
+// current release and its SHA256 hex digest. demoteCurrent uses these
+// to rewrite each `security_artifacts` entry's `source:` into a
+// literal `sha256:` field — the same shape as the primary artifact's
+// demotion.
+//
+// ParentKind matches the artifact block the entry lives under
+// ("bootstrap" | "bundle" | "patch_tool"). Filename matches the
+// entry's `filename:` field exactly; the lookup is a string match, not
+// a path resolution.
+type PriorSecuritySHA struct {
+	ParentKind string
+	Filename   string
+	SHA256     string
+}
+
 // Options drives one Promote call.
 type Options struct {
 	// YAMLPath is the path to releases.yaml on disk.
@@ -91,6 +107,19 @@ type Options struct {
 	// Prior captures the SHA256s of the previous-current release's
 	// three artifacts. Required.
 	Prior PriorSHAs
+	// PriorSecurity carries SHA256s for the supply-chain sidecars
+	// (SBOM / Grype / VEX) on the outgoing current release, so the
+	// demotion can rewrite each `security_artifacts` entry from
+	// `source:` to `sha256:` just like the primary artifact. The list
+	// may be empty when the outgoing release predates the supply-chain
+	// pipeline (no `security_artifacts:` block under any artifact); in
+	// that case demoteCurrent has nothing to rewrite and the field is
+	// effectively ignored. When the outgoing release DOES carry
+	// `security_artifacts:`, every entry must have a matching
+	// PriorSecuritySHA — a missing SHA is an error rather than a
+	// silent drop, so demotion can't strip a published artifact's
+	// integrity attestation by accident.
+	PriorSecurity []PriorSecuritySHA
 }
 
 // Promote applies the rotation described in opts to opts.YAMLPath in
@@ -140,7 +169,7 @@ func Promote(opts Options) error {
 		return fmt.Errorf("releaseyaml: %s missing or invalid `releases:` sequence", opts.YAMLPath)
 	}
 
-	if err := demoteCurrent(releasesNode, opts.Prior); err != nil {
+	if err := demoteCurrent(releasesNode, opts.Prior, opts.PriorSecurity); err != nil {
 		return err
 	}
 
@@ -327,7 +356,7 @@ func setMapKey(mapping *yaml.Node, key string, scalar *yaml.Node) {
 // and rewrites it for external hosting. Returns an error if zero or
 // more than one current entry is found — the rest of the rotation is
 // only meaningful when there is exactly one outgoing release.
-func demoteCurrent(releases *yaml.Node, prior PriorSHAs) error {
+func demoteCurrent(releases *yaml.Node, prior PriorSHAs, priorSecurity []PriorSecuritySHA) error {
 	var found *yaml.Node
 	count := 0
 	for _, entry := range releases.Content {
@@ -361,6 +390,63 @@ func demoteCurrent(releases *yaml.Node, prior PriorSHAs) error {
 	}
 	if err := demoteArtifact(lookupMapValue(found, "patch_tool"), prior.PatchTool); err != nil {
 		return fmt.Errorf("demoting patch_tool: %w", err)
+	}
+
+	secLookup := indexPriorSecurity(priorSecurity)
+	for _, kind := range []string{"bootstrap", "bundle", "patch_tool"} {
+		if err := demoteSecurityArtifacts(lookupMapValue(found, kind), kind, secLookup[kind]); err != nil {
+			return fmt.Errorf("demoting %s security_artifacts: %w", kind, err)
+		}
+	}
+	return nil
+}
+
+// indexPriorSecurity buckets a flat PriorSecuritySHA slice by parent
+// artifact kind, so demoteSecurityArtifacts can pull a filename → SHA
+// lookup for just the block it's working on.
+func indexPriorSecurity(in []PriorSecuritySHA) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	for _, p := range in {
+		if p.ParentKind == "" || p.Filename == "" {
+			continue
+		}
+		bucket, ok := out[p.ParentKind]
+		if !ok {
+			bucket = map[string]string{}
+			out[p.ParentKind] = bucket
+		}
+		bucket[p.Filename] = p.SHA256
+	}
+	return out
+}
+
+// demoteSecurityArtifacts walks the `security_artifacts:` sequence on
+// one artifact block and rewrites each entry from a `source:` pointer
+// into a literal `sha256:`. A nil/missing sequence is a no-op (the
+// outgoing release predates the supply-chain pipeline); when present,
+// every entry must have a matching SHA in lookup or demotion fails.
+func demoteSecurityArtifacts(artifact *yaml.Node, parentKind string, lookup map[string]string) error {
+	if artifact == nil || artifact.Kind != yaml.MappingNode {
+		return nil
+	}
+	seq := lookupMapValue(artifact, "security_artifacts")
+	if seq == nil || seq.Kind != yaml.SequenceNode {
+		return nil
+	}
+	for i, entry := range seq.Content {
+		if entry.Kind != yaml.MappingNode {
+			continue
+		}
+		fn := lookupMapValue(entry, "filename")
+		if fn == nil || fn.Value == "" {
+			return fmt.Errorf("entry %d: missing filename", i)
+		}
+		sha, ok := lookup[fn.Value]
+		if !ok || sha == "" {
+			return fmt.Errorf("entry %d (%s): no prior SHA provided", i, fn.Value)
+		}
+		removeMapKey(entry, "source")
+		setMapKey(entry, "sha256", scalarString(sha))
 	}
 	return nil
 }
@@ -514,7 +600,7 @@ func buildNewEntry(id, version string, publishedAt time.Time, buildCommit string
 	setMapKey(entry, "published_at", scalarString(publishedAt.Format(time.RFC3339)))
 	setMapKey(entry, "current", scalarBool(true))
 
-	setMapKey(entry, "bootstrap", buildArtifactBlock(artifactInputs{
+	bootstrapBlock := buildArtifactBlock(artifactInputs{
 		Version:     version,
 		Filename:    "aether-ops-bootstrap",
 		Source:      "../dist/aether-ops-bootstrap",
@@ -522,7 +608,9 @@ func buildNewEntry(id, version string, publishedAt time.Time, buildCommit string
 		BuildCommit: buildCommit,
 		Summary:     bootstrapSummary,
 		Notes:       bootstrapNotes,
-	}))
+	})
+	setMapKey(bootstrapBlock, "security_artifacts", buildSecurityArtifactsNode(bootstrapSecurityArtifacts()))
+	setMapKey(entry, "bootstrap", bootstrapBlock)
 
 	bundleBlock := buildArtifactBlock(artifactInputs{
 		Version:      version,
@@ -535,6 +623,7 @@ func buildNewEntry(id, version string, publishedAt time.Time, buildCommit string
 		Notes:        bundleNotes,
 	})
 	setMapKey(bundleBlock, "components", buildComponentsNode(c))
+	setMapKey(bundleBlock, "security_artifacts", buildSecurityArtifactsNode(bundleSecurityArtifacts()))
 	setMapKey(entry, "bundle", bundleBlock)
 
 	setMapKey(entry, "patch_tool", buildArtifactBlock(artifactInputs{
@@ -628,6 +717,54 @@ func buildComponentsNode(c specComponents) *yaml.Node {
 	add("helm", c.HelmVersion, "")
 	for _, hc := range c.HelmCharts {
 		add(hc.Name, hc.Ref, "")
+	}
+	return seq
+}
+
+// securityArtifactSpec describes one supply-chain sidecar that the
+// promote pipeline expects to find in dist/ (or under security/) at
+// build time. Filename is the published name relative to the per-
+// version path; Source is the path the build-release-site copy reads
+// from, relative to site/releases.yaml's directory.
+type securityArtifactSpec struct {
+	Kind     string
+	Filename string
+	Source   string
+}
+
+// bootstrapSecurityArtifacts is the fixed list of supply-chain
+// sidecars attached to the launcher block on every new release. The
+// distribute.yml workflow writes the source files into dist/ before
+// running this rotation.
+func bootstrapSecurityArtifacts() []securityArtifactSpec {
+	return []securityArtifactSpec{
+		{Kind: "sbom", Filename: "aether-ops-bootstrap.spdx.json", Source: "../dist/sbom-bootstrap.spdx.json"},
+		{Kind: "grype", Filename: "aether-ops-bootstrap.grype.json", Source: "../dist/grype-bootstrap.json"},
+		{Kind: "vex", Filename: "openvex.json", Source: "../security/vex/openvex.json"},
+	}
+}
+
+// bundleSecurityArtifacts is the fixed list of supply-chain sidecars
+// attached to the bundle block on every new release.
+func bundleSecurityArtifacts() []securityArtifactSpec {
+	return []securityArtifactSpec{
+		{Kind: "sbom", Filename: "bundle.spdx.json", Source: "../dist/sbom-bundle.spdx.json"},
+		{Kind: "grype", Filename: "bundle.grype.json", Source: "../dist/grype-bundle.json"},
+		{Kind: "vex", Filename: "openvex.json", Source: "../security/vex/openvex.json"},
+	}
+}
+
+// buildSecurityArtifactsNode emits the YAML sequence node consumed by
+// the renderer's `security_artifacts:` list. Fields use plain (not
+// quoted) scalars to match the rest of releases.yaml.
+func buildSecurityArtifactsNode(specs []securityArtifactSpec) *yaml.Node {
+	seq := &yaml.Node{Kind: yaml.SequenceNode}
+	for _, s := range specs {
+		m := &yaml.Node{Kind: yaml.MappingNode}
+		setMapKey(m, "kind", scalarNode(s.Kind))
+		setMapKey(m, "filename", scalarNode(s.Filename))
+		setMapKey(m, "source", scalarNode(s.Source))
+		seq.Content = append(seq.Content, m)
 	}
 	return seq
 }
