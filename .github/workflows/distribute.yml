@@ -128,6 +128,29 @@ jobs:
           echo "prior_bundle_sha=$PD" >> "$GITHUB_OUTPUT"
           echo "prior_patch_tool_sha=$PP" >> "$GITHUB_OUTPUT"
 
+          # Outgoing release's supply-chain sidecars: derive one
+          # --prior-security-sha flag per security_artifacts entry
+          # found in metadata.json. Earlier releases (cut before the
+          # SBOM/Grype/VEX pipeline existed) carry no security_artifacts
+          # block, in which case this expression yields an empty string
+          # and downstream demotion is a no-op for that release.
+          PRIOR_SEC_FLAGS=$(jq -r '
+            .releases[]
+            | select(.current==true)
+            | to_entries[]
+            | select(.value | type=="object" and has("security_artifacts"))
+            | .key as $parent
+            | .value.security_artifacts[]
+            | "--prior-security-sha=\($parent):\(.filename)=\(.sha256)"
+          ' "$META" | paste -sd ' ' -)
+          # Surface as a multi-line step output so the render step can
+          # consume the flag list verbatim. Empty value is fine.
+          {
+            echo "prior_security_flags<<__PSF__"
+            echo "$PRIOR_SEC_FLAGS"
+            echo "__PSF__"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build the offline bundle
         run: ./dist/build-bundle --spec specs/bundle.yaml --output dist/bundle.tar.zst
 
@@ -135,8 +158,62 @@ jobs:
         id: commit
         run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Install Syft
+        run: |
+          set -euo pipefail
+          # Idempotent: install.sh -b writes the binary into
+          # /usr/local/bin and overwrites any prior version.
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
+
+      - name: Install Grype
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOMs (launcher + bundle)
+        env:
+          SYFT_SOURCE_NAME: aether-ops-bootstrap
+          SYFT_SOURCE_VERSION: ${{ env.BUNDLE_VERSION }}
+        run: |
+          set -euo pipefail
+          # Stable, version-agnostic filenames in dist/ so the promote
+          # logic in build-release-site can reference them as
+          # ../dist/sbom-bootstrap.spdx.json etc. The published copies
+          # under the site tree get the version-aware names assigned by
+          # security_artifacts.filename in releases.yaml.
+          syft dist/aether-ops-bootstrap \
+            -o spdx-json=dist/sbom-bootstrap.spdx.json
+          syft dist/bundle.tar.zst \
+            -o spdx-json=dist/sbom-bundle.spdx.json
+
+      - name: Scan SBOMs with Grype (using OpenVEX suppressions)
+        env:
+          GRYPE_CHECK_FOR_APP_UPDATE: "false"
+        run: |
+          set -euo pipefail
+          # --vex consumes security/vex/openvex.json so any CVE the
+          # maintainers have marked not_affected / fixed drops out of
+          # the table view. The full JSON is still emitted so consumers
+          # can audit the raw findings independently.
+          grype sbom:dist/sbom-bootstrap.spdx.json \
+            --vex security/vex/openvex.json \
+            -o json --file dist/grype-bootstrap.json
+          grype sbom:dist/sbom-bootstrap.spdx.json \
+            --vex security/vex/openvex.json \
+            -o table
+          grype sbom:dist/sbom-bundle.spdx.json \
+            --vex security/vex/openvex.json \
+            -o json --file dist/grype-bundle.json
+          grype sbom:dist/sbom-bundle.spdx.json \
+            --vex security/vex/openvex.json \
+            -o table
+
       - name: Rotate site/releases.yaml + render site
         id: render
+        env:
+          PRIOR_SECURITY_FLAGS: ${{ steps.prior.outputs.prior_security_flags }}
         run: |
           set -euo pipefail
           # `--prune-keep=2` retains the new current + 2 most recent
@@ -144,6 +221,14 @@ jobs:
           # versions it dropped on stdout. The downstream cleanup step
           # consumes that list to remove the matching artifact
           # directories under $WWW_ROOT.
+          # PRIOR_SECURITY_FLAGS is the space-separated
+          # --prior-security-sha=… list captured from the outgoing
+          # release's security_artifacts entries (empty on the first
+          # rotation after this feature lands). Routed through env
+          # rather than expression interpolation so the shell sees a
+          # plain word list, not interpolated text — same hardening
+          # GitHub recommends for any captured-output expansion.
+          # shellcheck disable=SC2086  # intentional word splitting on flag list
           ./dist/build-release-site \
             --metadata site/releases.yaml \
             --output dist/release-site \
@@ -154,6 +239,7 @@ jobs:
             --prior-bootstrap-sha "${{ steps.prior.outputs.prior_bootstrap_sha }}" \
             --prior-bundle-sha "${{ steps.prior.outputs.prior_bundle_sha }}" \
             --prior-patch-tool-sha "${{ steps.prior.outputs.prior_patch_tool_sha }}" \
+            $PRIOR_SECURITY_FLAGS \
             --prune-keep 2 \
             > pruned-versions.txt
           # Surface the pruned list as a step output for the cleanup
@@ -190,6 +276,20 @@ jobs:
           cd "$WWW_ROOT/bootstrap/$BUNDLE_VERSION"   && sha256sum -c aether-ops-bootstrap.sha256
           cd "$WWW_ROOT/bundles/$BUNDLE_VERSION"     && sha256sum -c bundle.tar.zst.sha256
           cd "$WWW_ROOT/tools/$BUNDLE_VERSION"       && sha256sum -c patch-bundle.sha256
+          # Supply-chain sidecars (SBOM / Grype / VEX). Each entry the
+          # renderer staged has a matching .sha256 sidecar written next
+          # to it, so the same sha256sum -c pattern verifies integrity
+          # without us having to enumerate filenames here.
+          for d in "$WWW_ROOT/bootstrap/$BUNDLE_VERSION" "$WWW_ROOT/bundles/$BUNDLE_VERSION"; do
+            cd "$d"
+            for sc in *.sha256; do
+              # Skip the primary artifact sidecars already checked above.
+              case "$sc" in
+                aether-ops-bootstrap.sha256|bundle.tar.zst.sha256) continue ;;
+              esac
+              sha256sum -c "$sc"
+            done
+          done
           CURRENT=$(jq -r '.releases[] | select(.current==true) | .bundle.version' "$WWW_ROOT/metadata.json")
           if [ "$CURRENT" != "$BUNDLE_VERSION" ]; then
             echo "ERROR: live metadata.json reports current=$CURRENT, expected $BUNDLE_VERSION" >&2

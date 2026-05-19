@@ -358,6 +358,42 @@ code, .mono, .hash {
   color: var(--muted);
 }
 
+/* ── supply-chain artifacts (SBOM / Grype / VEX) ──────── */
+.security {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+.security li {
+  display: grid;
+  grid-template-columns: minmax(160px, max-content) 1fr;
+  gap: 16px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+.security .kind {
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+.security .links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.security .links a {
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.82rem;
+}
+.security .links a:hover {
+  text-decoration: underline;
+}
+
 /* ── releases archive page ────────────────────────────── */
 .release {
   padding: 22px 24px 12px;
@@ -432,5 +468,9 @@ code, .mono, .hash {
     gap: 2px;
   }
   .components .hash { white-space: normal; }
+  .security li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
   .page-head h1 { font-size: 1.35rem; }
 }

@@ -29,6 +29,21 @@ releases:
       # bullets.
       release_notes:
         - Replace this with a launcher-specific note for the release.
+      # security_artifacts attach supply-chain sidecars to this card.
+      # Each entry is copied next to the primary artifact under its
+      # filename, hashed, and given a matching .sha256 file. Kinds the
+      # template knows about: sbom, grype, vex (others render with a
+      # capitalised version of the kind as the label).
+      security_artifacts:
+        - kind: sbom
+          filename: aether-ops-bootstrap.spdx.json
+          source: ../dist/sbom-bootstrap.spdx.json
+        - kind: grype
+          filename: aether-ops-bootstrap.grype.json
+          source: ../dist/grype-bootstrap.json
+        - kind: vex
+          filename: openvex.json
+          source: ../security/vex/openvex.json
 
     bundle:
       label: Offline Bundle
@@ -56,6 +71,16 @@ releases:
           version: v3.17.3
         - name: sdcore-helm-charts
           version: main
+      security_artifacts:
+        - kind: sbom
+          filename: bundle.spdx.json
+          source: ../dist/sbom-bundle.spdx.json
+        - kind: grype
+          filename: bundle.grype.json
+          source: ../dist/grype-bundle.json
+        - kind: vex
+          filename: openvex.json
+          source: ../security/vex/openvex.json
 
   # External entries reference artifacts that already exist on the live
   # site. They contribute to metadata.json and the release history page

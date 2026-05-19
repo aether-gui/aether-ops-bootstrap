@@ -1,0 +1,10 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://tools.jointpathfinding.com/aether-ops-bootstrap/security/openvex.json",
+  "author": "Aether-GUI Security",
+  "role": "maintainer",
+  "timestamp": "2026-05-19T00:00:00Z",
+  "version": 1,
+  "tooling": "vexctl",
+  "statements": []
+}

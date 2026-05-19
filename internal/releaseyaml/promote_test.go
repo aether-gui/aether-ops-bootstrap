@@ -490,3 +490,208 @@ func TestPrune_RejectsNegativeKeep(t *testing.T) {
 		t.Fatalf("expected negative-keep rejection, got %v", err)
 	}
 }
+
+// TestPromote_EmitsSecurityArtifacts is the happy path for the
+// supply-chain pipeline: a clean promote should attach a
+// security_artifacts: sequence with SBOM/Grype/VEX entries to both
+// the bootstrap and bundle blocks (but not the patch_tool block,
+// which we don't scan). Source paths must point into ../dist or
+// ../security so the renderer can find them.
+func TestPromote_EmitsSecurityArtifacts(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := writeFixture(t, dir, "releases.yaml", minimalFixture)
+	specPath := writeFixture(t, dir, "bundle.yaml", minimalSpec)
+
+	err := Promote(Options{
+		YAMLPath:    yamlPath,
+		SpecPath:    specPath,
+		NewVersion:  "2026.05.11.1",
+		ID:          "2026-05-11-aether-ops-v0.2.0",
+		BuildCommit: "d64127f",
+		Prior:       PriorSHAs{Bootstrap: "a", Bundle: "b", PatchTool: "c"},
+	})
+	if err != nil {
+		t.Fatalf("Promote: %v", err)
+	}
+	got, err := os.ReadFile(yamlPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := string(got)
+
+	for _, want := range []string{
+		// bootstrap entries
+		`filename: aether-ops-bootstrap.spdx.json`,
+		`source: ../dist/sbom-bootstrap.spdx.json`,
+		`filename: aether-ops-bootstrap.grype.json`,
+		`source: ../dist/grype-bootstrap.json`,
+		// bundle entries
+		`filename: bundle.spdx.json`,
+		`source: ../dist/sbom-bundle.spdx.json`,
+		`filename: bundle.grype.json`,
+		`source: ../dist/grype-bundle.json`,
+		// shared VEX (appears twice — once per parent artifact)
+		`source: ../security/vex/openvex.json`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n--- got ---\n%s", want, out)
+		}
+	}
+	// VEX must appear in BOTH the bootstrap and bundle security
+	// blocks. Counting the shared source path is a stable proxy.
+	if c := strings.Count(out, `../security/vex/openvex.json`); c != 2 {
+		t.Errorf("expected openvex.json source to appear twice (bootstrap+bundle), got %d", c)
+	}
+	// patch_tool intentionally has no security_artifacts. Easiest
+	// proxy: there are only two `security_artifacts:` mapping headers.
+	if c := strings.Count(out, "security_artifacts:"); c != 2 {
+		t.Errorf("expected exactly two security_artifacts: blocks (bootstrap+bundle), got %d", c)
+	}
+}
+
+// TestPromote_DemotesSecurityArtifacts walks the full rotation cycle:
+// after one promote produces a release with security_artifacts, a
+// SECOND promote must demote that release with sha256: inlined on
+// every security_artifacts entry (and source: stripped). This is the
+// loadbearing piece — without it, every demotion would silently drop
+// the published security artifacts' integrity attestations.
+func TestPromote_DemotesSecurityArtifacts(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := writeFixture(t, dir, "releases.yaml", minimalFixture)
+	specPath := writeFixture(t, dir, "bundle.yaml", minimalSpec)
+
+	// First rotation: gets the outgoing release into the
+	// security_artifacts shape we want to demote in step 2.
+	if err := Promote(Options{
+		YAMLPath:    yamlPath,
+		SpecPath:    specPath,
+		NewVersion:  "2026.05.11.1",
+		ID:          "first",
+		BuildCommit: "d64127f",
+		Prior:       PriorSHAs{Bootstrap: "a", Bundle: "b", PatchTool: "c"},
+	}); err != nil {
+		t.Fatalf("first Promote: %v", err)
+	}
+
+	// Second rotation: this is the call under test. The outgoing
+	// "first" entry has six security_artifacts entries (3 on
+	// bootstrap, 3 on bundle), so we must supply six matching SHAs.
+	err := Promote(Options{
+		YAMLPath:    yamlPath,
+		SpecPath:    specPath,
+		NewVersion:  "2026.05.12.1",
+		ID:          "second",
+		BuildCommit: "1234567",
+		Prior: PriorSHAs{
+			Bootstrap: "first-bootstrap-sha",
+			Bundle:    "first-bundle-sha",
+			PatchTool: "first-patch-sha",
+		},
+		PriorSecurity: []PriorSecuritySHA{
+			{ParentKind: "bootstrap", Filename: "aether-ops-bootstrap.spdx.json", SHA256: "boot-sbom-sha"},
+			{ParentKind: "bootstrap", Filename: "aether-ops-bootstrap.grype.json", SHA256: "boot-grype-sha"},
+			{ParentKind: "bootstrap", Filename: "openvex.json", SHA256: "boot-vex-sha"},
+			{ParentKind: "bundle", Filename: "bundle.spdx.json", SHA256: "bundle-sbom-sha"},
+			{ParentKind: "bundle", Filename: "bundle.grype.json", SHA256: "bundle-grype-sha"},
+			{ParentKind: "bundle", Filename: "openvex.json", SHA256: "bundle-vex-sha"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("second Promote: %v", err)
+	}
+
+	got, err := os.ReadFile(yamlPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := string(got)
+
+	for _, want := range []string{
+		`sha256: "boot-sbom-sha"`,
+		`sha256: "boot-grype-sha"`,
+		`sha256: "boot-vex-sha"`,
+		`sha256: "bundle-sbom-sha"`,
+		`sha256: "bundle-grype-sha"`,
+		`sha256: "bundle-vex-sha"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n--- got ---\n%s", want, out)
+		}
+	}
+
+	// Demoted release must no longer reference its old source: paths.
+	// Counting is the cleanest check: the new release re-introduces
+	// all four source: lines, so we expect exactly one occurrence
+	// (the new entry's), not two.
+	for _, src := range []string{
+		`../dist/sbom-bootstrap.spdx.json`,
+		`../dist/grype-bootstrap.json`,
+		`../dist/sbom-bundle.spdx.json`,
+		`../dist/grype-bundle.json`,
+	} {
+		if c := strings.Count(out, src); c != 1 {
+			t.Errorf("expected exactly one occurrence of %q (new entry only), got %d", src, c)
+		}
+	}
+}
+
+// TestPromote_DemotesSecurityArtifacts_MissingSHAFails asserts that
+// demotion errors when an outgoing release has a security_artifacts
+// entry without a matching PriorSecuritySHA. Silently dropping the
+// entry would publish a release whose previous-current artifacts can
+// no longer be verified.
+func TestPromote_DemotesSecurityArtifacts_MissingSHAFails(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := writeFixture(t, dir, "releases.yaml", minimalFixture)
+	specPath := writeFixture(t, dir, "bundle.yaml", minimalSpec)
+
+	if err := Promote(Options{
+		YAMLPath:    yamlPath,
+		SpecPath:    specPath,
+		NewVersion:  "2026.05.11.1",
+		ID:          "first",
+		BuildCommit: "d64127f",
+		Prior:       PriorSHAs{Bootstrap: "a", Bundle: "b", PatchTool: "c"},
+	}); err != nil {
+		t.Fatalf("first Promote: %v", err)
+	}
+
+	err := Promote(Options{
+		YAMLPath:    yamlPath,
+		SpecPath:    specPath,
+		NewVersion:  "2026.05.12.1",
+		BuildCommit: "1234567",
+		Prior:       PriorSHAs{Bootstrap: "x", Bundle: "y", PatchTool: "z"},
+		// Deliberately missing every PriorSecuritySHA so the demote
+		// path's strict lookup fires.
+		PriorSecurity: nil,
+	})
+	if err == nil || !strings.Contains(err.Error(), "no prior SHA provided") {
+		t.Fatalf("expected missing-prior-security-sha error, got %v", err)
+	}
+}
+
+// TestPromote_NoSecurityArtifactsOnOutgoingIsNoOp confirms the
+// graceful-degrade path: when the outgoing current release predates
+// the supply-chain pipeline (no security_artifacts: block), demotion
+// quietly skips that step. This is the very first rotation after
+// shipping the feature.
+func TestPromote_NoSecurityArtifactsOnOutgoingIsNoOp(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := writeFixture(t, dir, "releases.yaml", minimalFixture)
+	specPath := writeFixture(t, dir, "bundle.yaml", minimalSpec)
+
+	err := Promote(Options{
+		YAMLPath:    yamlPath,
+		SpecPath:    specPath,
+		NewVersion:  "2026.05.11.1",
+		BuildCommit: "d64127f",
+		Prior:       PriorSHAs{Bootstrap: "a", Bundle: "b", PatchTool: "c"},
+		// Intentionally empty — the outgoing fixture has no
+		// security_artifacts to demote.
+		PriorSecurity: nil,
+	})
+	if err != nil {
+		t.Fatalf("Promote (no-security fixture): %v", err)
+	}
+}
