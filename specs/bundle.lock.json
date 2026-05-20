@@ -609,8 +609,8 @@
         "sha256": "285f8a505dfa8e1b33f357a9d8d3477ad35bf18c0b34771a6df4c25923f3ae0d"
       },
       "libgnutls30t64": {
-        "version": "3.8.3-1.1ubuntu3.5",
-        "sha256": "59e1112a23cb6b1db98dd5a37a67aa11b0f75b2c21c9054bb6af5e2e0fd484fc"
+        "version": "3.8.3-1.1ubuntu3.6",
+        "sha256": "b8944756260c5ea6b7fac019745f931f905aa7a4df0763676b1b25c911b692e2"
       },
       "libgpg-error0": {
         "version": "1.47-3build2.1",
