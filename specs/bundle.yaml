@@ -38,7 +38,7 @@ rke2:
   #   ↑ optional override; defaults to GitHub releases
 
 helm:
-  version: "v3.20.0"
+  version: "v3.21.0"
 
 aether_ops:
   version: "v0.2.0"
