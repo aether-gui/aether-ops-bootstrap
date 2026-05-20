@@ -78,6 +78,12 @@ releases:
         - kind: grype-table
           filename: bundle.grype.txt
           source: ../dist/grype-bundle.txt
+        - kind: image-sboms
+          filename: image-sboms.tar.gz
+          source: ../dist/image-sboms.tar.gz
+        - kind: image-grypes
+          filename: image-grypes.tar.gz
+          source: ../dist/image-grypes.tar.gz
         - kind: vex
           filename: openvex.json
           source: ../security/vex/openvex.json

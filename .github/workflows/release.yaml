@@ -106,6 +106,33 @@ jobs:
             -o table --file dist/grype-bundle.txt
           cat dist/grype-bundle.txt
 
+      - name: Per-image SBOM + Grype scans
+        env:
+          GRYPE_CHECK_FOR_APP_UPDATE: "false"
+        run: |
+          set -euo pipefail
+          # See distribute.yml for rationale: outer bundle syft scan is
+          # blind to per-image (UPF, AMF, …) contents; extract + scan
+          # each docker-save tarball so per-NF visibility is real.
+          mkdir -p dist/image-sboms dist/image-grypes
+          rm -rf /tmp/image-extract && mkdir -p /tmp/image-extract
+          tar --use-compress-program=zstd -xf dist/bundle.tar.zst \
+            -C /tmp/image-extract images/
+          for img in /tmp/image-extract/images/*.tar; do
+            name=$(basename "$img" .tar)
+            syft "docker-archive:$img" --quiet \
+              -o spdx-json="dist/image-sboms/${name}.spdx.json"
+            grype "sbom:dist/image-sboms/${name}.spdx.json" \
+              --vex security/vex/openvex.json \
+              -o json --file "dist/image-grypes/${name}.grype.json"
+            grype "sbom:dist/image-sboms/${name}.spdx.json" \
+              --vex security/vex/openvex.json \
+              -o table --file "dist/image-grypes/${name}.grype.txt"
+          done
+          ( cd dist/image-sboms  && tar czf ../image-sboms.tar.gz  *.spdx.json )
+          ( cd dist/image-grypes && tar czf ../image-grypes.tar.gz *.grype.json *.grype.txt )
+          rm -rf /tmp/image-extract
+
       - name: Upload bundle and scan artifacts to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -119,4 +146,6 @@ jobs:
             dist/grype-launcher.txt \
             dist/grype-bundle.json \
             dist/grype-bundle.txt \
+            dist/image-sboms.tar.gz \
+            dist/image-grypes.tar.gz \
             dist/openvex-${{ github.ref_name }}.json

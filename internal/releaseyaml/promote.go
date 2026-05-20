@@ -750,12 +750,18 @@ func bootstrapSecurityArtifacts() []securityArtifactSpec {
 }
 
 // bundleSecurityArtifacts is the fixed list of supply-chain sidecars
-// attached to the bundle block on every new release.
+// attached to the bundle block on every new release. The image-sboms
+// and image-grypes tarballs carry one SPDX SBOM (and one Grype scan
+// in both JSON + table forms) per container image shipped in the
+// bundle — visibility the outer bundle scan can't provide because
+// `docker save` tarballs are opaque to syft scanning the bundle.
 func bundleSecurityArtifacts() []securityArtifactSpec {
 	return []securityArtifactSpec{
 		{Kind: "sbom", Filename: "bundle.spdx.json", Source: "../dist/sbom-bundle.spdx.json"},
 		{Kind: "grype", Filename: "bundle.grype.json", Source: "../dist/grype-bundle.json"},
 		{Kind: "grype-table", Filename: "bundle.grype.txt", Source: "../dist/grype-bundle.txt"},
+		{Kind: "image-sboms", Filename: "image-sboms.tar.gz", Source: "../dist/image-sboms.tar.gz"},
+		{Kind: "image-grypes", Filename: "image-grypes.tar.gz", Source: "../dist/image-grypes.tar.gz"},
 		{Kind: "vex", Filename: "openvex.json", Source: "../security/vex/openvex.json"},
 	}
 }
