@@ -42,6 +42,9 @@ releases:
         - kind: grype
           filename: aether-ops-bootstrap.grype.json
           source: ../dist/grype-bootstrap.json
+        - kind: grype-table
+          filename: aether-ops-bootstrap.grype.txt
+          source: ../dist/grype-bootstrap.txt
         - kind: vex
           filename: openvex.json
           source: ../security/vex/openvex.json
@@ -72,6 +75,9 @@ releases:
         - kind: grype
           filename: bundle.grype.json
           source: ../dist/grype-bundle.json
+        - kind: grype-table
+          filename: bundle.grype.txt
+          source: ../dist/grype-bundle.txt
         - kind: vex
           filename: openvex.json
           source: ../security/vex/openvex.json

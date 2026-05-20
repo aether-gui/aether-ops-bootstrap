@@ -689,10 +689,15 @@ func materializeArtifact(metadataDir, outputDir, baseURL, kind string, art artif
 // defaultSecurityArtifactLabel covers the well-known supply-chain kinds.
 // Unknown kinds fall back to a Title-Case version of the kind string so
 // new entries are renderable without a schema change.
+//
+// `grype` is the canonical Grype JSON; `grype-table` is the same scan
+// rendered as a human-readable text table (no ANSI codes — Grype
+// writes plain text when output is a file).
 var defaultSecurityArtifactLabel = map[string]string{
-	"sbom":  "SBOM (SPDX-JSON)",
-	"grype": "Grype scan",
-	"vex":   "OpenVEX statements",
+	"sbom":        "SBOM (SPDX-JSON)",
+	"grype":       "Grype scan (JSON)",
+	"grype-table": "Grype scan (table)",
+	"vex":         "OpenVEX statements",
 }
 
 // materializeSecurityArtifacts handles the SBOM / Grype / VEX sidecars

@@ -84,12 +84,16 @@ jobs:
       - name: Scan launcher SBOM with Grype
         run: |
           set -euo pipefail
+          # JSON is the canonical machine-readable scan; the table copy
+          # is a human-readable companion (Grype writes plain text — no
+          # ANSI codes — when output is redirected to a file).
           grype sbom:dist/sbom-aether-ops-bootstrap-${{ github.ref_name }}.spdx.json \
             --vex security/vex/openvex.json \
             -o json --file dist/grype-launcher.json
           grype sbom:dist/sbom-aether-ops-bootstrap-${{ github.ref_name }}.spdx.json \
             --vex security/vex/openvex.json \
-            -o table
+            -o table --file dist/grype-launcher.txt
+          cat dist/grype-launcher.txt
 
       - name: Scan bundle SBOM with Grype
         run: |
@@ -99,7 +103,8 @@ jobs:
             -o json --file dist/grype-bundle.json
           grype sbom:dist/sbom-bundle-${{ github.ref_name }}.spdx.json \
             --vex security/vex/openvex.json \
-            -o table
+            -o table --file dist/grype-bundle.txt
+          cat dist/grype-bundle.txt
 
       - name: Upload bundle and scan artifacts to release
         env:
@@ -111,5 +116,7 @@ jobs:
             dist/sbom-aether-ops-bootstrap-${{ github.ref_name }}.spdx.json \
             dist/sbom-bundle-${{ github.ref_name }}.spdx.json \
             dist/grype-launcher.json \
+            dist/grype-launcher.txt \
             dist/grype-bundle.json \
+            dist/grype-bundle.txt \
             dist/openvex-${{ github.ref_name }}.json

@@ -195,20 +195,25 @@ jobs:
           set -euo pipefail
           # --vex consumes security/vex/openvex.json so any CVE the
           # maintainers have marked not_affected / fixed drops out of
-          # the table view. The full JSON is still emitted so consumers
-          # can audit the raw findings independently.
+          # the output. JSON is the canonical machine-readable scan
+          # consumers ingest; the .txt copy is a human-readable
+          # companion (Grype writes plain text — no ANSI codes — when
+          # output is a file). Both are published per release under
+          # the Supply-chain artifacts section.
           grype sbom:dist/sbom-bootstrap.spdx.json \
             --vex security/vex/openvex.json \
             -o json --file dist/grype-bootstrap.json
           grype sbom:dist/sbom-bootstrap.spdx.json \
             --vex security/vex/openvex.json \
-            -o table
+            -o table --file dist/grype-bootstrap.txt
+          cat dist/grype-bootstrap.txt
           grype sbom:dist/sbom-bundle.spdx.json \
             --vex security/vex/openvex.json \
             -o json --file dist/grype-bundle.json
           grype sbom:dist/sbom-bundle.spdx.json \
             --vex security/vex/openvex.json \
-            -o table
+            -o table --file dist/grype-bundle.txt
+          cat dist/grype-bundle.txt
 
       - name: Rotate site/releases.yaml + render site
         id: render

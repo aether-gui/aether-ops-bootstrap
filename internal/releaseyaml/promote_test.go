@@ -525,11 +525,15 @@ func TestPromote_EmitsSecurityArtifacts(t *testing.T) {
 		`source: ../dist/sbom-bootstrap.spdx.json`,
 		`filename: aether-ops-bootstrap.grype.json`,
 		`source: ../dist/grype-bootstrap.json`,
+		`filename: aether-ops-bootstrap.grype.txt`,
+		`source: ../dist/grype-bootstrap.txt`,
 		// bundle entries
 		`filename: bundle.spdx.json`,
 		`source: ../dist/sbom-bundle.spdx.json`,
 		`filename: bundle.grype.json`,
 		`source: ../dist/grype-bundle.json`,
+		`filename: bundle.grype.txt`,
+		`source: ../dist/grype-bundle.txt`,
 		// shared VEX (appears twice — once per parent artifact)
 		`source: ../security/vex/openvex.json`,
 	} {
@@ -574,8 +578,8 @@ func TestPromote_DemotesSecurityArtifacts(t *testing.T) {
 	}
 
 	// Second rotation: this is the call under test. The outgoing
-	// "first" entry has six security_artifacts entries (3 on
-	// bootstrap, 3 on bundle), so we must supply six matching SHAs.
+	// "first" entry has eight security_artifacts entries (4 on
+	// bootstrap, 4 on bundle), so we must supply eight matching SHAs.
 	err := Promote(Options{
 		YAMLPath:    yamlPath,
 		SpecPath:    specPath,
@@ -590,9 +594,11 @@ func TestPromote_DemotesSecurityArtifacts(t *testing.T) {
 		PriorSecurity: []PriorSecuritySHA{
 			{ParentKind: "bootstrap", Filename: "aether-ops-bootstrap.spdx.json", SHA256: "boot-sbom-sha"},
 			{ParentKind: "bootstrap", Filename: "aether-ops-bootstrap.grype.json", SHA256: "boot-grype-sha"},
+			{ParentKind: "bootstrap", Filename: "aether-ops-bootstrap.grype.txt", SHA256: "boot-grype-txt-sha"},
 			{ParentKind: "bootstrap", Filename: "openvex.json", SHA256: "boot-vex-sha"},
 			{ParentKind: "bundle", Filename: "bundle.spdx.json", SHA256: "bundle-sbom-sha"},
 			{ParentKind: "bundle", Filename: "bundle.grype.json", SHA256: "bundle-grype-sha"},
+			{ParentKind: "bundle", Filename: "bundle.grype.txt", SHA256: "bundle-grype-txt-sha"},
 			{ParentKind: "bundle", Filename: "openvex.json", SHA256: "bundle-vex-sha"},
 		},
 	})
@@ -609,9 +615,11 @@ func TestPromote_DemotesSecurityArtifacts(t *testing.T) {
 	for _, want := range []string{
 		`sha256: "boot-sbom-sha"`,
 		`sha256: "boot-grype-sha"`,
+		`sha256: "boot-grype-txt-sha"`,
 		`sha256: "boot-vex-sha"`,
 		`sha256: "bundle-sbom-sha"`,
 		`sha256: "bundle-grype-sha"`,
+		`sha256: "bundle-grype-txt-sha"`,
 		`sha256: "bundle-vex-sha"`,
 	} {
 		if !strings.Contains(out, want) {
@@ -621,13 +629,15 @@ func TestPromote_DemotesSecurityArtifacts(t *testing.T) {
 
 	// Demoted release must no longer reference its old source: paths.
 	// Counting is the cleanest check: the new release re-introduces
-	// all four source: lines, so we expect exactly one occurrence
+	// all six source: lines, so we expect exactly one occurrence
 	// (the new entry's), not two.
 	for _, src := range []string{
 		`../dist/sbom-bootstrap.spdx.json`,
 		`../dist/grype-bootstrap.json`,
+		`../dist/grype-bootstrap.txt`,
 		`../dist/sbom-bundle.spdx.json`,
 		`../dist/grype-bundle.json`,
+		`../dist/grype-bundle.txt`,
 	} {
 		if c := strings.Count(out, src); c != 1 {
 			t.Errorf("expected exactly one occurrence of %q (new entry only), got %d", src, c)
