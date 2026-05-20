@@ -24,26 +24,82 @@ site:
         Rewrites files inside an existing bundle without re-running a full build — fast path for swapping aether-onramp configuration templates (SDR parameters, ZMQ ports, SD-Core values) without re-pulling images or APT packages.
       docs_url: https://aether-gui.github.io/docs/tools/patch-bundle
 releases:
+  - id: "2026-05-19-supply-chain-artifacts"
+    published_at: "2026-05-20T00:09:00Z"
+    current: true
+    bootstrap:
+      version: "2026.05.19.1"
+      path: "2026.05.19.1"
+      filename: aether-ops-bootstrap
+      source: ../dist/aether-ops-bootstrap
+      commit: "33a6ae5"
+      release_notes:
+        - 'TODO: fill in release notes before merging.'
+      security_artifacts:
+        - kind: sbom
+          filename: aether-ops-bootstrap.spdx.json
+          source: ../dist/sbom-bootstrap.spdx.json
+        - kind: grype
+          filename: aether-ops-bootstrap.grype.json
+          source: ../dist/grype-bootstrap.json
+        - kind: vex
+          filename: openvex.json
+          source: ../security/vex/openvex.json
+    bundle:
+      version: "2026.05.19.1"
+      path: "2026.05.19.1"
+      filename: bundle.tar.zst
+      source: ../dist/bundle.tar.zst
+      sha256_source: ../dist/bundle.tar.zst.sha256
+      build_commit: "33a6ae5"
+      release_notes:
+        - 'TODO: fill in release notes before merging.'
+      components:
+        - name: aether-ops
+          version: v0.2.0
+        - name: aether-onramp
+          commit: 78f75c6a415c2e8567cd8c976a322e8be3d33da2
+        - name: rke2
+          version: v1.35.3+rke2r3
+        - name: helm
+          version: v3.20.0
+        - name: sdcore-helm-charts
+          version: main
+      security_artifacts:
+        - kind: sbom
+          filename: bundle.spdx.json
+          source: ../dist/sbom-bundle.spdx.json
+        - kind: grype
+          filename: bundle.grype.json
+          source: ../dist/grype-bundle.json
+        - kind: vex
+          filename: openvex.json
+          source: ../security/vex/openvex.json
+    patch_tool:
+      version: "2026.05.19.1"
+      path: "2026.05.19.1"
+      filename: patch-bundle
+      source: ../dist/patch-bundle
+      build_commit: "33a6ae5"
+      release_notes:
+        - 'TODO: fill in release notes before merging.'
   - id: "2026-05-11-aether-ops-v0.2.0"
     published_at: "2026-05-11T17:30:00Z"
-    current: true
     bootstrap:
       version: "2026.05.11.1"
       path: "2026.05.11.1"
       filename: aether-ops-bootstrap
-      source: ../dist/aether-ops-bootstrap
       commit: "d64127f"
       release_summary: >-
         Source-identical rebuild of the 2026.05.07.2 launcher, repackaged to ship alongside the new bundle. No behavior changes.
       release_notes:
         - Bootstrap unchanged source-wise from 2026.05.07.2; rebuilt to ship alongside the new bundle.
         - Same apt-repo airgap install pipeline — apt-get install against /var/lib/aether-ops/apt-repo, with the persistent /etc/apt/sources.list.d/aether-bundle.list entry preserved for post-bootstrap operator-driven `apt install`.
+      sha256: "7ca63017bb98eeadd8a8a4ad1b09455ab70edb7466f5a0fdd79b5bd2d8c3c59e"
     bundle:
       version: "2026.05.11.1"
       path: "2026.05.11.1"
       filename: bundle.tar.zst
-      source: ../dist/bundle.tar.zst
-      sha256_source: ../dist/bundle.tar.zst.sha256
       build_commit: "d64127f"
       release_summary: >-
         aether-ops bumped to v0.2.0. Breaking surface in the OnRamp components API and docs URLs; runtime catalog loading from <OnRampDir>/catalog/.
@@ -64,16 +120,18 @@ releases:
           version: v3.20.0
         - name: sdcore-helm-charts
           version: main
+      sha256: "3b09c56ea895b75ce8ae4e51a051f5ee720144fa1e4836678e64872337a18604"
     patch_tool:
       version: "2026.05.11.1"
       path: "2026.05.11.1"
       filename: patch-bundle
-      source: ../dist/patch-bundle
       build_commit: "d64127f"
       release_summary: >-
         Rebuilt alongside the 2026.05.11.1 launcher and bundle. No functional changes.
       release_notes:
         - Patch tool rebuilt alongside the 2026.05.11.1 launcher and bundle. No functional changes.
+      sha256: "5f9569d0638b3c612c3c8a70ee683bf87d444024e6da5da223cb49b99fea503e"
+    external: true
   - id: "2026-05-07-onramp-usb-bind-mount"
     published_at: "2026-05-08T01:30:00Z"
     external: true
@@ -122,52 +180,3 @@ releases:
         Rebuilt alongside the 2026.05.07.2 launcher and bundle. No functional changes.
       release_notes:
         - Patch tool rebuilt alongside the 2026.05.07.2 launcher and bundle. No functional changes.
-  - id: "2026-05-07-apt-repo-airgap-install"
-    published_at: "2026-05-07T21:45:00Z"
-    external: true
-    bootstrap:
-      version: "2026.05.07.1"
-      path: "2026.05.07.1"
-      filename: aether-ops-bootstrap
-      sha256: "f8b5c9cca0b8a2e27f41f1205a452c8cbb38832203c8365a8ade58845959b49f"
-      commit: "9b2c821"
-      release_summary: >-
-        Migrated the airgap deb install path off `dpkg -i --force-*` onto `apt-get install` against a bundle-shipped file:// apt repository. Apt now owns dependency resolution; bundle manifest schema bumped to v2 (not cross-compatible with v1 launchers).
-      release_notes:
-        - Bootstrap rebuilt with the airgap deb install path migrated from `dpkg -i --force-*` over a curated subset to `apt-get install` against a self-contained file:// apt repository shipped inside the bundle.
-        - Launcher stages the bundle's apt-repo/ persistently at /var/lib/aether-ops/apt-repo and drops a sources.list at /etc/apt/sources.list.d/aether-bundle.list so post-bootstrap operator-driven `apt install` works for anything the bundle shipped.
-        - Apt now owns dependency resolution, conflict handling (ufw vs iptables-persistent resolves cleanly), and dpkg's trigger orchestration — `apt-get check` returns clean and `dpkg --audit` is empty after install, fixing the broken-state symptom that the 2026.05.06.1 udev component was working around.
-        - Bundle manifest schema bumped to v2; old launchers refuse new bundles and vice-versa.
-    bundle:
-      version: "2026.05.07.1"
-      path: "2026.05.07.1"
-      filename: bundle.tar.zst
-      sha256: "7e2d9af11fd85c7f000a51cb472ace22fe63a2dc96f634d033e23ed6df09e6ad"
-      build_commit: "9b2c821"
-      release_summary: >-
-        Bundle reorganized around an apt-repo layout so apt can own dependency resolution on the target. Resolver no longer drops Essential / Priority required packages; .deb count grows 227 → 262.
-      release_notes:
-        - Bundle rebuilt with the apt-repo layout. apt-repo/dists/noble/ ships Release + per-arch Packages/Packages.gz with full upstream control fields preserved (Breaks/Conflicts/Replaces survive verbatim); apt-repo/pool/noble/{amd64,all}/ holds the 262 .deb files.
-        - Resolver no longer skips Essential / Priority required packages, so apt has the closure it needs to upgrade image-baked copies for strict-version Depends edges (227 → 262 debs).
-        - aether-onramp pinned at upstream 11a34c9 (no change from 2026.05.06.1); aether-ops v0.1.50, rke2 v1.35.3+rke2r3, helm v3.20.0 unchanged.
-      components:
-        - name: aether-ops
-          version: v0.1.50
-        - name: aether-onramp
-          commit: 11a34c9675da7c58de08e31fe54e4e098c402ff2
-        - name: rke2
-          version: v1.35.3+rke2r3
-        - name: helm
-          version: v3.20.0
-        - name: sdcore-helm-charts
-          version: main
-    patch_tool:
-      version: "2026.05.07.1"
-      path: "2026.05.07.1"
-      filename: patch-bundle
-      sha256: "acabb78a9234f1ee58cb965c20f05fc7cac7553a07f3c0d5566725b889a18f84"
-      build_commit: "9b2c821"
-      release_summary: >-
-        Rebuilt alongside the 2026.05.07.1 launcher and bundle. No functional changes.
-      release_notes:
-        - Patch tool rebuilt alongside the 2026.05.07.1 launcher and bundle. No functional changes.

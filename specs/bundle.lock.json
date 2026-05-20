@@ -393,16 +393,16 @@
         "sha256": "785ad36aafc8912300e44a1cea438e28ea36fb94c631f5849408aea85d2ab2bf"
       },
       "docker-buildx-plugin": {
-        "version": "0.33.0-1~ubuntu.24.04~noble",
-        "sha256": "a35865b80cba2832ef6a914c00c3f25e9f2900034e43a223280a997317683c65"
+        "version": "0.34.0-1~ubuntu.24.04~noble",
+        "sha256": "527ad44d1ebc2d06cae4d2293c62e9a6a41b7388c0cba01a60915041d6d60eb6"
       },
       "docker-ce": {
-        "version": "5:29.4.3-1~ubuntu.24.04~noble",
-        "sha256": "b78a89fb3ac79f7a6a06be33f4d9b14615c2c6594113d0f798196e69c25a3fec"
+        "version": "5:29.5.1-1~ubuntu.24.04~noble",
+        "sha256": "c41b23ff980d81298593a8b7d672561c23b49476dbc1023bc9e5dfb79d8185dd"
       },
       "docker-ce-cli": {
-        "version": "5:29.4.3-1~ubuntu.24.04~noble",
-        "sha256": "0f2f45e437a8465a945f067de7489e79d4620a05342fd065e10f422da0e9d952"
+        "version": "5:29.5.1-1~ubuntu.24.04~noble",
+        "sha256": "4ca3c6e8987b4b0c5b022c12d0426a3e49e1acb6342aa2be3a64992c4904134d"
       },
       "docker-compose-plugin": {
         "version": "5.1.3-1~ubuntu.24.04~noble",
