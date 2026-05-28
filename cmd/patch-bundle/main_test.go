@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aether-gui/aether-ops-bootstrap/internal/archive"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/builder"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 )
@@ -57,7 +58,7 @@ func fakeBundle(t *testing.T, onrampFiles map[string]string) string {
 	}
 
 	out := filepath.Join(t.TempDir(), "bundle.tar.zst")
-	if err := builder.Archive(stage, out); err != nil {
+	if err := archive.Archive(stage, out); err != nil {
 		t.Fatal(err)
 	}
 	return out
@@ -96,7 +97,7 @@ func TestPatchBundleEndToEnd(t *testing.T) {
 
 	// Round-trip the patched bundle and inspect its manifest + content.
 	extract := t.TempDir()
-	if err := builder.Unarchive(outPath, extract); err != nil {
+	if err := archive.Unarchive(outPath, extract); err != nil {
 		t.Fatalf("unarchive output: %v", err)
 	}
 
@@ -239,7 +240,7 @@ func TestPatchBundlePatchesYAMLFile(t *testing.T) {
 	}
 
 	extract := t.TempDir()
-	if err := builder.Unarchive(outPath, extract); err != nil {
+	if err := archive.Unarchive(outPath, extract); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(filepath.Join(extract, "onramp", "aether-onramp", "x.conf"))
@@ -259,7 +260,7 @@ func hashOf(s string) string {
 func bundleTreeSHA(t *testing.T, bundlePath string) string {
 	t.Helper()
 	dir := t.TempDir()
-	if err := builder.Unarchive(bundlePath, dir); err != nil {
+	if err := archive.Unarchive(bundlePath, dir); err != nil {
 		t.Fatal(err)
 	}
 	m, err := bundle.Read(filepath.Join(dir, "manifest.json"))

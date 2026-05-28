@@ -12,7 +12,7 @@ import (
 
 	"os/user"
 
-	"github.com/aether-gui/aether-ops-bootstrap/internal/builder"
+	"github.com/aether-gui/aether-ops-bootstrap/internal/archive"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/cmdutil"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/components"
@@ -61,7 +61,7 @@ func Install(ctx context.Context, opts InstallOpts) error {
 	}
 	defer os.RemoveAll(extractDir)
 
-	if err := builder.Unarchive(opts.BundlePath, extractDir); err != nil {
+	if err := archive.Unarchive(opts.BundlePath, extractDir); err != nil {
 		return fmt.Errorf("extracting bundle: %w", err)
 	}
 

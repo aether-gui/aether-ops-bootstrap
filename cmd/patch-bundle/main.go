@@ -32,6 +32,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/aether-gui/aether-ops-bootstrap/internal/archive"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/builder"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/builder/patch"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -104,7 +105,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	fmt.Fprintf(stdout, "extracting %s ...\n", *in)
-	if err := builder.Unarchive(*in, workDir); err != nil {
+	if err := archive.Unarchive(*in, workDir); err != nil {
 		return fmt.Errorf("extracting bundle: %w", err)
 	}
 
@@ -159,7 +160,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 	tmpPath := outPath + ".tmp"
 	fmt.Fprintf(stdout, "archiving to %s ...\n", outPath)
-	if err := builder.Archive(workDir, tmpPath); err != nil {
+	if err := archive.Archive(workDir, tmpPath); err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("archiving: %w", err)
 	}

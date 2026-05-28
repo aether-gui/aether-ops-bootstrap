@@ -736,20 +736,32 @@ type securityArtifactSpec struct {
 // sidecars attached to the launcher block on every new release. The
 // distribute.yml workflow writes the source files into dist/ before
 // running this rotation.
+//
+// Both `grype` (canonical machine-readable JSON) and `grype-table`
+// (human-readable ANSI-free table) are published per release; tooling
+// consumes the JSON, humans skim the table without firing up grype.
 func bootstrapSecurityArtifacts() []securityArtifactSpec {
 	return []securityArtifactSpec{
 		{Kind: "sbom", Filename: "aether-ops-bootstrap.spdx.json", Source: "../dist/sbom-bootstrap.spdx.json"},
 		{Kind: "grype", Filename: "aether-ops-bootstrap.grype.json", Source: "../dist/grype-bootstrap.json"},
+		{Kind: "grype-table", Filename: "aether-ops-bootstrap.grype.txt", Source: "../dist/grype-bootstrap.txt"},
 		{Kind: "vex", Filename: "openvex.json", Source: "../security/vex/openvex.json"},
 	}
 }
 
 // bundleSecurityArtifacts is the fixed list of supply-chain sidecars
-// attached to the bundle block on every new release.
+// attached to the bundle block on every new release. The image-sboms
+// and image-grypes tarballs carry one SPDX SBOM (and one Grype scan
+// in both JSON + table forms) per container image shipped in the
+// bundle — visibility the outer bundle scan can't provide because
+// `docker save` tarballs are opaque to syft scanning the bundle.
 func bundleSecurityArtifacts() []securityArtifactSpec {
 	return []securityArtifactSpec{
 		{Kind: "sbom", Filename: "bundle.spdx.json", Source: "../dist/sbom-bundle.spdx.json"},
 		{Kind: "grype", Filename: "bundle.grype.json", Source: "../dist/grype-bundle.json"},
+		{Kind: "grype-table", Filename: "bundle.grype.txt", Source: "../dist/grype-bundle.txt"},
+		{Kind: "image-sboms", Filename: "image-sboms.tar.gz", Source: "../dist/image-sboms.tar.gz"},
+		{Kind: "image-grypes", Filename: "image-grypes.tar.gz", Source: "../dist/image-grypes.tar.gz"},
 		{Kind: "vex", Filename: "openvex.json", Source: "../security/vex/openvex.json"},
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aether-gui/aether-ops-bootstrap/internal/archive"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/builder"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/deb"
@@ -304,7 +305,7 @@ func buildOne(specPath, outputPath, lockPath string) error {
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
 		return err
 	}
-	if err := builder.Archive(stageDir, outputPath); err != nil {
+	if err := archive.Archive(stageDir, outputPath); err != nil {
 		return err
 	}
 
