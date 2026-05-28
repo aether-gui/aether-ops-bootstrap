@@ -42,6 +42,9 @@ func (s SetYAMLField) Name() string {
 	return fmt.Sprintf("%s %s:%s=%v", op, s.RelPath, strings.Join(s.KeyPath, "."), s.Value)
 }
 
+// Target returns the file the action modifies.
+func (s SetYAMLField) Target() string { return s.RelPath }
+
 func (s SetYAMLField) Apply(rootDir string) error {
 	if len(s.KeyPath) == 0 {
 		return errors.New("KeyPath is empty")

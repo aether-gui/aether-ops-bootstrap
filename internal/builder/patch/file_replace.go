@@ -29,6 +29,9 @@ func (r ReplaceFile) Name() string {
 	return fmt.Sprintf("replace %s", r.RelPath)
 }
 
+// Target returns the file the action modifies.
+func (r ReplaceFile) Target() string { return r.RelPath }
+
 func (r ReplaceFile) Apply(rootDir string) error {
 	if r.RelPath == "" {
 		return errors.New("RelPath is empty")

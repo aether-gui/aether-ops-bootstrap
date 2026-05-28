@@ -23,6 +23,7 @@ var commands = map[string]string{
 	"upgrade":  "Compare bundle manifest to state and apply deltas",
 	"repair":   "Re-run all reconciliation steps regardless of state",
 	"check":    "Preflight and plan only, no changes (dry-run)",
+	"inspect":  "Display bundle contents and provenance",
 	"diagnose": "Collect diagnostic bundle for remote troubleshooting",
 	"state":    "Print the current state file",
 	"version":  "Print version information",
@@ -43,6 +44,8 @@ func main() {
 		cmdRun("repair", false, true)
 	case "check":
 		cmdRun("check", true, false)
+	case "inspect":
+		cmdInspect()
 	case "diagnose":
 		cmdDiagnose()
 	case "state":
@@ -161,6 +164,39 @@ func cmdRun(action string, dryRun, repair bool) {
 	}
 }
 
+func cmdInspect() {
+	bundlePath := ""
+	jsonOut := false
+
+	for i := 2; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "--bundle":
+			if i+1 < len(os.Args) {
+				bundlePath = os.Args[i+1]
+				i++
+			} else {
+				log.Fatal("--bundle requires a path argument")
+			}
+		case "--json":
+			jsonOut = true
+		default:
+			log.Fatalf("unknown flag: %s", os.Args[i])
+		}
+	}
+
+	if bundlePath == "" {
+		log.Fatal("--bundle is required for inspect")
+	}
+
+	if err := launcher.Inspect(launcher.InspectOpts{
+		BundlePath: bundlePath,
+		JSON:       jsonOut,
+		Out:        os.Stdout,
+	}); err != nil {
+		log.Fatalf("inspect failed: %v", err)
+	}
+}
+
 func cmdDiagnose() {
 	outputDir := "/tmp"
 	for i := 2; i < len(os.Args); i++ {
@@ -239,7 +275,7 @@ func usage() {
 	fmt.Println("Usage: aether-ops-bootstrap <command> [flags]")
 	fmt.Println()
 	fmt.Println("Commands:")
-	for _, name := range []string{"install", "upgrade", "repair", "check", "diagnose", "state", "version"} {
+	for _, name := range []string{"install", "upgrade", "repair", "check", "inspect", "diagnose", "state", "version"} {
 		fmt.Printf("  %-10s %s\n", name, commands[name])
 	}
 	fmt.Println()
@@ -265,4 +301,7 @@ func usage() {
 	fmt.Println()
 	fmt.Println("If --roles is omitted, all components are installed (single-node mode).")
 	fmt.Println("Multiple roles can be combined: --roles mgmt,core")
+	fmt.Println()
+	fmt.Println("Inspect-only flag:")
+	fmt.Println("  --json                   Emit the parsed bundle manifest as JSON (inspect only)")
 }

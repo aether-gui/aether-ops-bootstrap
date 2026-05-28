@@ -170,6 +170,26 @@ func TestBuildOnramp(t *testing.T) {
 			break
 		}
 	}
+
+	// Built-in onramp adaptations must be recorded in the manifest so
+	// inspectors can show the provenance of every change.
+	if len(entry.Patches) == 0 {
+		t.Fatal("expected built-in patch records on a clean BuildOnramp")
+	}
+	for _, p := range entry.Patches {
+		if p.Kind != "builtin" {
+			t.Errorf("patch kind = %q, want builtin", p.Kind)
+		}
+		if p.Applier != "build-bundle:onrampPatches" {
+			t.Errorf("patch applier = %q", p.Applier)
+		}
+		if p.Target == "" {
+			t.Error("patch target is empty")
+		}
+		if p.Timestamp == "" {
+			t.Error("patch timestamp is empty")
+		}
+	}
 }
 
 func TestBuildOnrampPatchesBlueprintVariants(t *testing.T) {
@@ -300,6 +320,34 @@ func TestBuildOnrampAppliesUserPatches(t *testing.T) {
 
 	if entry.TreeSHA256 == "" {
 		t.Error("TreeSHA256 should be set on a patched build")
+	}
+
+	// Manifest must record both built-in and user patches with the
+	// right Kind tag and source description.
+	var userPatches []bundle.PatchRecord
+	for _, p := range entry.Patches {
+		if p.Kind == "user" {
+			userPatches = append(userPatches, p)
+		}
+	}
+	if len(userPatches) != 2 {
+		t.Fatalf("expected 2 user patch records, got %d (all patches: %+v)", len(userPatches), entry.Patches)
+	}
+	// Inline content patch records the sentinel; source-backed records the path.
+	sources := []string{userPatches[0].Source, userPatches[1].Source}
+	wantInline := "<inline content>"
+	wantSourced := "patches/gnb_zmq.yaml"
+	gotInline, gotSourced := false, false
+	for _, s := range sources {
+		switch s {
+		case wantInline:
+			gotInline = true
+		case wantSourced:
+			gotSourced = true
+		}
+	}
+	if !gotInline || !gotSourced {
+		t.Errorf("user patch sources = %v, want one %q and one %q", sources, wantInline, wantSourced)
 	}
 }
 

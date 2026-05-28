@@ -21,33 +21,36 @@ import (
 // BuildAetherOps acquires the aether-ops binary and service file,
 // placing them in the staging directory. Dispatches to one of three
 // modes based on the spec: local source, source build, or release download.
+// The returned entry records the acquisition mode in Source so inspectors
+// can tell after the fact where the bundled binary came from.
 func BuildAetherOps(ctx context.Context, dl *Downloader, spec *bundle.AetherOpsSpec, stageDir string) (*bundle.AetherOpsEntry, error) {
 	aopsDir := filepath.Join(stageDir, "aether-ops")
 	if err := os.MkdirAll(aopsDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating aether-ops staging dir: %w", err)
 	}
 
+	var (
+		src *bundle.AetherOpsSource
+		err error
+	)
 	switch {
 	case spec.Source != "":
-		if err := copyAetherOpsFromLocal(ctx, dl, spec, aopsDir); err != nil {
-			return nil, err
-		}
+		src, err = copyAetherOpsFromLocal(ctx, dl, spec, aopsDir)
 	case spec.Ref != "":
-		if err := buildAetherOpsFromSource(ctx, spec, aopsDir); err != nil {
-			return nil, err
-		}
+		src, err = buildAetherOpsFromSource(ctx, spec, aopsDir)
 	default:
-		if err := fetchAetherOpsRelease(ctx, dl, spec, aopsDir); err != nil {
-			return nil, err
-		}
+		src, err = fetchAetherOpsRelease(ctx, dl, spec, aopsDir)
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	return buildAetherOpsEntry(spec, aopsDir)
+	return buildAetherOpsEntry(spec, aopsDir, src)
 }
 
 // buildAetherOpsEntry computes hashes and sizes for the staged files
 // and returns a manifest entry.
-func buildAetherOpsEntry(spec *bundle.AetherOpsSpec, aopsDir string) (*bundle.AetherOpsEntry, error) {
+func buildAetherOpsEntry(spec *bundle.AetherOpsSpec, aopsDir string, src *bundle.AetherOpsSource) (*bundle.AetherOpsEntry, error) {
 	var files []bundle.BundleFile
 	for _, name := range []string{"aether-ops", "aether-ops.service"} {
 		path := filepath.Join(aopsDir, name)
@@ -70,6 +73,7 @@ func buildAetherOpsEntry(spec *bundle.AetherOpsSpec, aopsDir string) (*bundle.Ae
 
 	return &bundle.AetherOpsEntry{
 		Version:        spec.Version,
+		Source:         src,
 		Files:          files,
 		OnrampUser:     spec.OnrampUser,
 		OnrampPassword: spec.OnrampPassword,
@@ -78,7 +82,7 @@ func buildAetherOpsEntry(spec *bundle.AetherOpsSpec, aopsDir string) (*bundle.Ae
 
 // fetchAetherOpsRelease downloads a pre-built release from GitHub.
 // GoReleaser archive naming: aether-ops_{versionNoV}_linux_amd64.tar.gz
-func fetchAetherOpsRelease(ctx context.Context, dl *Downloader, spec *bundle.AetherOpsSpec, aopsDir string) error {
+func fetchAetherOpsRelease(ctx context.Context, dl *Downloader, spec *bundle.AetherOpsSpec, aopsDir string) (*bundle.AetherOpsSource, error) {
 	versionNoV := strings.TrimPrefix(spec.Version, "v")
 	repo := spec.Repo
 
@@ -88,11 +92,11 @@ func fetchAetherOpsRelease(ctx context.Context, dl *Downloader, spec *bundle.Aet
 	// Download checksums.
 	checksumsPath := filepath.Join(aopsDir, "checksums.txt")
 	if _, err := dl.Download(ctx, baseURL+"/checksums.txt", checksumsPath); err != nil {
-		return fmt.Errorf("downloading checksums: %w", err)
+		return nil, fmt.Errorf("downloading checksums: %w", err)
 	}
 	checksums, err := ParseChecksumFile(checksumsPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Remove checksums file from staging (not part of the bundle).
 	os.Remove(checksumsPath)
@@ -100,46 +104,50 @@ func fetchAetherOpsRelease(ctx context.Context, dl *Downloader, spec *bundle.Aet
 	// Download and verify archive.
 	archivePath := filepath.Join(aopsDir, archiveName)
 	if _, err := dl.Download(ctx, baseURL+"/"+archiveName, archivePath); err != nil {
-		return fmt.Errorf("downloading release archive: %w", err)
+		return nil, fmt.Errorf("downloading release archive: %w", err)
 	}
 
 	expectedHash, ok := checksums[archiveName]
 	if !ok {
-		return fmt.Errorf("no checksum found for %s in checksums.txt", archiveName)
+		return nil, fmt.Errorf("no checksum found for %s in checksums.txt", archiveName)
 	}
 	if err := VerifyArtifact(archivePath, expectedHash); err != nil {
-		return err
+		return nil, err
 	}
 	log.Printf("verified %s", archiveName)
 
 	// Extract binary from archive.
 	if err := extractFileFromTarGz(archivePath, "aether-ops", filepath.Join(aopsDir, "aether-ops")); err != nil {
-		return fmt.Errorf("extracting binary from archive: %w", err)
+		return nil, fmt.Errorf("extracting binary from archive: %w", err)
 	}
 	if err := os.Chmod(filepath.Join(aopsDir, "aether-ops"), 0755); err != nil {
-		return err
+		return nil, err
 	}
 	os.Remove(archivePath)
 
 	// Download service file from the repo at the tagged version.
 	serviceURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/deploy/systemd/aether-ops.service", repo, spec.Version)
 	if _, err := dl.Download(ctx, serviceURL, filepath.Join(aopsDir, "aether-ops.service")); err != nil {
-		return fmt.Errorf("downloading service file: %w", err)
+		return nil, fmt.Errorf("downloading service file: %w", err)
 	}
 
-	return nil
+	return &bundle.AetherOpsSource{
+		Mode: "release",
+		Repo: repo,
+		Ref:  spec.Version,
+	}, nil
 }
 
 // buildAetherOpsFromSource clones the repo and builds from source,
 // including the frontend.
-func buildAetherOpsFromSource(ctx context.Context, spec *bundle.AetherOpsSpec, aopsDir string) error {
+func buildAetherOpsFromSource(ctx context.Context, spec *bundle.AetherOpsSpec, aopsDir string) (*bundle.AetherOpsSource, error) {
 	if err := checkSourceBuildTools(); err != nil {
-		return err
+		return nil, err
 	}
 
 	workspace, err := os.MkdirTemp("", "aether-ops-build-*")
 	if err != nil {
-		return fmt.Errorf("creating build workspace: %w", err)
+		return nil, fmt.Errorf("creating build workspace: %w", err)
 	}
 	defer os.RemoveAll(workspace)
 
@@ -151,23 +159,23 @@ func buildAetherOpsFromSource(ctx context.Context, spec *bundle.AetherOpsSpec, a
 	if err := execCmd(ctx, "", "git", "clone", "--depth", "1", "--branch", spec.Ref, repoURL, workspace); err != nil {
 		// Retry without --branch for commit SHAs.
 		if err2 := os.RemoveAll(workspace); err2 != nil {
-			return fmt.Errorf("cleaning up failed clone: %w", err2)
+			return nil, fmt.Errorf("cleaning up failed clone: %w", err2)
 		}
 		if err2 := os.MkdirAll(workspace, 0755); err2 != nil {
-			return err2
+			return nil, err2
 		}
 		if err2 := execCmd(ctx, "", "git", "clone", repoURL, workspace); err2 != nil {
-			return fmt.Errorf("cloning %s: %w", spec.Repo, err2)
+			return nil, fmt.Errorf("cloning %s: %w", spec.Repo, err2)
 		}
 		if err2 := execCmd(ctx, workspace, "git", "checkout", spec.Ref); err2 != nil {
-			return fmt.Errorf("checking out %s: %w", spec.Ref, err2)
+			return nil, fmt.Errorf("checking out %s: %w", spec.Ref, err2)
 		}
 	}
 
 	// Initialize submodules.
 	log.Printf("initializing submodules")
 	if err := execCmd(ctx, workspace, "git", "submodule", "update", "--init", "--recursive"); err != nil {
-		return fmt.Errorf("initializing submodules: %w", err)
+		return nil, fmt.Errorf("initializing submodules: %w", err)
 	}
 
 	// Override frontend ref if specified.
@@ -175,7 +183,7 @@ func buildAetherOpsFromSource(ctx context.Context, spec *bundle.AetherOpsSpec, a
 		frontendDir := filepath.Join(workspace, "web", "frontend")
 		log.Printf("checking out frontend at %s", spec.FrontendRef)
 		if err := execCmd(ctx, frontendDir, "git", "checkout", spec.FrontendRef); err != nil {
-			return fmt.Errorf("checking out frontend %s: %w", spec.FrontendRef, err)
+			return nil, fmt.Errorf("checking out frontend %s: %w", spec.FrontendRef, err)
 		}
 	}
 
@@ -183,23 +191,26 @@ func buildAetherOpsFromSource(ctx context.Context, spec *bundle.AetherOpsSpec, a
 	frontendDir := filepath.Join(workspace, "web", "frontend")
 	log.Printf("building frontend (npm install + build)")
 	if err := execCmd(ctx, frontendDir, "npm", "install"); err != nil {
-		return fmt.Errorf("npm install: %w", err)
+		return nil, fmt.Errorf("npm install: %w", err)
 	}
 	if err := execCmd(ctx, frontendDir, "npm", "run", "build"); err != nil {
-		return fmt.Errorf("npm run build: %w", err)
+		return nil, fmt.Errorf("npm run build: %w", err)
 	}
 
 	// Embed frontend.
 	embedDir := filepath.Join(workspace, "internal", "frontend", "dist")
 	if err := os.RemoveAll(embedDir); err != nil {
-		return err
+		return nil, err
 	}
 	if err := copyDir(filepath.Join(frontendDir, "dist"), embedDir); err != nil {
-		return fmt.Errorf("embedding frontend: %w", err)
+		return nil, fmt.Errorf("embedding frontend: %w", err)
 	}
 
-	// Resolve ldflags.
+	// Resolve ldflags. Capture the full SHA for the manifest separately
+	// from the short SHA used in ldflags so inspectors can correlate the
+	// bundled binary back to the exact commit.
 	commitHash, _ := execCmdOutput(ctx, workspace, "git", "rev-parse", "--short", "HEAD")
+	fullSHA, _ := execCmdOutput(ctx, workspace, "git", "rev-parse", "HEAD")
 	branch, _ := execCmdOutput(ctx, workspace, "git", "rev-parse", "--abbrev-ref", "HEAD")
 	buildDate := time.Now().UTC().Format(time.RFC3339)
 
@@ -213,23 +224,29 @@ func buildAetherOpsFromSource(ctx context.Context, spec *bundle.AetherOpsSpec, a
 	buildCmd.Dir = workspace
 	buildCmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64")
 	if output, err := buildCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("go build: %w\n%s", err, output)
+		return nil, fmt.Errorf("go build: %w\n%s", err, output)
 	}
 
 	// Copy service file.
 	serviceFile := filepath.Join(workspace, "deploy", "systemd", "aether-ops.service")
 	if err := copyFile(serviceFile, filepath.Join(aopsDir, "aether-ops.service")); err != nil {
-		return fmt.Errorf("copying service file: %w", err)
+		return nil, fmt.Errorf("copying service file: %w", err)
 	}
 
-	return nil
+	return &bundle.AetherOpsSource{
+		Mode:        "source",
+		Repo:        spec.Repo,
+		Ref:         spec.Ref,
+		ResolvedSHA: strings.TrimSpace(fullSHA),
+		FrontendRef: spec.FrontendRef,
+	}, nil
 }
 
 // copyAetherOpsFromLocal handles a local pre-built binary or release archive.
 // When the source is a tar.gz, it tries to extract both the binary and the
 // service file from the archive. Falls back to finding the service file next
 // to the source path, then to downloading from GitHub as a last resort.
-func copyAetherOpsFromLocal(ctx context.Context, dl *Downloader, spec *bundle.AetherOpsSpec, aopsDir string) error {
+func copyAetherOpsFromLocal(ctx context.Context, dl *Downloader, spec *bundle.AetherOpsSpec, aopsDir string) (*bundle.AetherOpsSource, error) {
 	srcPath := spec.Source
 
 	binaryDest := filepath.Join(aopsDir, "aether-ops")
@@ -239,7 +256,7 @@ func copyAetherOpsFromLocal(ctx context.Context, dl *Downloader, spec *bundle.Ae
 	if strings.HasSuffix(srcPath, ".tar.gz") {
 		// Extract binary from release archive.
 		if err := extractFileFromTarGz(srcPath, "aether-ops", binaryDest); err != nil {
-			return fmt.Errorf("extracting binary from %s: %w", srcPath, err)
+			return nil, fmt.Errorf("extracting binary from %s: %w", srcPath, err)
 		}
 
 		// Try to extract service file from the same archive.
@@ -249,11 +266,11 @@ func copyAetherOpsFromLocal(ctx context.Context, dl *Downloader, spec *bundle.Ae
 	} else {
 		// Copy binary directly.
 		if err := copyFile(srcPath, binaryDest); err != nil {
-			return fmt.Errorf("copying binary from %s: %w", srcPath, err)
+			return nil, fmt.Errorf("copying binary from %s: %w", srcPath, err)
 		}
 	}
 	if err := os.Chmod(binaryDest, 0755); err != nil {
-		return err
+		return nil, err
 	}
 
 	if !serviceFound {
@@ -261,7 +278,7 @@ func copyAetherOpsFromLocal(ctx context.Context, dl *Downloader, spec *bundle.Ae
 		serviceFile := filepath.Join(filepath.Dir(srcPath), "aether-ops.service")
 		if _, err := os.Stat(serviceFile); err == nil {
 			if err := copyFile(serviceFile, serviceDest); err != nil {
-				return err
+				return nil, err
 			}
 			serviceFound = true
 		}
@@ -271,11 +288,14 @@ func copyAetherOpsFromLocal(ctx context.Context, dl *Downloader, spec *bundle.Ae
 		// Fall back to downloading from GitHub at the specified version.
 		serviceURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/deploy/systemd/aether-ops.service", spec.Repo, spec.Version)
 		if _, err := dl.Download(ctx, serviceURL, serviceDest); err != nil {
-			return fmt.Errorf("downloading service file: %w", err)
+			return nil, fmt.Errorf("downloading service file: %w", err)
 		}
 	}
 
-	return nil
+	return &bundle.AetherOpsSource{
+		Mode:      "local",
+		LocalPath: spec.Source,
+	}, nil
 }
 
 // checkSourceBuildTools verifies that git, go, node, and npm are available.

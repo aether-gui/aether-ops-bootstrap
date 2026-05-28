@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/builder/patch"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -118,6 +119,8 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir, specDir
 		return nil, fmt.Errorf("cloning onramp: %w", err)
 	}
 
+	var patchRecords []bundle.PatchRecord
+
 	// Apply onramp-specific patches to the cloned tree before
 	// hashing so the manifest reflects the on-disk state shipped.
 	patches, err := onrampPatches(destDir)
@@ -129,6 +132,7 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir, specDir
 			return nil, fmt.Errorf("patching onramp: %s: %w", action.Name(), err)
 		}
 		log.Printf("  onramp patch: %s", action.Name())
+		patchRecords = append(patchRecords, recordPatch(destDir, action, "builtin", "build-bundle:onrampPatches", action.Name()))
 	}
 
 	// User patches run after the built-in adaptations so they can
@@ -138,11 +142,12 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir, specDir
 	if err != nil {
 		return nil, fmt.Errorf("resolving onramp.patches: %w", err)
 	}
-	for _, action := range userActions {
+	for i, action := range userActions {
 		if err := action.Apply(destDir); err != nil {
 			return nil, fmt.Errorf("applying onramp.patches: %s: %w", action.Name(), err)
 		}
 		log.Printf("  onramp patch: %s", action.Name())
+		patchRecords = append(patchRecords, recordPatch(destDir, action, "user", "build-bundle", filePatchSource(spec.Patches[i])))
 	}
 
 	files, err := HashTree(destDir, relPath)
@@ -157,7 +162,39 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir, specDir
 		TreeSHA256:  bundle.ComputeTreeSHA256(files),
 		Path:        relPath,
 		Files:       files,
+		Patches:     patchRecords,
 	}, nil
+}
+
+// recordPatch returns a manifest record for an action that has just
+// been applied against destDir. Target hashing is best-effort —
+// errors are swallowed because failure to hash should not break a
+// build; the empty SHA256 is a valid omitempty signal.
+func recordPatch(destDir string, action patch.Action, kind, applier, source string) bundle.PatchRecord {
+	rec := bundle.PatchRecord{
+		Kind:      kind,
+		Target:    action.Target(),
+		Applier:   applier,
+		Source:    source,
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+	if rec.Target != "" {
+		var hash string
+		if err := computeFileSHA256(filepath.Join(destDir, rec.Target), &hash); err == nil {
+			rec.SHA256 = hash
+		}
+	}
+	return rec
+}
+
+// filePatchSource returns a human-readable description of where a
+// user FilePatch came from: the source path when provided, or a
+// sentinel string for inline content.
+func filePatchSource(p bundle.FilePatch) string {
+	if p.Source != "" {
+		return p.Source
+	}
+	return "<inline content>"
 }
 
 // BuildFilePatchActions resolves the source files and inline content

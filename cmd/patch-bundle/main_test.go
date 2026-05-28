@@ -154,6 +154,34 @@ func TestPatchBundleEndToEnd(t *testing.T) {
 	if m.Components.Onramp.TreeSHA256 == bundleTreeSHA(t, bundlePath) {
 		t.Error("TreeSHA256 unchanged after patch — composeVersion would not detect re-extract")
 	}
+
+	// Manifest must record one post-build patch entry with the right
+	// target, applier, and source pointing back to the local file.
+	var postBuild []bundle.PatchRecord
+	for _, p := range m.Components.Onramp.Patches {
+		if p.Kind == "post-build" {
+			postBuild = append(postBuild, p)
+		}
+	}
+	if len(postBuild) != 1 {
+		t.Fatalf("expected 1 post-build patch record, got %d (all: %+v)", len(postBuild), m.Components.Onramp.Patches)
+	}
+	rec := postBuild[0]
+	if rec.Target != "ocudu/roles/uEsimulator/templates/ue_zmq.conf" {
+		t.Errorf("post-build Target = %q", rec.Target)
+	}
+	if rec.Applier != "patch-bundle" {
+		t.Errorf("post-build Applier = %q", rec.Applier)
+	}
+	if rec.Source != localFile {
+		t.Errorf("post-build Source = %q, want %q", rec.Source, localFile)
+	}
+	if rec.SHA256 != wantHash {
+		t.Errorf("post-build SHA256 = %q, want %q", rec.SHA256, wantHash)
+	}
+	if rec.Timestamp == "" {
+		t.Error("post-build Timestamp is empty")
+	}
 }
 
 func TestPatchBundleRejectsInPlaceOverwrite(t *testing.T) {
