@@ -24,12 +24,12 @@ site:
         Rewrites files inside an existing bundle without re-running a full build — fast path for swapping aether-onramp configuration templates (SDR parameters, ZMQ ports, SD-Core values) without re-pulling images or APT packages.
       docs_url: https://aether-gui.github.io/docs/tools/patch-bundle
 releases:
-  - id: "2026-05-19-supply-chain-artifacts"
-    published_at: "2026-05-20T00:09:00Z"
+  - id: "2026-05-27-supply-chain-artifacts"
+    published_at: "2026-05-28T00:00:00Z"
     current: true
     bootstrap:
-      version: "2026.05.19.1"
-      path: "2026.05.19.1"
+      version: "2026.05.27.1"
+      path: "2026.05.27.1"
       filename: aether-ops-bootstrap
       source: ../dist/aether-ops-bootstrap
       commit: "33a6ae5"
@@ -49,8 +49,8 @@ releases:
           filename: openvex.json
           source: ../security/vex/openvex.json
     bundle:
-      version: "2026.05.19.1"
-      path: "2026.05.19.1"
+      version: "2026.05.27.1"
+      path: "2026.05.27.1"
       filename: bundle.tar.zst
       source: ../dist/bundle.tar.zst
       sha256_source: ../dist/bundle.tar.zst.sha256
@@ -59,7 +59,7 @@ releases:
         - 'TODO: fill in release notes before merging.'
       components:
         - name: aether-ops
-          version: v0.2.0
+          version: v0.2.3
         - name: aether-onramp
           commit: 78f75c6a415c2e8567cd8c976a322e8be3d33da2
         - name: rke2
@@ -88,8 +88,8 @@ releases:
           filename: openvex.json
           source: ../security/vex/openvex.json
     patch_tool:
-      version: "2026.05.19.1"
-      path: "2026.05.19.1"
+      version: "2026.05.27.1"
+      path: "2026.05.27.1"
       filename: patch-bundle
       source: ../dist/patch-bundle
       build_commit: "33a6ae5"
