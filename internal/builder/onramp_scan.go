@@ -534,8 +534,8 @@ func collectShellRequirementsRef(ref, filePath, repoRoot string, acc *scanAccumu
 }
 
 func isSupportedShellPipFlag(arg string) bool {
-	switch {
-	case arg == "--upgrade", arg == "-U", arg == "--user", arg == "--no-input", arg == "--disable-pip-version-check":
+	switch arg {
+	case "--upgrade", "-U", "--user", "--no-input", "--disable-pip-version-check":
 		return true
 	default:
 		return false

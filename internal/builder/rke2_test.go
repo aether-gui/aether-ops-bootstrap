@@ -180,12 +180,12 @@ func TestFetchAndVerifyRKE2(t *testing.T) {
 		if rawPath == "" {
 			rawPath = r.URL.Path
 		}
-		switch {
-		case rawPath == "/v1.33.1%2Brke2r1/rke2.linux-amd64.tar.gz":
+		switch rawPath {
+		case "/v1.33.1%2Brke2r1/rke2.linux-amd64.tar.gz":
 			_, _ = w.Write(binaryContent)
-		case rawPath == "/v1.33.1%2Brke2r1/rke2-images.linux-amd64.tar.zst":
+		case "/v1.33.1%2Brke2r1/rke2-images.linux-amd64.tar.zst":
 			_, _ = w.Write(imagesContent)
-		case rawPath == "/v1.33.1%2Brke2r1/sha256sum-amd64.txt":
+		case "/v1.33.1%2Brke2r1/sha256sum-amd64.txt":
 			fmt.Fprint(w, checksumContent)
 		default:
 			http.NotFound(w, r)
