@@ -136,12 +136,19 @@ images:
     - docker.io/bitnamilegacy/kafka:4.0.0-debian-12-r10
     # OnRamp ocudu role's Docker images. The onramp scanner only
     # extracts apt/pip deps today, not Docker image references in
-    # role vars (ocudu.docker.container.gnb_image / ue_image), so
-    # these are listed explicitly until that scanner exists.
+    # role vars (ocudu.docker.container.gnb_image / ue_image) or
+    # role defaults (ocudu.docker.preflight.probe_image), so these
+    # are listed explicitly until that scanner exists.
     # See aether-ops-bootstrap issue tracking the OnRamp role
     # image-ref scan.
     - docker.io/aetherproject/ocudu:rel-0.7.0
     - docker.io/aetherproject/srsran-ue:rel-0.7.0
+    # Preflight probe used by ocudu/roles/gNB and uEsimulator to
+    # verify Docker can see N CPUs before starting workloads.
+    # Pinned in deps/ocudu/roles/*/defaults/main.yml as
+    # ocudu.docker.preflight.probe_image; airgapped hosts cannot
+    # resolve ghcr.io so it must ship in the bundle.
+    - ghcr.io/omec-project/pod-init:rel-1.2.2
   exclude:
     # Legacy Docker v1 manifest; go-containerregistry cannot pull these.
     # Dependent services should be pointed at a newer image, or this entry
