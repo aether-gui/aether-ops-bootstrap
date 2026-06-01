@@ -65,6 +65,10 @@ const upstreamVarsMainYAML = `proxy:
 airgapped:
   enabled: false                 # set true to skip apt update_cache
 
+k8s:
+  helm:
+    version: v3.20.0
+
 core:
   standalone: true
   helm:
@@ -112,7 +116,7 @@ func TestBuildOnramp(t *testing.T) {
 	entry, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{
 		Repo: url,
 		Ref:  "main",
-	}, stageDir, "")
+	}, stageDir, "", "v3.21.0")
 	if err != nil {
 		t.Fatalf("BuildOnramp: %v", err)
 	}
@@ -152,6 +156,9 @@ func TestBuildOnramp(t *testing.T) {
 	}
 	if strings.Contains(got, "airgapped:\n  enabled: false") {
 		t.Errorf("airgapped.enabled still false after BuildOnramp:\n%s", got)
+	}
+	if !strings.Contains(got, "version: v3.21.0") {
+		t.Errorf("expected k8s.helm.version=v3.21.0 after BuildOnramp, got:\n%s", got)
 	}
 	if !strings.Contains(got, "local_charts: true") {
 		t.Errorf("expected core.helm.local_charts=true after BuildOnramp, got:\n%s", got)
@@ -200,7 +207,7 @@ func TestBuildOnrampPatchesBlueprintVariants(t *testing.T) {
 	})
 
 	stageDir := t.TempDir()
-	entry, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{Repo: url}, stageDir, "")
+	entry, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{Repo: url}, stageDir, "", "v3.21.0")
 	if err != nil {
 		t.Fatalf("BuildOnramp: %v", err)
 	}
@@ -246,7 +253,7 @@ func TestBuildOnrampCleansExistingDest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{Repo: url}, stageDir, ""); err != nil {
+	if _, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{Repo: url}, stageDir, "", "v3.21.0"); err != nil {
 		t.Fatalf("BuildOnramp: %v", err)
 	}
 
@@ -285,7 +292,7 @@ func TestBuildOnrampAppliesUserPatches(t *testing.T) {
 				Source: "patches/gnb_zmq.yaml",
 			},
 		},
-	}, stageDir, specDir)
+	}, stageDir, specDir, "v3.21.0")
 	if err != nil {
 		t.Fatalf("BuildOnramp: %v", err)
 	}
@@ -361,7 +368,7 @@ func TestBuildOnrampMissingPatchTargetIsHardError(t *testing.T) {
 		Patches: []bundle.FilePatch{
 			{Target: "does/not/exist.conf", Content: "x"},
 		},
-	}, stageDir, "")
+	}, stageDir, "", "v3.21.0")
 	if err == nil {
 		t.Fatal("expected error when patch target is absent from clone")
 	}
