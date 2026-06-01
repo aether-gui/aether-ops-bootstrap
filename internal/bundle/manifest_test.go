@@ -1,6 +1,8 @@
 package bundle
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -285,6 +287,175 @@ func TestComputeTreeSHA256(t *testing.T) {
 	// Empty input → empty hash so JSON-omitempty stays clean.
 	if empty := ComputeTreeSHA256(nil); empty != "" {
 		t.Errorf("empty input should hash to empty string; got %q", empty)
+	}
+}
+
+func TestManifestAetherOpsSourceRoundTrip(t *testing.T) {
+	cases := []struct {
+		name string
+		src  *AetherOpsSource
+	}{
+		{
+			name: "release",
+			src: &AetherOpsSource{
+				Mode: "release",
+				Repo: "aether-gui/aether-ops",
+				Ref:  "v0.2.3",
+			},
+		},
+		{
+			name: "source",
+			src: &AetherOpsSource{
+				Mode:        "source",
+				Repo:        "aether-gui/aether-ops",
+				Ref:         "main",
+				ResolvedSHA: "0123456789abcdef0123456789abcdef01234567",
+				FrontendRef: "main",
+			},
+		},
+		{
+			name: "local",
+			src: &AetherOpsSource{
+				Mode:      "local",
+				LocalPath: "./artifacts/aether-ops_0.2.3_linux_amd64.tar.gz",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &Manifest{
+				SchemaVersion: SchemaVersion,
+				BundleVersion: "test",
+				Components: ComponentList{
+					AetherOps: &AetherOpsEntry{Version: "v0.2.3", Source: tc.src},
+				},
+			}
+			dir := t.TempDir()
+			path := filepath.Join(dir, "manifest.json")
+			if err := Write(path, m); err != nil {
+				t.Fatalf("Write: %v", err)
+			}
+			got, err := Read(path)
+			if err != nil {
+				t.Fatalf("Read: %v", err)
+			}
+			if got.Components.AetherOps == nil || got.Components.AetherOps.Source == nil {
+				t.Fatalf("AetherOps.Source round-tripped as nil: %+v", got.Components.AetherOps)
+			}
+			if got.Components.AetherOps.Source.Mode != tc.src.Mode {
+				t.Errorf("Mode = %q, want %q", got.Components.AetherOps.Source.Mode, tc.src.Mode)
+			}
+			if got.Components.AetherOps.Source.LocalPath != tc.src.LocalPath {
+				t.Errorf("LocalPath = %q, want %q", got.Components.AetherOps.Source.LocalPath, tc.src.LocalPath)
+			}
+			if got.Components.AetherOps.Source.ResolvedSHA != tc.src.ResolvedSHA {
+				t.Errorf("ResolvedSHA = %q, want %q", got.Components.AetherOps.Source.ResolvedSHA, tc.src.ResolvedSHA)
+			}
+		})
+	}
+}
+
+func TestManifestOmitEmptySource(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: SchemaVersion,
+		Components: ComponentList{
+			AetherOps: &AetherOpsEntry{Version: "v0.2.3"},
+		},
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "manifest.json")
+	if err := Write(path, m); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if bytes.Contains(raw, []byte(`"source"`)) {
+		t.Errorf("expected omitempty to drop source field; got: %s", raw)
+	}
+}
+
+func TestManifestOnrampPatchesRoundTrip(t *testing.T) {
+	m := &Manifest{
+		SchemaVersion: SchemaVersion,
+		Components: ComponentList{
+			Onramp: &OnrampEntry{
+				Repo:        "https://example.com/onramp.git",
+				ResolvedSHA: "abc",
+				Path:        "onramp/aether-onramp",
+				Patches: []PatchRecord{
+					{
+						Kind:      "builtin",
+						Target:    "deployment/roles/core/vars/main.yml",
+						Applier:   "build-bundle:onrampPatches",
+						Source:    "airgapped.enabled=true",
+						Timestamp: "2026-05-28T14:22:01Z",
+						SHA256:    "sha1",
+					},
+					{
+						Kind:      "user",
+						Target:    "vars/site.yml",
+						Applier:   "build-bundle",
+						Source:    "/home/me/patches/site.yml",
+						Timestamp: "2026-05-28T14:22:02Z",
+						SHA256:    "sha2",
+					},
+					{
+						Kind:      "post-build",
+						Target:    "vars/extra.yml",
+						Applier:   "patch-bundle",
+						Source:    "/home/me/extra.yml",
+						Timestamp: "2026-05-29T09:11:00Z",
+						SHA256:    "sha3",
+					},
+				},
+			},
+		},
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "manifest.json")
+	if err := Write(path, m); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	got, err := Read(path)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if got.Components.Onramp == nil || len(got.Components.Onramp.Patches) != 3 {
+		t.Fatalf("Patches not round-tripped: %+v", got.Components.Onramp)
+	}
+	kinds := []string{
+		got.Components.Onramp.Patches[0].Kind,
+		got.Components.Onramp.Patches[1].Kind,
+		got.Components.Onramp.Patches[2].Kind,
+	}
+	want := []string{"builtin", "user", "post-build"}
+	for i := range want {
+		if kinds[i] != want[i] {
+			t.Errorf("Patches[%d].Kind = %q, want %q", i, kinds[i], want[i])
+		}
+	}
+}
+
+func TestParseBytes(t *testing.T) {
+	m := &Manifest{SchemaVersion: SchemaVersion, BundleVersion: "1.0"}
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Parse(data)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if got.BundleVersion != "1.0" {
+		t.Errorf("BundleVersion = %q, want 1.0", got.BundleVersion)
+	}
+
+	bad := []byte(`{"schema_version": 999}`)
+	if _, err := Parse(bad); err == nil {
+		t.Fatal("Parse should reject mismatched schema_version")
 	}
 }
 

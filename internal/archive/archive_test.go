@@ -1,6 +1,7 @@
 package archive
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -67,5 +68,45 @@ func TestArchiveRoundTrip(t *testing.T) {
 	}
 	if string(got) != "image data" {
 		t.Errorf("images.tar.zst content = %q", got)
+	}
+}
+
+func TestReadFileFromArchive(t *testing.T) {
+	srcDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(srcDir, "manifest.json"), []byte(`{"version":1}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(srcDir, "rke2"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "rke2", "binary.tar.gz"), []byte("binary data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	archivePath := filepath.Join(t.TempDir(), "test.tar.zst")
+	if err := Archive(srcDir, archivePath); err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+
+	got, err := ReadFileFromArchive(archivePath, "manifest.json")
+	if err != nil {
+		t.Fatalf("ReadFileFromArchive: %v", err)
+	}
+	if string(got) != `{"version":1}` {
+		t.Errorf("manifest content = %q", got)
+	}
+
+	// Nested entry uses forward slashes regardless of host OS.
+	got, err = ReadFileFromArchive(archivePath, "rke2/binary.tar.gz")
+	if err != nil {
+		t.Fatalf("ReadFileFromArchive nested: %v", err)
+	}
+	if string(got) != "binary data" {
+		t.Errorf("binary content = %q", got)
+	}
+
+	_, err = ReadFileFromArchive(archivePath, "does-not-exist.json")
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("expected os.ErrNotExist for missing entry, got %v", err)
 	}
 }

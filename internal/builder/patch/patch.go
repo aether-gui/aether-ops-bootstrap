@@ -12,8 +12,15 @@ import "fmt"
 // Apply must return an error when the expected starting state is
 // missing (file absent, YAML key path not found, …). Silent skips
 // would let upstream drift ship a subtly wrong bundle.
+//
+// Target returns the rootDir-relative path of the file the action
+// modifies. Used by bundle producers to record patch provenance in
+// the manifest. Empty string is reserved for the (currently unused)
+// case of an action that touches multiple files; callers should
+// treat empty as "unknown / multi-file".
 type Action interface {
 	Name() string
+	Target() string
 	Apply(rootDir string) error
 }
 

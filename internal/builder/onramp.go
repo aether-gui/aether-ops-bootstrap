@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/builder/patch"
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -34,7 +35,7 @@ const localSDCoreChartDir = "/var/lib/aether-ops/helm-charts/sdcore-helm-charts/
 // blueprint patches just make sure aether-ops's HandleComposeConfig
 // merge can't restore an OCI-pointing chart_ref over the patched
 // main.yml.
-func onrampPatches(destDir string) ([]patch.Action, error) {
+func onrampPatches(destDir, helmVersion string) ([]patch.Action, error) {
 	actions := []patch.Action{
 		// Upstream defaults `airgapped.enabled: false` to keep stock
 		// online installs unchanged. Bundles built here always target
@@ -45,6 +46,17 @@ func onrampPatches(destDir string) ([]patch.Action, error) {
 			RelPath: filepath.Join("vars", "main.yml"),
 			KeyPath: []string{"airgapped", "enabled"},
 			Value:   true,
+		},
+		// onramp's k8s/helm role checks the installed binary's version
+		// against k8s.helm.version and (if different) tries to download
+		// get-helm.sh from raw.githubusercontent.com to reinstall.
+		// In airgap that fetch fails; pin the expected version to
+		// whatever the bundle actually ships so the role short-circuits
+		// the reinstall path entirely.
+		patch.SetYAMLField{
+			RelPath: filepath.Join("vars", "main.yml"),
+			KeyPath: []string{"k8s", "helm", "version"},
+			Value:   helmVersion,
 		},
 		// Upstream defaults sd-core's chart_ref to an OCI registry
 		// (`oci://ghcr.io/omec-project/sd-core`) with local_charts off.
@@ -77,6 +89,11 @@ func onrampPatches(destDir string) ([]patch.Action, error) {
 		if err != nil {
 			return nil, fmt.Errorf("relpath for %s: %w", bp, err)
 		}
+		// k8s.helm.version is *not* patched on blueprints — k8s/* is
+		// not part of aether-ops's compose merge, so a blueprint
+		// without that block (the common case) would force the
+		// patcher to auto-create intermediates, which the patch
+		// engine deliberately refuses.
 		actions = append(actions,
 			patch.SetYAMLField{
 				RelPath: rel,
@@ -109,7 +126,12 @@ func onrampPatches(destDir string) ([]patch.Action, error) {
 // specDir is the directory of the bundle spec file; it is used to
 // resolve any relative `source:` paths in spec.Patches. Pass "" when
 // no user patches are configured.
-func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir, specDir string) (*bundle.OnrampEntry, error) {
+//
+// helmVersion is the version string of the helm binary the bundle
+// ships (e.g. "v3.21.0"). It is written into the patched
+// vars/main.yml so onramp's k8s/helm role doesn't re-fetch helm
+// from raw.githubusercontent.com on a version mismatch.
+func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir, specDir, helmVersion string) (*bundle.OnrampEntry, error) {
 	relPath := filepath.Join("onramp", "aether-onramp")
 	destDir := filepath.Join(stageDir, relPath)
 
@@ -118,9 +140,11 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir, specDir
 		return nil, fmt.Errorf("cloning onramp: %w", err)
 	}
 
+	var patchRecords []bundle.PatchRecord
+
 	// Apply onramp-specific patches to the cloned tree before
 	// hashing so the manifest reflects the on-disk state shipped.
-	patches, err := onrampPatches(destDir)
+	patches, err := onrampPatches(destDir, helmVersion)
 	if err != nil {
 		return nil, fmt.Errorf("computing onramp patches: %w", err)
 	}
@@ -129,6 +153,7 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir, specDir
 			return nil, fmt.Errorf("patching onramp: %s: %w", action.Name(), err)
 		}
 		log.Printf("  onramp patch: %s", action.Name())
+		patchRecords = append(patchRecords, recordPatch(destDir, action, "builtin", "build-bundle:onrampPatches", action.Name()))
 	}
 
 	// User patches run after the built-in adaptations so they can
@@ -138,11 +163,12 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir, specDir
 	if err != nil {
 		return nil, fmt.Errorf("resolving onramp.patches: %w", err)
 	}
-	for _, action := range userActions {
+	for i, action := range userActions {
 		if err := action.Apply(destDir); err != nil {
 			return nil, fmt.Errorf("applying onramp.patches: %s: %w", action.Name(), err)
 		}
 		log.Printf("  onramp patch: %s", action.Name())
+		patchRecords = append(patchRecords, recordPatch(destDir, action, "user", "build-bundle", filePatchSource(spec.Patches[i])))
 	}
 
 	files, err := HashTree(destDir, relPath)
@@ -157,7 +183,39 @@ func BuildOnramp(ctx context.Context, spec *bundle.OnrampSpec, stageDir, specDir
 		TreeSHA256:  bundle.ComputeTreeSHA256(files),
 		Path:        relPath,
 		Files:       files,
+		Patches:     patchRecords,
 	}, nil
+}
+
+// recordPatch returns a manifest record for an action that has just
+// been applied against destDir. Target hashing is best-effort —
+// errors are swallowed because failure to hash should not break a
+// build; the empty SHA256 is a valid omitempty signal.
+func recordPatch(destDir string, action patch.Action, kind, applier, source string) bundle.PatchRecord {
+	rec := bundle.PatchRecord{
+		Kind:      kind,
+		Target:    action.Target(),
+		Applier:   applier,
+		Source:    source,
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+	if rec.Target != "" {
+		var hash string
+		if err := computeFileSHA256(filepath.Join(destDir, rec.Target), &hash); err == nil {
+			rec.SHA256 = hash
+		}
+	}
+	return rec
+}
+
+// filePatchSource returns a human-readable description of where a
+// user FilePatch came from: the source path when provided, or a
+// sentinel string for inline content.
+func filePatchSource(p bundle.FilePatch) string {
+	if p.Source != "" {
+		return p.Source
+	}
+	return "<inline content>"
 }
 
 // BuildFilePatchActions resolves the source files and inline content

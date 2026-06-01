@@ -79,9 +79,9 @@ aether_ops:
 # `airgapped.enabled: true` so `apt: update_cache` calls are gated off.
 onramp:
   repo: https://github.com/opennetworkinglab/aether-onramp.git
-  # Pinned to a specific upstream commit for reproducibility; bump
-  # after reviewing upstream changes. HEAD of main at time of pin.
-  ref: 78f75c6a415c2e8567cd8c976a322e8be3d33da2
+  # Pinned to an upstream release tag for reproducibility; bump
+  # after reviewing upstream release notes.
+  ref: v2.3.0
   recurse_submodules: false
 
   # `patches:` overrides files inside the cloned onramp tree before
@@ -116,7 +116,7 @@ onramp:
 helm_charts:
   - name: sdcore-helm-charts
     repo: https://github.com/omec-project/sdcore-helm-charts.git
-    ref: main
+    ref: v4.0.0
 
 # Container images to pre-pull and stage for RKE2's airgap image loader.
 # When auto_extract is true, the builder scans the cloned helm charts for
@@ -136,12 +136,19 @@ images:
     - docker.io/bitnamilegacy/kafka:4.0.0-debian-12-r10
     # OnRamp ocudu role's Docker images. The onramp scanner only
     # extracts apt/pip deps today, not Docker image references in
-    # role vars (ocudu.docker.container.gnb_image / ue_image), so
-    # these are listed explicitly until that scanner exists.
+    # role vars (ocudu.docker.container.gnb_image / ue_image) or
+    # role defaults (ocudu.docker.preflight.probe_image), so these
+    # are listed explicitly until that scanner exists.
     # See aether-ops-bootstrap issue tracking the OnRamp role
     # image-ref scan.
     - docker.io/aetherproject/ocudu:rel-0.7.0
     - docker.io/aetherproject/srsran-ue:rel-0.7.0
+    # Preflight probe used by ocudu/roles/gNB and uEsimulator to
+    # verify Docker can see N CPUs before starting workloads.
+    # Pinned in deps/ocudu/roles/*/defaults/main.yml as
+    # ocudu.docker.preflight.probe_image; airgapped hosts cannot
+    # resolve ghcr.io so it must ship in the bundle.
+    - ghcr.io/omec-project/pod-init:rel-1.2.2
   exclude:
     # Legacy Docker v1 manifest; go-containerregistry cannot pull these.
     # Dependent services should be pointed at a newer image, or this entry

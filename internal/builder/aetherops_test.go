@@ -200,6 +200,15 @@ func TestBuildAetherOpsLocalBinary(t *testing.T) {
 	if len(entry.Files) != 2 {
 		t.Fatalf("len(Files) = %d, want 2", len(entry.Files))
 	}
+	if entry.Source == nil {
+		t.Fatal("Source is nil; expected local-mode source provenance")
+	}
+	if entry.Source.Mode != "local" {
+		t.Errorf("Source.Mode = %q, want %q", entry.Source.Mode, "local")
+	}
+	if entry.Source.LocalPath != binaryPath {
+		t.Errorf("Source.LocalPath = %q, want %q", entry.Source.LocalPath, binaryPath)
+	}
 
 	// Verify files exist in staging.
 	for _, name := range []string{"aether-ops", "aether-ops.service"} {

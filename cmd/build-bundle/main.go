@@ -141,7 +141,11 @@ func buildOne(specPath, outputPath, lockPath string) error {
 		// specDir lets BuildOnramp resolve relative `source:` paths in
 		// onramp.patches against the directory of the spec file.
 		specDir := filepath.Dir(specPath)
-		onrampEntry, err = builder.BuildOnramp(ctx, spec.Onramp, stageDir, specDir)
+		helmVersion := ""
+		if spec.Helm != nil {
+			helmVersion = spec.Helm.Version
+		}
+		onrampEntry, err = builder.BuildOnramp(ctx, spec.Onramp, stageDir, specDir, helmVersion)
 		if err != nil {
 			return err
 		}

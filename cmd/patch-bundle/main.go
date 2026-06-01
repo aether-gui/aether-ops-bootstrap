@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -153,6 +154,30 @@ func run(args []string, stdout, stderr io.Writer) error {
 	// authoritative integrity record once we re-archive. Clear so
 	// stale-looking values don't ship in the patched manifest.
 	manifest.BundleSHA256 = ""
+
+	// Append one PatchRecord per applied patch. All share a single
+	// timestamp because conceptually they are one operation
+	// (the patch-bundle invocation), and post-hash hashes are pulled
+	// from the freshly-recomputed Files slice to avoid hashing twice.
+	hashByPath := make(map[string]string, len(files))
+	for _, f := range files {
+		hashByPath[f.Path] = f.SHA256
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, p := range patches {
+		src := p.Source
+		if src == "" {
+			src = "<inline content>"
+		}
+		manifest.Components.Onramp.Patches = append(manifest.Components.Onramp.Patches, bundle.PatchRecord{
+			Kind:      "post-build",
+			Target:    p.Target,
+			Applier:   "patch-bundle",
+			Source:    src,
+			Timestamp: now,
+			SHA256:    hashByPath[filepath.Join(onrampPath, filepath.FromSlash(p.Target))],
+		})
+	}
 
 	if err := bundle.Write(manifestPath, manifest); err != nil {
 		return fmt.Errorf("writing manifest: %w", err)

@@ -89,6 +89,50 @@ func Archive(sourceDir, outputPath string) error {
 	return nil
 }
 
+// ReadFileFromArchive streams a tar.zst archive and returns the raw
+// bytes of the first entry whose name matches target. Returns
+// os.ErrNotExist when no entry matches, leaving the rest of the
+// archive unread on disk.
+//
+// Used by lightweight readers (e.g. bundle inspection) that need a
+// single manifest file without paying the cost of extracting every
+// archive member.
+func ReadFileFromArchive(archivePath, target string) ([]byte, error) {
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return nil, fmt.Errorf("opening archive %s: %w", archivePath, err)
+	}
+	defer f.Close()
+
+	zr, err := zstd.NewReader(f)
+	if err != nil {
+		return nil, fmt.Errorf("creating zstd reader: %w", err)
+	}
+	defer zr.Close()
+
+	tr := tar.NewReader(zr)
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			return nil, fmt.Errorf("%s: %w", target, os.ErrNotExist)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("reading tar entry: %w", err)
+		}
+		if header.Typeflag != tar.TypeReg {
+			continue
+		}
+		if filepath.ToSlash(header.Name) != target {
+			continue
+		}
+		data, err := io.ReadAll(tr)
+		if err != nil {
+			return nil, fmt.Errorf("reading %s: %w", target, err)
+		}
+		return data, nil
+	}
+}
+
 // Unarchive extracts a tar.zst archive to destDir.
 // Rejects entries with path traversal (absolute paths or ".." segments).
 func Unarchive(archivePath, destDir string) error {

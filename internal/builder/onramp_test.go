@@ -65,6 +65,10 @@ const upstreamVarsMainYAML = `proxy:
 airgapped:
   enabled: false                 # set true to skip apt update_cache
 
+k8s:
+  helm:
+    version: v3.20.0
+
 core:
   standalone: true
   helm:
@@ -112,7 +116,7 @@ func TestBuildOnramp(t *testing.T) {
 	entry, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{
 		Repo: url,
 		Ref:  "main",
-	}, stageDir, "")
+	}, stageDir, "", "v3.21.0")
 	if err != nil {
 		t.Fatalf("BuildOnramp: %v", err)
 	}
@@ -153,6 +157,9 @@ func TestBuildOnramp(t *testing.T) {
 	if strings.Contains(got, "airgapped:\n  enabled: false") {
 		t.Errorf("airgapped.enabled still false after BuildOnramp:\n%s", got)
 	}
+	if !strings.Contains(got, "version: v3.21.0") {
+		t.Errorf("expected k8s.helm.version=v3.21.0 after BuildOnramp, got:\n%s", got)
+	}
 	if !strings.Contains(got, "local_charts: true") {
 		t.Errorf("expected core.helm.local_charts=true after BuildOnramp, got:\n%s", got)
 	}
@@ -170,6 +177,26 @@ func TestBuildOnramp(t *testing.T) {
 			break
 		}
 	}
+
+	// Built-in onramp adaptations must be recorded in the manifest so
+	// inspectors can show the provenance of every change.
+	if len(entry.Patches) == 0 {
+		t.Fatal("expected built-in patch records on a clean BuildOnramp")
+	}
+	for _, p := range entry.Patches {
+		if p.Kind != "builtin" {
+			t.Errorf("patch kind = %q, want builtin", p.Kind)
+		}
+		if p.Applier != "build-bundle:onrampPatches" {
+			t.Errorf("patch applier = %q", p.Applier)
+		}
+		if p.Target == "" {
+			t.Error("patch target is empty")
+		}
+		if p.Timestamp == "" {
+			t.Error("patch timestamp is empty")
+		}
+	}
 }
 
 func TestBuildOnrampPatchesBlueprintVariants(t *testing.T) {
@@ -180,7 +207,7 @@ func TestBuildOnrampPatchesBlueprintVariants(t *testing.T) {
 	})
 
 	stageDir := t.TempDir()
-	entry, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{Repo: url}, stageDir, "")
+	entry, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{Repo: url}, stageDir, "", "v3.21.0")
 	if err != nil {
 		t.Fatalf("BuildOnramp: %v", err)
 	}
@@ -226,7 +253,7 @@ func TestBuildOnrampCleansExistingDest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{Repo: url}, stageDir, ""); err != nil {
+	if _, err := BuildOnramp(context.Background(), &bundle.OnrampSpec{Repo: url}, stageDir, "", "v3.21.0"); err != nil {
 		t.Fatalf("BuildOnramp: %v", err)
 	}
 
@@ -265,7 +292,7 @@ func TestBuildOnrampAppliesUserPatches(t *testing.T) {
 				Source: "patches/gnb_zmq.yaml",
 			},
 		},
-	}, stageDir, specDir)
+	}, stageDir, specDir, "v3.21.0")
 	if err != nil {
 		t.Fatalf("BuildOnramp: %v", err)
 	}
@@ -301,6 +328,34 @@ func TestBuildOnrampAppliesUserPatches(t *testing.T) {
 	if entry.TreeSHA256 == "" {
 		t.Error("TreeSHA256 should be set on a patched build")
 	}
+
+	// Manifest must record both built-in and user patches with the
+	// right Kind tag and source description.
+	var userPatches []bundle.PatchRecord
+	for _, p := range entry.Patches {
+		if p.Kind == "user" {
+			userPatches = append(userPatches, p)
+		}
+	}
+	if len(userPatches) != 2 {
+		t.Fatalf("expected 2 user patch records, got %d (all patches: %+v)", len(userPatches), entry.Patches)
+	}
+	// Inline content patch records the sentinel; source-backed records the path.
+	sources := []string{userPatches[0].Source, userPatches[1].Source}
+	wantInline := "<inline content>"
+	wantSourced := "patches/gnb_zmq.yaml"
+	gotInline, gotSourced := false, false
+	for _, s := range sources {
+		switch s {
+		case wantInline:
+			gotInline = true
+		case wantSourced:
+			gotSourced = true
+		}
+	}
+	if !gotInline || !gotSourced {
+		t.Errorf("user patch sources = %v, want one %q and one %q", sources, wantInline, wantSourced)
+	}
 }
 
 func TestBuildOnrampMissingPatchTargetIsHardError(t *testing.T) {
@@ -313,7 +368,7 @@ func TestBuildOnrampMissingPatchTargetIsHardError(t *testing.T) {
 		Patches: []bundle.FilePatch{
 			{Target: "does/not/exist.conf", Content: "x"},
 		},
-	}, stageDir, "")
+	}, stageDir, "", "v3.21.0")
 	if err == nil {
 		t.Fatal("expected error when patch target is absent from clone")
 	}

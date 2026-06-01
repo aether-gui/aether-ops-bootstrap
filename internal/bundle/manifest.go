@@ -112,11 +112,35 @@ type RKE2Artifact struct {
 }
 
 // AetherOpsEntry describes the aether-ops binary and config in the bundle.
+//
+// Source records how the bundled binary was acquired (release download,
+// source build, or local file). Empty on bundles built before the field
+// was introduced; consumers must treat nil as "unknown" rather than a
+// specific acquisition mode.
 type AetherOpsEntry struct {
-	Version        string       `json:"version"`
-	Files          []BundleFile `json:"files"`
-	OnrampUser     string       `json:"onramp_user,omitempty"`
-	OnrampPassword string       `json:"onramp_password,omitempty"`
+	Version        string           `json:"version"`
+	Source         *AetherOpsSource `json:"source,omitempty"`
+	Files          []BundleFile     `json:"files"`
+	OnrampUser     string           `json:"onramp_user,omitempty"`
+	OnrampPassword string           `json:"onramp_password,omitempty"`
+}
+
+// AetherOpsSource captures the provenance of the bundled aether-ops
+// binary. Mode is the discriminator and is one of:
+//
+//   - "release" — downloaded from a GitHub release. Repo + Ref identify
+//     the tag.
+//   - "source"  — built from source. Repo + Ref + ResolvedSHA identify
+//     the commit; FrontendRef records the embedded frontend pin.
+//   - "local"   — copied from a local tarball. LocalPath records the
+//     spec-relative source path.
+type AetherOpsSource struct {
+	Mode        string `json:"mode"`
+	Repo        string `json:"repo,omitempty"`
+	Ref         string `json:"ref,omitempty"`
+	ResolvedSHA string `json:"resolved_sha,omitempty"`
+	FrontendRef string `json:"frontend_ref,omitempty"`
+	LocalPath   string `json:"local_path,omitempty"`
 }
 
 // HelmEntry describes the Helm binary in the bundle.
@@ -143,12 +167,34 @@ type WheelhouseEntry struct {
 // before this field was introduced; consumers must treat empty as
 // "unknown" rather than "no patches".
 type OnrampEntry struct {
-	Repo        string       `json:"repo"`
-	Ref         string       `json:"ref,omitempty"`
-	ResolvedSHA string       `json:"resolved_sha"`
-	TreeSHA256  string       `json:"tree_sha256,omitempty"`
-	Path        string       `json:"path"` // directory inside the bundle (e.g. "onramp/aether-onramp")
-	Files       []BundleFile `json:"files,omitempty"`
+	Repo        string        `json:"repo"`
+	Ref         string        `json:"ref,omitempty"`
+	ResolvedSHA string        `json:"resolved_sha"`
+	TreeSHA256  string        `json:"tree_sha256,omitempty"`
+	Path        string        `json:"path"` // directory inside the bundle (e.g. "onramp/aether-onramp")
+	Files       []BundleFile  `json:"files,omitempty"`
+	Patches     []PatchRecord `json:"patches,omitempty"`
+}
+
+// PatchRecord describes a single modification applied to a bundled file
+// tree. The record is appended chronologically; readers should not assume
+// any particular ordering beyond append-order.
+//
+// Kind is one of:
+//
+//   - "builtin"    — adaptation applied by build-bundle as part of the
+//     offline bring-up contract (e.g. flipping airgap flags).
+//   - "user"       — patch declared in the build spec under
+//     onramp.patches[].
+//   - "post-build" — patch applied to an existing bundle by
+//     patch-bundle.
+type PatchRecord struct {
+	Kind      string `json:"kind"`
+	Target    string `json:"target"`
+	Applier   string `json:"applier"`
+	Source    string `json:"source,omitempty"`
+	Timestamp string `json:"timestamp"`
+	SHA256    string `json:"sha256,omitempty"`
 }
 
 // HelmChartsEntry describes a single bundled helm-charts repository.
@@ -231,15 +277,24 @@ func Read(path string) (*Manifest, error) {
 		return nil, fmt.Errorf("reading manifest %s: %w", path, err)
 	}
 
-	var m Manifest
-	if err := json.Unmarshal(data, &m); err != nil {
+	m, err := Parse(data)
+	if err != nil {
 		return nil, fmt.Errorf("parsing manifest %s: %w", path, err)
 	}
+	return m, nil
+}
 
+// Parse decodes a manifest from raw JSON bytes and validates the schema
+// version. Used by Read and by consumers that obtain manifest bytes from
+// non-filesystem sources (e.g. a streaming tar reader).
+func Parse(data []byte) (*Manifest, error) {
+	var m Manifest
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
 	if m.SchemaVersion != SchemaVersion {
 		return nil, &ErrManifestSchema{Got: m.SchemaVersion, Want: SchemaVersion}
 	}
-
 	return &m, nil
 }
 
