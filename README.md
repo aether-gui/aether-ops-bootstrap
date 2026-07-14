@@ -22,8 +22,6 @@ Internal design docs (historical / design-of-record):
 ## Quick build
 
 ```bash
-make build          # → dist/aether-ops-bootstrap (launcher)
-make bundle         # → dist/bundle.tar.zst (offline payload)
 make package        # → dist/aether-ops-bootstrap-<version>.tar.gz (everything)
 ```
 
