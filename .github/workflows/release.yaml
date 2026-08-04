@@ -4,7 +4,9 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      # Semver tags only (v0.1.0, v1.2.3, etc). Calver tags
+      # (v2026.08.04.1) are handled by distribute.yml.
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
   contents: write
