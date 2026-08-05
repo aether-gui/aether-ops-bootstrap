@@ -24,21 +24,17 @@ site:
         Rewrites files inside an existing bundle without re-running a full build — fast path for swapping aether-onramp configuration templates (SDR parameters, ZMQ ports, SD-Core values) without re-pulling images or APT packages.
       docs_url: https://aether-gui.github.io/docs/tools/patch-bundle
 releases:
-  - id: "2026-06-01-bundle-inspect"
-    published_at: "2026-06-01T20:00:00Z"
+  - id: "release-2026.08.05.1"
+    published_at: "2026-08-05T17:59:42Z"
     current: true
     bootstrap:
-      version: "2026.06.01.1"
-      path: "2026.06.01.1"
+      version: "2026.08.05.1"
+      path: "2026.08.05.1"
       filename: aether-ops-bootstrap
       source: ../dist/aether-ops-bootstrap
-      commit: "1e10a70"
-      release_summary: >-
-        Launcher v0.3.0 ships the new `inspect` subcommand plus the additive manifest provenance schema (AetherOpsSource, OnrampEntry.Patches). Bundle is rebuilt against aether-onramp v2.3.0 and sdcore-helm-charts v4.0.0 with airgap fixes for the onramp helm-version mismatch and the missing ocudu preflight image.
+      commit: "2f8f351"
       release_notes:
-        - "`aether-ops-bootstrap inspect --bundle <path>` streams the in-bundle manifest from a tar.zst and pretty-prints version, build provenance, component pins, applied patches, and outer-archive integrity. `--json` re-emits the parsed manifest."
-        - Manifest schema additions are omitempty / no schema bump — older v2 bundles still parse and render with em-dash placeholders. AetherOpsEntry.Source records release/source/local provenance; OnrampEntry.Patches logs builtin / user / post-build patches with timestamps and SHA256.
-        - patch-bundle appends post-build PatchRecord entries to the manifest on each invocation.
+        - 'TODO: fill in release notes before merging.'
       security_artifacts:
         - kind: sbom
           filename: aether-ops-bootstrap.spdx.json
@@ -53,26 +49,19 @@ releases:
           filename: openvex.json
           source: ../security/vex/openvex.json
     bundle:
-      version: "2026.06.01.1"
-      path: "2026.06.01.1"
+      version: "2026.08.05.1"
+      path: "2026.08.05.1"
       filename: bundle.tar.zst
       source: ../dist/bundle.tar.zst
       sha256_source: ../dist/bundle.tar.zst.sha256
-      build_commit: "1e10a70"
-      release_summary: >-
-        aether-ops bumped to v0.2.3, aether-onramp pinned to the v2.3.0 release tag, sdcore-helm-charts pinned to v4.0.0, helm bumped to v3.21.0. Bundle now stamps k8s.helm.version into onramp's vars/main.yml at build time and ships ghcr.io/omec-project/pod-init:rel-1.2.2 so the ocudu gNB preflight passes in airgap.
+      build_commit: "2f8f351"
       release_notes:
-        - aether-ops daemon bumped to v0.2.3.
-        - aether-onramp pinned to the v2.3.0 release tag (was the 78f75c6a commit on main).
-        - sdcore-helm-charts pinned to v4.0.0 (was tracking main).
-        - "helm bumped from v3.20.0 to v3.21.0; build-bundle now patches onramp's `vars/main.yml` `k8s.helm.version` key to match the bundled helm so the onramp k8s/helm role does not try to fetch get-helm.sh from raw.githubusercontent.com on a version mismatch."
-        - Bundled `ghcr.io/omec-project/pod-init:rel-1.2.2` (the ocudu gNB / uEsimulator preflight probe image) so the `docker run --rm pod-init nproc` check passes airgapped.
-        - Deb pins refreshed from latest noble-updates — containerd 2.2.3 → 2.2.4, docker-ce 29.5.1 → 29.5.2, docker-buildx 0.34.0 → 0.34.1, docker-compose 5.1.3 → 5.1.4, plus assorted point releases.
+        - 'TODO: fill in release notes before merging.'
       components:
         - name: aether-ops
-          version: v0.2.3
+          version: v0.4.5
         - name: aether-onramp
-          version: v2.3.0
+          commit: v2.3.0
         - name: rke2
           version: v1.35.3+rke2r3
         - name: helm
@@ -99,16 +88,97 @@ releases:
           filename: openvex.json
           source: ../security/vex/openvex.json
     patch_tool:
+      version: "2026.08.05.1"
+      path: "2026.08.05.1"
+      filename: patch-bundle
+      source: ../dist/patch-bundle
+      build_commit: "2f8f351"
+      release_notes:
+        - 'TODO: fill in release notes before merging.'
+  - id: "2026-06-01-bundle-inspect"
+    published_at: "2026-06-01T20:00:00Z"
+    bootstrap:
+      version: "2026.06.01.1"
+      path: "2026.06.01.1"
+      filename: aether-ops-bootstrap
+      commit: "1e10a70"
+      release_summary: >-
+        Launcher v0.3.0 ships the new `inspect` subcommand plus the additive manifest provenance schema (AetherOpsSource, OnrampEntry.Patches). Bundle is rebuilt against aether-onramp v2.3.0 and sdcore-helm-charts v4.0.0 with airgap fixes for the onramp helm-version mismatch and the missing ocudu preflight image.
+      release_notes:
+        - "`aether-ops-bootstrap inspect --bundle <path>` streams the in-bundle manifest from a tar.zst and pretty-prints version, build provenance, component pins, applied patches, and outer-archive integrity. `--json` re-emits the parsed manifest."
+        - Manifest schema additions are omitempty / no schema bump — older v2 bundles still parse and render with em-dash placeholders. AetherOpsEntry.Source records release/source/local provenance; OnrampEntry.Patches logs builtin / user / post-build patches with timestamps and SHA256.
+        - patch-bundle appends post-build PatchRecord entries to the manifest on each invocation.
+      security_artifacts:
+        - kind: sbom
+          filename: aether-ops-bootstrap.spdx.json
+          sha256: "ddeee77387cdf0e9a9148bfe9d42e92bed2a6d7786b1d3aba60101d5ddaa1f65"
+        - kind: grype
+          filename: aether-ops-bootstrap.grype.json
+          sha256: "55c41fb691535098d14a472a1e89c20042e01b2938f37e5e12bd38d859b422ec"
+        - kind: grype-table
+          filename: aether-ops-bootstrap.grype.txt
+          sha256: "eb3698e5c9043fc8f8a370cfc6a430707aca7789523b4c7aa6a0b1a895f156c6"
+        - kind: vex
+          filename: openvex.json
+          sha256: "087fd23f5e5fab87d38da83736fa8e92fef5d54c77aebd9092d779e0ee9bd4f8"
+      sha256: "73c76cf12ed10ddbc34fcc8e62712c54e249d577192d5e4fece853786a847765"
+    bundle:
+      version: "2026.06.01.1"
+      path: "2026.06.01.1"
+      filename: bundle.tar.zst
+      build_commit: "1e10a70"
+      release_summary: >-
+        aether-ops bumped to v0.2.3, aether-onramp pinned to the v2.3.0 release tag, sdcore-helm-charts pinned to v4.0.0, helm bumped to v3.21.0. Bundle now stamps k8s.helm.version into onramp's vars/main.yml at build time and ships ghcr.io/omec-project/pod-init:rel-1.2.2 so the ocudu gNB preflight passes in airgap.
+      release_notes:
+        - aether-ops daemon bumped to v0.2.3.
+        - aether-onramp pinned to the v2.3.0 release tag (was the 78f75c6a commit on main).
+        - sdcore-helm-charts pinned to v4.0.0 (was tracking main).
+        - "helm bumped from v3.20.0 to v3.21.0; build-bundle now patches onramp's `vars/main.yml` `k8s.helm.version` key to match the bundled helm so the onramp k8s/helm role does not try to fetch get-helm.sh from raw.githubusercontent.com on a version mismatch."
+        - Bundled `ghcr.io/omec-project/pod-init:rel-1.2.2` (the ocudu gNB / uEsimulator preflight probe image) so the `docker run --rm pod-init nproc` check passes airgapped.
+        - Deb pins refreshed from latest noble-updates — containerd 2.2.3 → 2.2.4, docker-ce 29.5.1 → 29.5.2, docker-buildx 0.34.0 → 0.34.1, docker-compose 5.1.3 → 5.1.4, plus assorted point releases.
+      components:
+        - name: aether-ops
+          version: v0.2.3
+        - name: aether-onramp
+          version: v2.3.0
+        - name: rke2
+          version: v1.35.3+rke2r3
+        - name: helm
+          version: v3.21.0
+        - name: sdcore-helm-charts
+          version: v4.0.0
+      security_artifacts:
+        - kind: sbom
+          filename: bundle.spdx.json
+          sha256: "db290b68eafcb3887e0187b8f80efa83ddf211b35d7dd6f46ecd05cfea992201"
+        - kind: grype
+          filename: bundle.grype.json
+          sha256: "8654732dc6696f99f764a271dd3475e0bb7ffb4b38d3e4bae0b3da75bfb4a779"
+        - kind: grype-table
+          filename: bundle.grype.txt
+          sha256: "92365651bd16d5a9493bbb4527942b46f6e54394ecbab76bc83eea6f4633c020"
+        - kind: image-sboms
+          filename: image-sboms.tar.gz
+          sha256: "e4c3c6d72ffa096b076ea9057bf02a881e47b55c98a3aa95445ac887c16ffe87"
+        - kind: image-grypes
+          filename: image-grypes.tar.gz
+          sha256: "5e4533b2234f013b201520050918212889bf4f90c45fde32cccc20aaffb3189f"
+        - kind: vex
+          filename: openvex.json
+          sha256: "087fd23f5e5fab87d38da83736fa8e92fef5d54c77aebd9092d779e0ee9bd4f8"
+      sha256: "3d4867aed3e12e2227cfe7af9c82fb4e23156ad4fee16346392d4c8e4fda4d7f"
+    patch_tool:
       version: "2026.06.01.1"
       path: "2026.06.01.1"
       filename: patch-bundle
-      source: ../dist/patch-bundle
       build_commit: "1e10a70"
       release_summary: >-
         Rebuilt alongside the 2026.06.01.1 launcher and bundle. Now appends `post-build` PatchRecord entries (kind, target, applier, timestamp, SHA256) to the manifest on each invocation, so inspect can surface every patch ever applied to a bundle.
       release_notes:
         - Rebuilt alongside the 2026.06.01.1 launcher and bundle.
         - Each `patch-bundle` invocation now appends a `post-build` PatchRecord per applied patch into `manifest.components.onramp.patches`, with kind, target, applier, source description, RFC3339 timestamp, and post-patch SHA256.
+      sha256: "2a620d520ec725fd77fba0cffb58d527352d77acdd14f25c7a7f67dbe0479d49"
+    external: true
   - id: "2026-05-19-supply-chain-artifacts"
     published_at: "2026-05-20T00:09:00Z"
     external: true
@@ -189,100 +259,3 @@ releases:
         Rebuilt alongside the 2026.05.19.1 launcher and bundle.
       release_notes:
         - Rebuilt alongside the 2026.05.19.1 launcher and bundle.
-  - id: "2026-05-11-aether-ops-v0.2.0"
-    published_at: "2026-05-11T17:30:00Z"
-    bootstrap:
-      version: "2026.05.11.1"
-      path: "2026.05.11.1"
-      filename: aether-ops-bootstrap
-      commit: "d64127f"
-      release_summary: >-
-        Source-identical rebuild of the 2026.05.07.2 launcher, repackaged to ship alongside the new bundle. No behavior changes.
-      release_notes:
-        - Bootstrap unchanged source-wise from 2026.05.07.2; rebuilt to ship alongside the new bundle.
-        - Same apt-repo airgap install pipeline — apt-get install against /var/lib/aether-ops/apt-repo, with the persistent /etc/apt/sources.list.d/aether-bundle.list entry preserved for post-bootstrap operator-driven `apt install`.
-      sha256: "7ca63017bb98eeadd8a8a4ad1b09455ab70edb7466f5a0fdd79b5bd2d8c3c59e"
-    bundle:
-      version: "2026.05.11.1"
-      path: "2026.05.11.1"
-      filename: bundle.tar.zst
-      build_commit: "d64127f"
-      release_summary: >-
-        aether-ops bumped to v0.2.0. Breaking surface in the OnRamp components API and docs URLs; runtime catalog loading from <OnRampDir>/catalog/.
-      release_notes:
-        - Bundle rebuilt with aether-ops bumped to v0.2.0.
-        - OnRamp component catalog now loads at runtime from <OnRampDir>/catalog/ instead of an embedded snapshot. The pinned onramp ref 78f75c6a has catalog/ present so the daemon comes up fully — older onramp pins land in degraded mode.
-        - The aether-ops daemon stamps ansible_user/ansible_password into hosts.ini on Start() when /etc/aether-ops/onramp-password exists. The bootstrap launcher's setInventoryCredentials pass already writes those fields, so the daemon's pass is a no-op for bootstrap-installed hosts. Idempotent overlap is intentional.
-        - Breaking-change surface v0.1.x → v0.2.0 — "4gc" no longer appears in GET /api/v1/onramp/components, and component docs_url moves from /master/onramp/... to /onramp/... for the 12 remaining components.
-        - aether-onramp (78f75c6a), rke2 (v1.35.3+rke2r3), helm (v3.20.0), and sdcore-helm-charts (main) unchanged from 2026.05.07.2.
-      components:
-        - name: aether-ops
-          version: v0.2.0
-        - name: aether-onramp
-          commit: 78f75c6a415c2e8567cd8c976a322e8be3d33da2
-        - name: rke2
-          version: v1.35.3+rke2r3
-        - name: helm
-          version: v3.20.0
-        - name: sdcore-helm-charts
-          version: main
-      sha256: "3b09c56ea895b75ce8ae4e51a051f5ee720144fa1e4836678e64872337a18604"
-    patch_tool:
-      version: "2026.05.11.1"
-      path: "2026.05.11.1"
-      filename: patch-bundle
-      build_commit: "d64127f"
-      release_summary: >-
-        Rebuilt alongside the 2026.05.11.1 launcher and bundle. No functional changes.
-      release_notes:
-        - Patch tool rebuilt alongside the 2026.05.11.1 launcher and bundle. No functional changes.
-      sha256: "5f9569d0638b3c612c3c8a70ee683bf87d444024e6da5da223cb49b99fea503e"
-    external: true
-  - id: "2026-05-07-onramp-usb-bind-mount"
-    published_at: "2026-05-08T01:30:00Z"
-    external: true
-    bootstrap:
-      version: "2026.05.07.2"
-      path: "2026.05.07.2"
-      filename: aether-ops-bootstrap
-      sha256: "03613545bc33a02fce1f84a5c83b1a79f89e2185e314b5b6205177f7ef4a5209"
-      commit: "8669678"
-      release_summary: >-
-        Source-identical rebuild of the 2026.05.07.1 launcher, repackaged to ship alongside the new bundle.
-      release_notes:
-        - Bootstrap unchanged from 2026.05.07.1 source-wise; rebuilt to ship alongside the new bundle.
-        - Same apt-repo airgap install pipeline — apt-get install against /var/lib/aether-ops/apt-repo, with the persistent /etc/apt/sources.list.d/aether-bundle.list entry preserved for post-bootstrap operator-driven `apt install`.
-    bundle:
-      version: "2026.05.07.2"
-      path: "2026.05.07.2"
-      filename: bundle.tar.zst
-      sha256: "7d9a0212ed655fdef245685084988df9c87a08b8df04c907b10f8cbbd9b9a25f"
-      build_commit: "8669678"
-      release_summary: >-
-        Re-pinned aether-onramp at upstream 78f75c6a to pick up PR #213's USRP USB bind-mount fix, replacing the local udev workaround from 2026.05.06.1.
-      release_notes:
-        - Re-pinned aether-onramp at upstream 78f75c6a (current HEAD of opennetworkinglab/aether-onramp main), picking up PR #213.
-        - ocudu/gNB now bind-mounts /dev/bus/usb into the gNB docker container for USRP hot-plug visibility — upstream root-cause fix for the USRP USB access symptom the local udev workaround in 2026.05.06.1 papered over.
-        - With the bind-mount, libusb inside the container can see the host's USB tree and any hot-plug device-add events regardless of the host-side udev MODE on the device node.
-        - aether-ops v0.1.50, rke2 v1.35.3+rke2r3, helm v3.20.0 unchanged.
-      components:
-        - name: aether-ops
-          version: v0.1.50
-        - name: aether-onramp
-          commit: 78f75c6a415c2e8567cd8c976a322e8be3d33da2
-        - name: rke2
-          version: v1.35.3+rke2r3
-        - name: helm
-          version: v3.20.0
-        - name: sdcore-helm-charts
-          version: main
-    patch_tool:
-      version: "2026.05.07.2"
-      path: "2026.05.07.2"
-      filename: patch-bundle
-      sha256: "6ba45df841a7824673391b4ae21b70e070c27014788a7a3dd375a120e5c00368"
-      build_commit: "8669678"
-      release_summary: >-
-        Rebuilt alongside the 2026.05.07.2 launcher and bundle. No functional changes.
-      release_notes:
-        - Patch tool rebuilt alongside the 2026.05.07.2 launcher and bundle. No functional changes.
