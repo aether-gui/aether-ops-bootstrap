@@ -41,8 +41,8 @@ helm:
   version: "v3.21.0"
 
 aether_ops:
-  version: "v0.4.5"
-  source: ./artifacts/aether-ops_0.4.5_linux_amd64.tar.gz # local pre-built binary
+  version: "v0.5.4"
+  source: ./artifacts/aether-ops_0.5.4_linux_amd64.tar.gz # local pre-built binary
   # ref: "main"           # build from source at this git ref (mutually exclusive with source)
   # repo: aether-gui/aether-ops
   # frontend_ref: ""      # override frontend submodule (source build only)
@@ -116,7 +116,7 @@ onramp:
 helm_charts:
   - name: sdcore-helm-charts
     repo: https://github.com/omec-project/sdcore-helm-charts.git
-    ref: v4.0.0
+    ref: v4.1.0
 
 # Container images to pre-pull and stage for RKE2's airgap image loader.
 # When auto_extract is true, the builder scans the cloned helm charts for
