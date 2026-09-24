@@ -154,10 +154,25 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 				if err := mgr.Enable(ctx, "rke2-server"); err != nil {
 					return err
 				}
-				if err := mgr.Start(ctx, "rke2-server"); err != nil {
+				// RKE2's unit is Type=notify; a blocking start waits for
+				// READY=1, which can take minutes on large machines importing
+				// dozens of container images. Use --no-block to queue the job
+				// and let waitForReady handle the actual readiness polling.
+				if err := mgr.StartNoBlock(ctx, "rke2-server"); err != nil {
 					return err
 				}
-				log.Printf("  rke2-server started")
+				// Brief pause to let systemd attempt the exec — catches
+				// immediate failures (missing binary, bad config) before
+				// handing off to the longer waitForReady poll.
+				time.Sleep(3 * time.Second)
+				status, err := mgr.Status(ctx, "rke2-server")
+				if err != nil {
+					return fmt.Errorf("checking rke2-server after start: %w", err)
+				}
+				if status.ActiveState == "failed" {
+					return fmt.Errorf("rke2-server failed immediately (sub-state: %s)", status.SubState)
+				}
+				log.Printf("  rke2-server start queued (state: %s/%s)", status.ActiveState, status.SubState)
 				return nil
 			},
 		},

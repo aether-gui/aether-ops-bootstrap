@@ -23,6 +23,7 @@ type UnitStatus struct {
 type Manager interface {
 	DaemonReload(ctx context.Context) error
 	Start(ctx context.Context, unit string) error
+	StartNoBlock(ctx context.Context, unit string) error
 	Stop(ctx context.Context, unit string) error
 	Enable(ctx context.Context, unit string) error
 	Status(ctx context.Context, unit string) (UnitStatus, error)
@@ -39,6 +40,10 @@ func (s *SystemctlManager) DaemonReload(ctx context.Context) error {
 
 func (s *SystemctlManager) Start(ctx context.Context, unit string) error {
 	return runSystemctl(ctx, "start", unit)
+}
+
+func (s *SystemctlManager) StartNoBlock(ctx context.Context, unit string) error {
+	return runSystemctl(ctx, "start", "--no-block", unit)
 }
 
 func (s *SystemctlManager) Stop(ctx context.Context, unit string) error {
@@ -80,13 +85,14 @@ func runSystemctl(ctx context.Context, args ...string) error {
 // MockManager records calls for testing. Each method appends to Calls
 // and returns the error configured in the corresponding Err field.
 type MockManager struct {
-	Calls           []MockCall
-	DaemonReloadErr error
-	StartErr        error
-	StopErr         error
-	EnableErr       error
-	StatusErr       error
-	StatusResult    UnitStatus
+	Calls            []MockCall
+	DaemonReloadErr  error
+	StartErr         error
+	StartNoBlockErr  error
+	StopErr          error
+	EnableErr        error
+	StatusErr        error
+	StatusResult     UnitStatus
 }
 
 // MockCall records a single method invocation on MockManager.
@@ -103,6 +109,11 @@ func (m *MockManager) DaemonReload(ctx context.Context) error {
 func (m *MockManager) Start(ctx context.Context, unit string) error {
 	m.Calls = append(m.Calls, MockCall{Method: "Start", Unit: unit})
 	return m.StartErr
+}
+
+func (m *MockManager) StartNoBlock(ctx context.Context, unit string) error {
+	m.Calls = append(m.Calls, MockCall{Method: "StartNoBlock", Unit: unit})
+	return m.StartNoBlockErr
 }
 
 func (m *MockManager) Stop(ctx context.Context, unit string) error {

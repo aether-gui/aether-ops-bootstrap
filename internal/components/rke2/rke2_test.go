@@ -86,3 +86,42 @@ func TestPlanNilManifestReturnsNoOp(t *testing.T) {
 		t.Error("Plan with nil manifest should return NoOp")
 	}
 }
+
+func TestPlanActionDescriptions(t *testing.T) {
+	m := &bundle.Manifest{
+		Components: bundle.ComponentList{
+			RKE2: &bundle.RKE2Entry{
+				Version: "v1.33.1+rke2r1",
+				Artifacts: []bundle.RKE2Artifact{
+					{Type: "binary", Path: "rke2/rke2.linux-amd64.tar.gz"},
+					{Type: "images", Path: "rke2/rke2-images.linux-amd64.tar.zst"},
+				},
+			},
+		},
+	}
+	c := New(t.TempDir(), m)
+
+	plan, err := c.Plan("", "v1.33.1+rke2r1")
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if plan.NoOp {
+		t.Fatal("Plan should not be NoOp for fresh install")
+	}
+
+	// The "enable and start" action must appear in the plan.
+	var found bool
+	for _, a := range plan.Actions {
+		if a.Description == "enable and start rke2-server" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		descs := make([]string, len(plan.Actions))
+		for i, a := range plan.Actions {
+			descs[i] = a.Description
+		}
+		t.Errorf("plan missing 'enable and start rke2-server' action; got: %v", descs)
+	}
+}

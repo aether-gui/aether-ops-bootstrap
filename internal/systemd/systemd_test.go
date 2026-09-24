@@ -16,6 +16,7 @@ func TestMockManagerRecordsCalls(t *testing.T) {
 
 	_ = m.DaemonReload(ctx)
 	_ = m.Start(ctx, "rke2-server.service")
+	_ = m.StartNoBlock(ctx, "rke2-server.service")
 	_ = m.Enable(ctx, "rke2-server.service")
 	_ = m.Stop(ctx, "rke2-server.service")
 	_, _ = m.Status(ctx, "rke2-server.service")
@@ -23,6 +24,7 @@ func TestMockManagerRecordsCalls(t *testing.T) {
 	want := []MockCall{
 		{Method: "DaemonReload"},
 		{Method: "Start", Unit: "rke2-server.service"},
+		{Method: "StartNoBlock", Unit: "rke2-server.service"},
 		{Method: "Enable", Unit: "rke2-server.service"},
 		{Method: "Stop", Unit: "rke2-server.service"},
 		{Method: "Status", Unit: "rke2-server.service"},
