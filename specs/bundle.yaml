@@ -79,7 +79,7 @@ aether_ops:
 # `airgapped.enabled: true` so `apt: update_cache` calls are gated off.
 onramp:
   repo: https://github.com/opennetworkinglab/aether-onramp.git
-  ref: 13f743ab53b94819678d80f45aeb731d7066c868
+  ref: 53f548fa3b29d390b7f8434d12d52fe05e6938c3
   recurse_submodules: false
   # Packages discovered by the scanner but pre-installed on the target
   # (e.g. the RT kernel is part of the OCUDU ISO profile). Bundling
@@ -119,7 +119,7 @@ onramp:
 helm_charts:
   - name: sdcore-helm-charts
     repo: https://github.com/omec-project/sdcore-helm-charts.git
-    ref: 126ea85
+    ref: 3051ff1
 
 # Container images to pre-pull and stage for RKE2's airgap image loader.
 # When auto_extract is true, the builder scans the cloned helm charts for
