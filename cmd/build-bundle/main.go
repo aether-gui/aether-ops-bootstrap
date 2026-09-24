@@ -169,6 +169,24 @@ func buildOne(specPath, outputPath, lockPath string) error {
 		}
 	}
 
+	// Filter out discovered apt packages the spec marks as pre-installed
+	// on the target (e.g. kernel metapackages installed by the ISO).
+	if onrampScan != nil && spec.Onramp != nil && len(spec.Onramp.DebsExclude) > 0 {
+		excluded := make(map[string]bool, len(spec.Onramp.DebsExclude))
+		for _, name := range spec.Onramp.DebsExclude {
+			excluded[name] = true
+		}
+		var filtered []string
+		for _, pkg := range onrampScan.AptPackages {
+			if excluded[pkg] {
+				log.Printf("excluding discovered deb %s (listed in onramp.debs_exclude)", pkg)
+				continue
+			}
+			filtered = append(filtered, pkg)
+		}
+		onrampScan.AptPackages = filtered
+	}
+
 	effectiveAptSources, discoveredAptSources := mergeAptSources(spec.AptSources, onrampScan)
 
 	// Fetch .deb packages.

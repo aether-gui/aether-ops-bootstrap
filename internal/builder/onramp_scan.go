@@ -583,6 +583,11 @@ func recordStaticValue(raw, filePath, kind string, out map[string]bool, sources 
 		return
 	}
 	if isDynamicValue(value) {
+		if resolved, ok := resolveJinjaDefault(value); ok && resolved != "" && !isDynamicValue(resolved) {
+			out[resolved] = true
+			recordSource(resolved, filePath, sources)
+			return
+		}
 		unresolved[fmt.Sprintf("%s: dynamic %s %q", filePath, kind, value)] = true
 		return
 	}
@@ -768,18 +773,35 @@ func splitInlineNames(raw string) []string {
 	if raw == "" {
 		return nil
 	}
-	if strings.Contains(raw, ",") {
-		parts := strings.Split(raw, ",")
-		out := make([]string, 0, len(parts))
-		for _, p := range parts {
-			p = strings.TrimSpace(p)
-			if p != "" {
-				out = append(out, p)
-			}
-		}
-		return out
+	if !strings.Contains(raw, ",") {
+		return []string{raw}
 	}
-	return []string{raw}
+	// Don't split on commas inside Jinja2 {{ ... }} blocks.
+	var parts []string
+	depth := 0
+	start := 0
+	for i := 0; i < len(raw); i++ {
+		switch {
+		case i+1 < len(raw) && raw[i] == '{' && raw[i+1] == '{':
+			depth++
+			i++
+		case i+1 < len(raw) && raw[i] == '}' && raw[i+1] == '}':
+			if depth > 0 {
+				depth--
+			}
+			i++
+		case raw[i] == ',' && depth == 0:
+			p := strings.TrimSpace(raw[start:i])
+			if p != "" {
+				parts = append(parts, p)
+			}
+			start = i + 1
+		}
+	}
+	if p := strings.TrimSpace(raw[start:]); p != "" {
+		parts = append(parts, p)
+	}
+	return parts
 }
 
 func isLoopItemReference(v string) bool {
@@ -794,6 +816,27 @@ func isLoopItemReference(v string) bool {
 
 func isDynamicValue(v string) bool {
 	return strings.Contains(v, "{{") || strings.Contains(v, "{%")
+}
+
+// jinjaDefaultRe matches a Jinja2 expression whose last filter is
+// `| default('value')` or `| default("value")`, with an optional
+// second boolean argument (e.g. `default('value', true)`). Captures
+// the static fallback. Only simple string literals are extracted;
+// nested Jinja2 or non-string defaults (e.g. default([])) are left
+// unresolved.
+var jinjaDefaultRe = regexp.MustCompile(
+	`^\{\{.*\|\s*default\(\s*['"]([^'"]*)['"]\s*(?:,\s*\w+\s*)?\)\s*\}\}$`,
+)
+
+// resolveJinjaDefault extracts the static fallback from a Jinja2
+// expression ending in `| default('value')`. Returns the fallback and
+// true when the pattern matches; ("", false) otherwise.
+func resolveJinjaDefault(expr string) (string, bool) {
+	m := jinjaDefaultRe.FindStringSubmatch(strings.TrimSpace(expr))
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
 }
 
 func isYAMLFile(path string) bool {

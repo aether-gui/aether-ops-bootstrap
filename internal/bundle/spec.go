@@ -113,6 +113,7 @@ type OnrampSpec struct {
 	Ref               string      `yaml:"ref,omitempty"`                // branch, tag, or SHA; defaults to remote HEAD
 	RecurseSubmodules bool        `yaml:"recurse_submodules,omitempty"` // clone with --recurse-submodules
 	Patches           []FilePatch `yaml:"patches,omitempty"`            // user file overrides applied after the built-in adaptations
+	DebsExclude       []string    `yaml:"debs_exclude,omitempty"`       // discovered apt packages to skip bundling (pre-installed on target)
 }
 
 // FilePatch declares a single file in a cloned tree to override at

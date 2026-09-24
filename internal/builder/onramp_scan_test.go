@@ -206,6 +206,52 @@ func TestScanOnrampDependenciesRequirementsOutsideRepo(t *testing.T) {
 	}
 }
 
+func TestResolveJinjaDefault(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    string
+		wantOK  bool
+	}{
+		{"{{ foo | default('bar') }}", "bar", true},
+		{`{{ foo | default("baz") }}`, "baz", true},
+		{"{{ (x.y | default({})).z | default('fallback') }}", "fallback", true},
+		{"{{ runtime_pkg }}", "", false},                        // no default filter
+		{"{{ foo | default([]) }}", "", false},                  // non-string default
+		{"{{ foo | default(bar) }}", "", false},                 // variable default
+		{"  {{ foo | default('trimmed') }}  ", "trimmed", true},                                                          // whitespace
+		{"{{ (ocudu.dpdk | default({})).rt_kernel_pkg | default('linux-realtime', true) }}", "linux-realtime", true},   // boolean 2nd arg
+		{"{{ foo | default('bar', false) }}", "bar", true},                                                            // boolean 2nd arg false
+	}
+	for _, tt := range tests {
+		got, ok := resolveJinjaDefault(tt.input)
+		if ok != tt.wantOK || got != tt.want {
+			t.Errorf("resolveJinjaDefault(%q) = (%q, %v), want (%q, %v)", tt.input, got, ok, tt.want, tt.wantOK)
+		}
+	}
+}
+
+func TestScanOnrampDependenciesResolvesJinjaDefaults(t *testing.T) {
+	root := t.TempDir()
+
+	writeOnrampScanTestFile(t, filepath.Join(root, "tasks.yml"), `
+- apt:
+    name: "{{ (ocudu.dpdk | default({})).rt_kernel_pkg | default('linux-realtime', true) }}"
+`)
+
+	scan, err := ScanOnrampDependencies(root)
+	if err != nil {
+		t.Fatalf("ScanOnrampDependencies: %v", err)
+	}
+
+	wantApt := []string{"linux-realtime"}
+	if !reflect.DeepEqual(scan.AptPackages, wantApt) {
+		t.Fatalf("AptPackages = %#v, want %#v", scan.AptPackages, wantApt)
+	}
+	if len(scan.Unresolved) != 0 {
+		t.Fatalf("Unresolved = %#v, want empty", scan.Unresolved)
+	}
+}
+
 func writeOnrampScanTestFile(t *testing.T, path, contents string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
