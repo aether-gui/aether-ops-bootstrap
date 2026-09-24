@@ -26,6 +26,9 @@ debs:
   # (pending opennetworkinglab/aether-onramp#183).
   - name: python3-kubernetes
   - name: python3-pip
+  # Intel ice DDP and QAT firmware. Without this, ice NICs enter Safe
+  # Mode on air-gapped hosts and SR-IOV VF creation fails.
+  - name: linux-firmware-intel-misc
 
 rke2:
   version: "v1.36.4+rke2r1"
