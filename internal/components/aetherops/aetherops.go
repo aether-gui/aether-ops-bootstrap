@@ -10,6 +10,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aether-gui/aether-ops-bootstrap/internal/bundle"
@@ -24,6 +25,7 @@ const (
 	servicePath        = "/etc/systemd/system/aether-ops.service"
 	configDir          = "/etc/aether-ops"
 	stateDir           = "/var/lib/aether-ops"
+	envFilePath        = configDir + "/env"
 	onrampPasswordPath = configDir + "/onramp-password"
 	daemonGroup        = "aether-ops"
 	healthURL          = "http://127.0.0.1:8186/healthz"
@@ -112,6 +114,12 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 			},
 		},
 		{
+			Description: "write environment file",
+			Fn: func(ctx context.Context) error {
+				return c.writeEnvFile()
+			},
+		},
+		{
 			Description: fmt.Sprintf("install aether-ops %s", desired),
 			Fn: func(ctx context.Context) error {
 				return c.installFiles(aops)
@@ -145,6 +153,72 @@ func (c *Component) Plan(current, desired string) (components.Plan, error) {
 
 func (c *Component) Apply(ctx context.Context, plan components.Plan) error {
 	return components.ApplyPlan(ctx, c.Name(), plan)
+}
+
+// writeEnvFile merges bootstrap-managed variables into /etc/aether-ops/env
+// (the EnvironmentFile the systemd unit reads). Existing keys not managed
+// by bootstrap (e.g. AETHER_LISTEN written by the ISO installer) are
+// preserved; bootstrap-managed keys are added or updated in place.
+func (c *Component) writeEnvFile() error {
+	updates := map[string]string{}
+	if c.manifest != nil && c.manifest.Components.Onramp != nil {
+		sha := c.manifest.Components.Onramp.ResolvedSHA
+		if sha != "" {
+			updates["AETHER_ONRAMP_VERSION"] = sha
+		}
+	}
+
+	existing, err := os.ReadFile(envFilePath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("reading %s: %w", envFilePath, err)
+	}
+
+	merged := mergeEnvLines(string(existing), updates)
+
+	if err := os.WriteFile(envFilePath, []byte(merged), 0640); err != nil {
+		return fmt.Errorf("writing %s: %w", envFilePath, err)
+	}
+	if err := chgrpDaemon(envFilePath); err != nil {
+		return fmt.Errorf("chgrp %s: %w", envFilePath, err)
+	}
+	log.Printf("  wrote %s", envFilePath)
+	return nil
+}
+
+// mergeEnvLines takes existing env file content and a set of key=value
+// updates. Existing lines whose key appears in updates are replaced
+// in-place; remaining updates are appended. Comments and blank lines
+// are preserved.
+func mergeEnvLines(existing string, updates map[string]string) string {
+	applied := map[string]bool{}
+	var out []string
+
+	// Strip trailing newline so Split doesn't produce a ghost empty line.
+	lines := strings.Split(strings.TrimRight(existing, "\n"), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			out = append(out, line)
+			continue
+		}
+		if idx := strings.IndexByte(trimmed, '='); idx > 0 {
+			key := trimmed[:idx]
+			if val, ok := updates[key]; ok {
+				out = append(out, fmt.Sprintf("%s=%s", key, val))
+				applied[key] = true
+				continue
+			}
+		}
+		out = append(out, line)
+	}
+
+	for key, val := range updates {
+		if !applied[key] {
+			out = append(out, fmt.Sprintf("%s=%s", key, val))
+		}
+	}
+
+	return strings.Join(out, "\n") + "\n"
 }
 
 func (c *Component) installFiles(aops *bundle.AetherOpsEntry) error {

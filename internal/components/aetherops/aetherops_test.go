@@ -138,6 +138,48 @@ func TestWriteOnrampPasswordFile_TightensModeOnRewrite(t *testing.T) {
 	}
 }
 
+func TestMergeEnvLines_PreservesExistingKeys(t *testing.T) {
+	existing := "AETHER_LISTEN=0.0.0.0:8186\n"
+	updates := map[string]string{"AETHER_ONRAMP_VERSION": "abc123"}
+	got := mergeEnvLines(existing, updates)
+	if want := "AETHER_LISTEN=0.0.0.0:8186\nAETHER_ONRAMP_VERSION=abc123\n"; got != want {
+		t.Errorf("mergeEnvLines =\n%q\nwant:\n%q", got, want)
+	}
+}
+
+func TestMergeEnvLines_UpdatesExistingKey(t *testing.T) {
+	existing := "AETHER_ONRAMP_VERSION=old\nAETHER_LISTEN=0.0.0.0:8186\n"
+	updates := map[string]string{"AETHER_ONRAMP_VERSION": "new"}
+	got := mergeEnvLines(existing, updates)
+	if want := "AETHER_ONRAMP_VERSION=new\nAETHER_LISTEN=0.0.0.0:8186\n"; got != want {
+		t.Errorf("mergeEnvLines =\n%q\nwant:\n%q", got, want)
+	}
+}
+
+func TestMergeEnvLines_PreservesCommentsAndInternalBlanks(t *testing.T) {
+	existing := "# ISO late-commands wrote this\n\nAETHER_LISTEN=0.0.0.0:8186\n"
+	updates := map[string]string{"AETHER_ONRAMP_VERSION": "abc123"}
+	got := mergeEnvLines(existing, updates)
+	if want := "# ISO late-commands wrote this\n\nAETHER_LISTEN=0.0.0.0:8186\nAETHER_ONRAMP_VERSION=abc123\n"; got != want {
+		t.Errorf("mergeEnvLines =\n%q\nwant:\n%q", got, want)
+	}
+}
+
+func TestMergeEnvLines_EmptyExisting(t *testing.T) {
+	got := mergeEnvLines("", map[string]string{"AETHER_ONRAMP_VERSION": "abc123"})
+	if want := "\nAETHER_ONRAMP_VERSION=abc123\n"; got != want {
+		t.Errorf("mergeEnvLines =\n%q\nwant:\n%q", got, want)
+	}
+}
+
+func TestMergeEnvLines_NoUpdates(t *testing.T) {
+	existing := "AETHER_LISTEN=0.0.0.0:8186\n"
+	got := mergeEnvLines(existing, map[string]string{})
+	if want := "AETHER_LISTEN=0.0.0.0:8186\n"; got != want {
+		t.Errorf("mergeEnvLines =\n%q\nwant:\n%q", got, want)
+	}
+}
+
 func actionDescriptions(plan components.Plan) []string {
 	out := make([]string, 0, len(plan.Actions))
 	for _, a := range plan.Actions {
