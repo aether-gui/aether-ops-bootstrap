@@ -28,7 +28,7 @@ debs:
   - name: python3-pip
 
 rke2:
-  version: "v1.35.3+rke2r3"
+  version: "v1.36.4+rke2r1"
   # sd-core needs multus (NetworkAttachmentDefinition CRD) alongside
   # canal (default pod network). all-in-one ships only canal, so use
   # core+variant with both variants to pull in multus images.
@@ -38,11 +38,11 @@ rke2:
   #   ↑ optional override; defaults to GitHub releases
 
 helm:
-  version: "v3.21.0"
+  version: "v3.20.0"
 
 aether_ops:
-  version: "v0.5.4"
-  source: ./artifacts/aether-ops_0.5.4_linux_amd64.tar.gz # local pre-built binary
+  version: "v1.0.0"
+  source: ./artifacts/aether-ops_1.0.0_linux_amd64.tar.gz # local pre-built binary
   # ref: "main"           # build from source at this git ref (mutually exclusive with source)
   # repo: aether-gui/aether-ops
   # frontend_ref: ""      # override frontend submodule (source build only)
@@ -79,10 +79,13 @@ aether_ops:
 # `airgapped.enabled: true` so `apt: update_cache` calls are gated off.
 onramp:
   repo: https://github.com/opennetworkinglab/aether-onramp.git
-  # Pinned to an upstream release tag for reproducibility; bump
-  # after reviewing upstream release notes.
-  ref: v2.3.0
+  ref: 13f743ab53b94819678d80f45aeb731d7066c868
   recurse_submodules: false
+  # Packages discovered by the scanner but pre-installed on the target
+  # (e.g. the RT kernel is part of the OCUDU ISO profile). Bundling
+  # these would pull in hundreds of MB of kernel dependencies.
+  debs_exclude:
+    - linux-realtime
 
   # `patches:` overrides files inside the cloned onramp tree before
   # the tree is hashed into the manifest, so the bundle ships the
@@ -116,7 +119,7 @@ onramp:
 helm_charts:
   - name: sdcore-helm-charts
     repo: https://github.com/omec-project/sdcore-helm-charts.git
-    ref: v4.1.0
+    ref: 126ea85
 
 # Container images to pre-pull and stage for RKE2's airgap image loader.
 # When auto_extract is true, the builder scans the cloned helm charts for
@@ -141,14 +144,14 @@ images:
     # are listed explicitly until that scanner exists.
     # See aether-ops-bootstrap issue tracking the OnRamp role
     # image-ref scan.
-    - docker.io/aetherproject/ocudu:rel-0.7.0
-    - docker.io/aetherproject/srsran-ue:rel-0.7.0
+    - docker.io/aetherproject/ocudu:rel-1.0.0
+    - docker.io/aetherproject/srsran-ue:rel-1.0.0
     # Preflight probe used by ocudu/roles/gNB and uEsimulator to
     # verify Docker can see N CPUs before starting workloads.
     # Pinned in deps/ocudu/roles/*/defaults/main.yml as
     # ocudu.docker.preflight.probe_image; airgapped hosts cannot
     # resolve ghcr.io so it must ship in the bundle.
-    - ghcr.io/omec-project/pod-init:rel-1.2.2
+    - ghcr.io/omec-project/pod-init:rel-1.2.3
   exclude:
     # Legacy Docker v1 manifest; go-containerregistry cannot pull these.
     # Dependent services should be pointed at a newer image, or this entry
