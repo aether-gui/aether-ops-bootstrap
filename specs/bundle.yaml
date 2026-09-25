@@ -44,8 +44,8 @@ helm:
   version: "v3.20.0"
 
 aether_ops:
-  version: "v1.0.1"
-  source: ./artifacts/aether-ops_1.0.1_linux_amd64.tar.gz # local pre-built binary
+  version: "v1.0.2"
+  source: ./artifacts/aether-ops_1.0.2_linux_amd64.tar.gz # local pre-built binary
   # ref: "main"           # build from source at this git ref (mutually exclusive with source)
   # repo: aether-gui/aether-ops
   # frontend_ref: ""      # override frontend submodule (source build only)
