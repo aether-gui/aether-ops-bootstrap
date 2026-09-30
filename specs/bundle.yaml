@@ -122,7 +122,7 @@ onramp:
 helm_charts:
   - name: sdcore-helm-charts
     repo: https://github.com/omec-project/sdcore-helm-charts.git
-    ref: 3051ff1
+    ref: v4.1.2
 
 # Container images to pre-pull and stage for RKE2's airgap image loader.
 # When auto_extract is true, the builder scans the cloned helm charts for
