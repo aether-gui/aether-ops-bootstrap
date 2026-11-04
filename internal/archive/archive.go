@@ -44,6 +44,13 @@ func Archive(sourceDir, outputPath string) error {
 			return nil
 		}
 
+		// Symlinks (e.g. documentation cross-refs in vendored repos)
+		// are not needed in the bundle and can point to directories,
+		// which would cause os.Open + io.Copy to fail.
+		if d.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+
 		info, err := d.Info()
 		if err != nil {
 			return err
